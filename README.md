@@ -1,6 +1,6 @@
 # Model Architecture Atlas
 
-A simple static atlas of downloaded model architecture pages.
+A searchable static atlas of downloaded model architecture pages.
 
 The site has one home page, `index.html`, and one self-contained folder per
 model under `models/`. Each model page keeps its own HTML, CSS, scripts,
@@ -8,14 +8,23 @@ diagrams, and local assets.
 
 ## Current Models
 
-- Cosmos World Foundation Models
+The atlas currently links 30 downloaded architecture pages:
+
+- Aurora
+- Chronos-2
+- Cosmos WFM 1.0
+- Cosmos-1.0-Diffusion
 - DeepSeek-V4
+- Discrete Diffusion VLA
+- Evo 2
 - Gemma 4 31B
 - Gemma 4 26B-A4B
 - Gemma 4 E4B
 - GLM-5.1 744B-A69B
 - GPT-OSS 120B
+- Isaac GR00T N1.7
 - Kimi K2.6 1T
+- Liquid LFM2-VL / LFM2.5-VL
 - Ling 2.6 1T
 - LLaDA2.0-flash
 - MiMo-V2.5-Pro
@@ -27,6 +36,9 @@ diagrams, and local assets.
 - Qwen3.6 35B-A3B
 - Qwen3-Omni-30B-A3B-Thinking
 - Sarvam 105B-A13B
+- Stable Diffusion 3 / SDXL
+- UI-TARS-1.5-7B
+- Wan2.2 Video Suite
 - ZAYA1-8B
 
 ## Layout

@@ -396,9 +396,132 @@
     border-radius: var(--kui-radius-sm);
     padding: var(--kui-space-ml);
   }
-  .selfspec-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--kui-space-md); }
-  .selfspec-head h3 { font: var(--kui-h3); letter-spacing: var(--kui-tracking-heading); }
+  .selfspec-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: var(--kui-space-md); flex-wrap: wrap;
+    margin-bottom: var(--kui-space-md);
+  }
+  .selfspec-head h3 { font: var(--kui-h3); letter-spacing: var(--kui-tracking-heading); margin: 0; }
   .selfspec-head .meta { color: var(--kui-fg-muted); font: var(--kui-body); }
+  .selfspec-loop {
+    display: grid; grid-template-columns: minmax(0, 1fr) 300px;
+    gap: var(--kui-space-md);
+  }
+  .spec-window {
+    border: 1px solid var(--kui-border-default);
+    background: #fff;
+  }
+  .spec-lane {
+    display: grid; grid-template-columns: 128px minmax(0, 1fr);
+    min-height: 78px;
+    border-top: 1px solid var(--kui-border-default);
+  }
+  .spec-lane:first-child { border-top: 0; }
+  .spec-label {
+    padding: var(--kui-space-sm);
+    background: var(--kui-n050);
+    border-right: 1px solid var(--kui-border-default);
+    font: var(--kui-overline);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--kui-fg-muted);
+  }
+  .spec-content {
+    padding: var(--kui-space-sm);
+    display: grid;
+    align-content: center;
+    gap: var(--kui-space-xs);
+    min-width: 0;
+  }
+  .token-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .tok {
+    min-width: 42px;
+    height: 30px;
+    padding: 0 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--kui-border-default);
+    background: #F7F7F7;
+    color: var(--kui-fg-strong);
+    font: 500 12px/1 var(--kui-font-mono);
+    white-space: nowrap;
+  }
+  .tok--draft {
+    background: var(--kui-success-bg);
+    border-color: var(--kui-brand-green);
+    color: #2f5d00;
+  }
+  .tok--accepted {
+    background: #E8F4D6;
+    border-color: var(--kui-brand-green);
+  }
+  .tok--rejected {
+    background: #fff;
+    border-style: dashed;
+    color: var(--kui-fg-muted);
+  }
+  .tok-mark {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font: 700 13px/1 var(--kui-font-mono);
+  }
+  .tok-mark--ok { color: var(--kui-success); }
+  .tok-mark--no { color: #DC3528; }
+  .tok-mark--pending { color: var(--kui-fg-disabled); }
+  .spec-caption {
+    color: var(--kui-fg-muted);
+    font: var(--kui-text-sm);
+  }
+  .spec-commit {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--kui-success);
+    font: 500 13px/1.3 var(--kui-font-sans);
+  }
+  .spec-summary {
+    background: var(--kui-n950);
+    color: #C6C6C6;
+    padding: var(--kui-space-md);
+    display: grid;
+    gap: var(--kui-space-sm);
+    align-content: start;
+  }
+  .spec-summary h4 {
+    color: #fff;
+    font: var(--kui-h4);
+    letter-spacing: var(--kui-tracking-heading);
+    margin: 0;
+  }
+  .spec-summary .rule { height: 1px; background: #2a2a2a; }
+  .spec-kv {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    font: var(--kui-text-sm);
+  }
+  .spec-kv dt { color: #8F8F8F; }
+  .spec-kv dd {
+    margin: 0;
+    color: #fff;
+    font-family: var(--kui-font-mono);
+    font-weight: 500;
+  }
+  .spec-note {
+    margin: 0;
+    color: #8F8F8F;
+    font: var(--kui-text-sm);
+    line-height: 1.45;
+  }
 
   /* ============================================================
      VARIANTS
@@ -515,7 +638,7 @@
      UNKNOWNS PANEL
      ============================================================ */
   .unknowns {
-    display: grid; grid-template-columns: 320px 1fr; gap: var(--kui-space-xl);
+    display: grid; grid-template-columns: 280px 1fr; gap: var(--kui-space-xl);
     background: var(--kui-warning-bg);
     border: 1px solid #F3C5A5;
     border-left: 4px solid var(--kui-warning);
@@ -526,7 +649,7 @@
   .unknowns .lead { color: #6b2900; font: var(--kui-body); margin: 0; }
   .unknowns ul {
     list-style: none; padding: 0; margin: 0;
-    display: grid; grid-template-columns: 1fr 1fr; gap: var(--kui-space-sm) var(--kui-space-md);
+    display: grid; grid-template-columns: 1fr; gap: var(--kui-space-sm);
   }
   .unknowns li {
     background: #fff; border: 1px solid #F3C5A5;
@@ -572,6 +695,14 @@
     .backbone-card { grid-template-columns: 1fr; }
     .backbone-cell { border-right: 0; border-bottom: 1px solid var(--kui-border-default); }
     .section-head { grid-template-columns: 1fr; }
+    .selfspec-loop { grid-template-columns: 1fr; }
+    .spec-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .spec-summary h4, .spec-summary .rule, .spec-summary .spec-note { grid-column: 1 / -1; }
+  }
+  @media (max-width: 720px) {
+    .spec-lane { grid-template-columns: 1fr; }
+    .spec-label { border-right: 0; border-bottom: 1px solid var(--kui-border-default); }
+    .spec-summary { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -589,7 +720,7 @@
     <div class="appbar-title">Research <span style="color:#5E5E5E"> / </span> Publications <span style="color:#5E5E5E"> / </span> <strong>Nemotron-Labs-Diffusion</strong></div>
     <div class="appbar-spacer"></div>
     <div class="appbar-meta">
-      <span><span class="pulse"></span> Tech report v1</span>
+      <span><span class="pulse"></span> NVIDIA Research</span>
       <span>May 19, 2026</span>
       <span>NVIDIA Open Model License</span>
     </div>
@@ -635,7 +766,7 @@
         </a>
         <a class="btn" href="https://huggingface.co/collections/nvidia/nemotron-labs-diffusion" target="_blank" rel="noopener">HF collection</a>
         <a class="btn" href="https://huggingface.co/nvidia/Nemotron-Labs-Diffusion-3B" target="_blank" rel="noopener">3B model card</a>
-        <a class="btn" href="https://d1qx31qr3h6wln.cloudfront.net/publications/Nemotron_Diffusion_Tech_Report_v1.pdf?VersionId=db8_EMO8B.vmU26.jr7Le9pN3MqcUDNL" target="_blank" rel="noopener">Tech report PDF · 3.34 MB</a>
+        <a class="btn" href="https://huggingface.co/nvidia/Nemotron-Labs-Diffusion-3B/raw/main/config.json" target="_blank" rel="noopener">3B config JSON</a>
       </div>
     </div>
 
@@ -937,125 +1068,95 @@
         <span class="meta mono">model.linear_spec_generate( prompt_ids, block_length=32 )</span>
       </div>
 
-      <svg viewBox="0 0 1240 320" style="width:100%; height:auto; display:block;" aria-label="Self-speculation per-step flow">
-        <!-- Lane labels -->
-        <g font-family="Roboto Mono" font-size="10" fill="#767676">
-          <text x="0" y="58">PROMPT</text>
-          <text x="0" y="138">DIFFUSION DRAFT</text>
-          <text x="0" y="218">AR VERIFY</text>
-          <text x="0" y="298">COMMIT</text>
-        </g>
+      <div class="selfspec-loop" aria-label="Self-speculation per-step flow">
+        <div class="spec-window">
+          <div class="spec-lane">
+            <div class="spec-label">Prompt</div>
+            <div class="spec-content">
+              <div class="token-row" aria-label="Committed prompt tokens">
+                <span class="tok">The</span>
+                <span class="tok">cat</span>
+                <span class="tok">sat</span>
+                <span class="tok">on</span>
+              </div>
+              <div class="spec-caption">Committed context is already in the KV cache.</div>
+            </div>
+          </div>
 
-        <!-- Horizontal lane separators -->
-        <g stroke="#E3E3E3" stroke-width="1">
-          <line x1="120" y1="80"  x2="1240" y2="80"/>
-          <line x1="120" y1="160" x2="1240" y2="160"/>
-          <line x1="120" y1="240" x2="1240" y2="240"/>
-        </g>
+          <div class="spec-lane">
+            <div class="spec-label">Diffusion draft</div>
+            <div class="spec-content">
+              <div class="token-row" aria-label="Drafted block tokens">
+                <span class="tok tok--draft">the</span>
+                <span class="tok tok--draft">mat</span>
+                <span class="tok tok--draft">and</span>
+                <span class="tok tok--draft">purred</span>
+                <span class="tok tok--draft">in</span>
+                <span class="tok tok--draft">the</span>
+                <span class="tok tok--draft">cool</span>
+                <span class="tok tok--draft">grass</span>
+              </div>
+              <div class="spec-caption"><code class="mono">block_length=32</code> in the official examples; this miniature window shows eight positions.</div>
+            </div>
+          </div>
 
-        <!-- Prompt tokens -->
-        <g>
-          <g font-family="Roboto Mono" font-size="11" fill="#202020">
-            <rect x="130" y="36" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="150" y="56" text-anchor="middle">The</text>
-            <rect x="178" y="36" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="198" y="56" text-anchor="middle">cat</text>
-            <rect x="226" y="36" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="246" y="56" text-anchor="middle">sat</text>
-            <rect x="274" y="36" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="294" y="56" text-anchor="middle">on</text>
-          </g>
-        </g>
+          <div class="spec-lane">
+            <div class="spec-label">AR verify</div>
+            <div class="spec-content">
+              <div class="token-row" aria-label="Verification marks for draft tokens">
+                <span class="tok-mark tok-mark--ok">✓</span>
+                <span class="tok-mark tok-mark--ok">✓</span>
+                <span class="tok-mark tok-mark--ok">✓</span>
+                <span class="tok-mark tok-mark--ok">✓</span>
+                <span class="tok-mark tok-mark--no">✕</span>
+                <span class="tok-mark tok-mark--pending">·</span>
+                <span class="tok-mark tok-mark--pending">·</span>
+                <span class="tok-mark tok-mark--pending">·</span>
+              </div>
+              <div class="spec-caption">The AR pass verifies the proposed block against the same model state with shared KV cache.</div>
+            </div>
+          </div>
 
-        <!-- Draft block (8 positions filled in parallel) -->
-        <g>
-          <text x="330" y="110" font-family="Roboto Mono" font-size="10" fill="#76B900">block_length tokens drafted in 1 forward</text>
-          <g>
-            <rect x="330" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="358" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">the</text>
-            <rect x="390" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="418" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">mat</text>
-            <rect x="450" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="478" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">and</text>
-            <rect x="510" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="538" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">purred</text>
-            <rect x="570" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="598" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">in</text>
-            <rect x="630" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="658" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">the</text>
-            <rect x="690" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="718" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">cool</text>
-            <rect x="750" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="778" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">grass</text>
-          </g>
-        </g>
+          <div class="spec-lane">
+            <div class="spec-label">Commit</div>
+            <div class="spec-content">
+              <div class="token-row" aria-label="Committed longest accepted prefix">
+                <span class="tok">The</span>
+                <span class="tok">cat</span>
+                <span class="tok">sat</span>
+                <span class="tok">on</span>
+                <span class="tok tok--accepted">the</span>
+                <span class="tok tok--accepted">mat</span>
+                <span class="tok tok--accepted">and</span>
+                <span class="tok tok--accepted">purred</span>
+                <span class="tok tok--rejected">re-draft</span>
+              </div>
+              <div class="spec-commit">Longest accepted prefix commits; the rejected suffix is drafted again on the next step.</div>
+            </div>
+          </div>
+        </div>
 
-        <!-- AR verify pass -->
-        <g>
-          <text x="330" y="190" font-family="Roboto Mono" font-size="10" fill="#0D69D4">AR scores each draft token sequentially · shared KV cache</text>
-          <!-- accept dots -->
-          <g>
-            <!-- accept first 4 -->
-            <g font-family="Roboto Mono" font-size="12" font-weight="700">
-              <text x="358" y="216" fill="#007D00" text-anchor="middle">✓</text>
-              <text x="418" y="216" fill="#007D00" text-anchor="middle">✓</text>
-              <text x="478" y="216" fill="#007D00" text-anchor="middle">✓</text>
-              <text x="538" y="216" fill="#007D00" text-anchor="middle">✓</text>
-              <text x="598" y="216" fill="#DC3528" text-anchor="middle">✗</text>
-              <text x="658" y="216" fill="#8F8F8F" text-anchor="middle">·</text>
-              <text x="718" y="216" fill="#8F8F8F" text-anchor="middle">·</text>
-              <text x="778" y="216" fill="#8F8F8F" text-anchor="middle">·</text>
-            </g>
-          </g>
-          <!-- bracket showing accepted prefix -->
-          <g stroke="#007D00" fill="none" stroke-width="1.4">
-            <path d="M330 232 L330 226 L566 226 L566 232"/>
-          </g>
-          <text x="448" y="220" font-family="Roboto Mono" font-size="10" fill="#007D00" text-anchor="middle" opacity="0">accepted prefix: 4</text>
-        </g>
-
-        <!-- Commit -->
-        <g>
-          <g font-family="Roboto Mono" font-size="11" fill="#202020">
-            <rect x="130" y="276" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="150" y="296" text-anchor="middle">The</text>
-            <rect x="178" y="276" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="198" y="296" text-anchor="middle">cat</text>
-            <rect x="226" y="276" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="246" y="296" text-anchor="middle">sat</text>
-            <rect x="274" y="276" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="294" y="296" text-anchor="middle">on</text>
-
-            <rect x="330" y="276" width="56" height="32" fill="#E8F4D6" stroke="#76B900"/><text x="358" y="296" text-anchor="middle">the</text>
-            <rect x="390" y="276" width="56" height="32" fill="#E8F4D6" stroke="#76B900"/><text x="418" y="296" text-anchor="middle">mat</text>
-            <rect x="450" y="276" width="56" height="32" fill="#E8F4D6" stroke="#76B900"/><text x="478" y="296" text-anchor="middle">and</text>
-            <rect x="510" y="276" width="56" height="32" fill="#E8F4D6" stroke="#76B900"/><text x="538" y="296" text-anchor="middle">purred</text>
-
-            <!-- rejected positions shown faded -->
-            <rect x="570" y="276" width="56" height="32" fill="#fff" stroke="#D8D8D8" stroke-dasharray="3 3"/><text x="598" y="296" fill="#8F8F8F" text-anchor="middle">re-draft</text>
-            <rect x="630" y="276" width="56" height="32" fill="#fff" stroke="#D8D8D8" stroke-dasharray="3 3"/>
-            <rect x="690" y="276" width="56" height="32" fill="#fff" stroke="#D8D8D8" stroke-dasharray="3 3"/>
-            <rect x="750" y="276" width="56" height="32" fill="#fff" stroke="#D8D8D8" stroke-dasharray="3 3"/>
-          </g>
-          <text x="900" y="296" font-family="Roboto Mono" font-size="11" fill="#5E5E5E">→ next step</text>
-        </g>
-
-        <!-- Right side step summary -->
-        <g transform="translate(940, 24)">
-          <rect x="0" y="0" width="290" height="280" fill="#0D0D0D"/>
-          <text x="16" y="28" font-family="DM Sans" font-size="11" fill="#76B900">REPORTED · 8B SELF-SPEC</text>
-          <line x1="16" y1="40" x2="274" y2="40" stroke="#2a2a2a"/>
-
-          <g font-family="DM Sans" font-size="12" fill="#C6C6C6">
-            <text x="16" y="68">Acceptance length vs Eagle3</text>
-            <text x="274" y="68" text-anchor="end" font-family="Roboto Mono" font-weight="500" fill="#fff">3.0×</text>
-
-            <text x="16" y="100">Speed-up vs Eagle3 (SGLang)</text>
-            <text x="274" y="100" text-anchor="end" font-family="Roboto Mono" font-weight="500" fill="#fff">2.2×</text>
-
-            <text x="16" y="132">Tok / forward vs Qwen3-8B</text>
-            <text x="274" y="132" text-anchor="end" font-family="Roboto Mono" font-weight="500" fill="#76B900">5.9×</text>
-
-            <text x="16" y="164">SPEED-Bench throughput · GB200</text>
-            <text x="274" y="164" text-anchor="end" font-family="Roboto Mono" font-weight="500" fill="#fff">4×</text>
-          </g>
-          <line x1="16" y1="184" x2="274" y2="184" stroke="#2a2a2a"/>
-          <text x="16" y="206" font-family="DM Sans" font-size="10" fill="#5E5E5E">Speed-of-light · optimal sampler</text>
-          <text x="16" y="226" font-family="DM Sans" font-size="11" fill="#9ACCF2">up to <tspan font-family="Roboto Mono" font-weight="500" fill="#9ACCF2">+76.5%</tspan> tokens / forward</text>
-          <text x="16" y="244" font-family="DM Sans" font-size="11" fill="#9ACCF2">vs self-speculation</text>
-          <text x="16" y="266" font-family="DM Sans" font-size="9" fill="#5E5E5E">Source-reported · NVIDIA Research, May 2026</text>
-        </g>
-      </svg>
+        <aside class="spec-summary" aria-label="Source-reported self-speculation results">
+          <h4>Reported 8B self-spec results</h4>
+          <div class="rule"></div>
+          <dl class="spec-kv">
+            <dt>Acceptance length vs Eagle3</dt><dd>3.0×</dd>
+            <dt>Decode speed-up vs Eagle3</dt><dd>2.2×</dd>
+            <dt>Tokens / forward vs Qwen3-8B</dt><dd>5.9×</dd>
+            <dt>SPEED-Bench throughput</dt><dd>4.0×</dd>
+          </dl>
+          <p class="spec-note">
+            Ratios are source-reported by NVIDIA/Hugging Face. The token contents here are schematic,
+            while the mechanism mirrors the published description: diffusion drafts, AR verifies,
+            and the accepted prefix advances the sequence.
+          </p>
+        </aside>
+      </div>
 
       <div class="bench-note" style="margin-top: var(--kui-space-md); border-radius: var(--kui-radius-sm); border: 1px solid var(--kui-border-default);">
         <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="#5E5E5E" fill="none"/><circle cx="8" cy="5" r="0.8" fill="#5E5E5E"/><line x1="8" y1="7.5" x2="8" y2="11" stroke="#5E5E5E"/></svg>
-        Numbers shown above are illustrative draft contents only — accepted tokens above are
-        a stylization of the typical 8B self-speculation step. See the Benchmarks section for the
-        figures NVIDIA actually reports.
+        Token contents shown above are illustrative only — the accepted prefix is a stylized
+        self-speculation step. See the Benchmarks section for the figures NVIDIA reports.
       </div>
     </div>
   </section>
@@ -1071,9 +1172,10 @@
       </div>
       <p>
         NVIDIA ships base, instruct, and a vision-language variant at the 3B/8B/14B scale
-        points. All run the tri-mode interface. Tokenizer, context length, layer
-        dimensions, and the VLM's vision encoder details are not published on the
-        public Hugging Face pages at the time of writing — see <a href="#unknowns">Open questions</a>.
+        points. Official Hugging Face config files list the dense text stacks as
+        26×3072, 34×4096, and 40×5120, with 32 query heads, 8 KV heads,
+        128-d head size, 131k vocab, YaRN RoPE, and a 32-token diffusion block.
+        Context length differs by checkpoint.
       </p>
     </header>
 
@@ -1091,7 +1193,8 @@
           <div><dt>Reported size</dt><dd>4 B</dd></div>
           <div><dt>Tri-mode</dt><dd>✓</dd></div>
           <div><dt>LoRA drafter</dt><dd>✓</dd></div>
-          <div><dt>Tokenizer</dt><dd class="dim">unspec.</dd></div>
+          <div><dt>Context</dt><dd>262k</dd></div>
+          <div><dt>Text stack</dt><dd>26 × 3072</dd></div>
         </dl>
       </article>
 
@@ -1104,10 +1207,10 @@
           <span class="tag tag--mono">BF16</span>
         </div>
         <dl>
-          <div><dt>Reported size</dt><dd class="dim">unspec.</dd></div>
+          <div><dt>Context</dt><dd>4k</dd></div>
           <div><dt>Tri-mode</dt><dd>✓</dd></div>
           <div><dt>Use case</dt><dd>fine-tune</dd></div>
-          <div><dt>Tokenizer</dt><dd class="dim">unspec.</dd></div>
+          <div><dt>Text stack</dt><dd>26 × 3072</dd></div>
         </dl>
       </article>
 
@@ -1123,8 +1226,8 @@
         <dl>
           <div><dt>Reported size</dt><dd class="dim">≈ 8 B</dd></div>
           <div><dt>Tri-mode</dt><dd>✓</dd></div>
-          <div><dt>vs Qwen3-8B</dt><dd>5.9× tok/fwd</dd></div>
-          <div><dt>GB200 throughput</dt><dd>4× SPEED-Bench</dd></div>
+          <div><dt>Context</dt><dd>262k</dd></div>
+          <div><dt>Text stack</dt><dd>34 × 4096</dd></div>
         </dl>
       </article>
 
@@ -1137,10 +1240,10 @@
           <span class="tag tag--mono">BF16</span>
         </div>
         <dl>
-          <div><dt>Reported size</dt><dd class="dim">unspec.</dd></div>
+          <div><dt>Context</dt><dd>4k</dd></div>
           <div><dt>Tri-mode</dt><dd>✓</dd></div>
           <div><dt>Use case</dt><dd>fine-tune</dd></div>
-          <div><dt>Tokenizer</dt><dd class="dim">unspec.</dd></div>
+          <div><dt>Text stack</dt><dd>34 × 4096</dd></div>
         </dl>
       </article>
 
@@ -1155,8 +1258,8 @@
         <dl>
           <div><dt>Reported size</dt><dd class="dim">≈ 14 B</dd></div>
           <div><dt>Tri-mode</dt><dd>✓</dd></div>
-          <div><dt>Tokenizer</dt><dd class="dim">unspec.</dd></div>
-          <div><dt>Layer dims</dt><dd class="dim">unspec.</dd></div>
+          <div><dt>Context</dt><dd>262k</dd></div>
+          <div><dt>Text stack</dt><dd>40 × 5120</dd></div>
         </dl>
       </article>
 
@@ -1169,10 +1272,10 @@
           <span class="tag tag--mono">BF16</span>
         </div>
         <dl>
-          <div><dt>Reported size</dt><dd class="dim">unspec.</dd></div>
+          <div><dt>Context</dt><dd>262k</dd></div>
           <div><dt>Tri-mode</dt><dd>✓</dd></div>
           <div><dt>Use case</dt><dd>fine-tune</dd></div>
-          <div><dt>Tokenizer</dt><dd class="dim">unspec.</dd></div>
+          <div><dt>Text stack</dt><dd>40 × 5120</dd></div>
         </dl>
       </article>
 
@@ -1186,16 +1289,15 @@
           <span class="tag tag--mono">Multimodal</span>
         </div>
         <p style="margin: 0; color: var(--kui-fg-muted); font: var(--kui-body);">
-          A vision-language variant of the family. The publication confirms a VLM is
-          included; the specific vision encoder (architecture, resolution, pooling),
-          projector design, and total parameter budget for the multimodal stack are
-          not enumerated in the sources used to build this page.
+          A vision-language variant of the family. Its official config identifies the
+          text stack as the 8B configuration and the vision stack as a Pixtral-style
+          encoder with 24 layers, 1024 hidden size, 1540 image size, and 14px patches.
         </p>
         <dl style="grid-template-columns: 1fr 1fr; column-gap: var(--kui-space-md);">
           <div><dt>Tri-mode text path</dt><dd>✓</dd></div>
-          <div><dt>Vision encoder</dt><dd class="dim">unspec.</dd></div>
-          <div><dt>Image resolution</dt><dd class="dim">unspec.</dd></div>
-          <div><dt>Projector</dt><dd class="dim">unspec.</dd></div>
+          <div><dt>Vision encoder</dt><dd>Pixtral</dd></div>
+          <div><dt>Image size</dt><dd>1540</dd></div>
+          <div><dt>Patch size</dt><dd>14</dd></div>
         </dl>
       </article>
     </div>
@@ -1394,36 +1496,30 @@
   <section class="section" id="unknowns">
     <header class="section-head">
       <div>
-        <div class="eyebrow"><span class="dot"></span> Open questions · 06</div>
-        <h2>What this briefing cannot yet confirm.</h2>
+        <div class="eyebrow"><span class="dot"></span> Source caveats · 06</div>
+        <h2>What remains intentionally caveated.</h2>
       </div>
       <p>
-        The following details could not be sourced from the publication landing page or the
-        public model cards consulted for this brief. The technical report PDF is the
-        authoritative reference and likely contains most of these values — but they are not
-        reproduced here verbatim.
+        The publication page, Hugging Face collection, model cards, and public config files
+        establish the architecture dimensions and headline decoding numbers above. The items
+        below are still summarized conservatively because the official public pages do not
+        expose enough detail to restate them as precise implementation facts.
       </p>
     </header>
 
     <div class="unknowns">
       <div>
-        <h3>Verify in the tech report</h3>
+        <h3>Checked official sources</h3>
         <p class="lead">
-          Before quoting any of these facts in downstream materials, open the tech report PDF
-          linked in the hero and confirm the value with its exact wording.
+          NVIDIA Research and Hugging Face links were checked on May 22, 2026. Claims here
+          avoid non-public tables, screenshots, or inferred training details.
         </p>
       </div>
       <ul>
-        <li><span class="q">?</span><div><strong>Tokenizer</strong><span>Vocabulary size, BPE family, special tokens — not on the public model card.</span></div></li>
-        <li><span class="q">?</span><div><strong>Context length</strong><span>Max sequence length and any sliding-window or RoPE scaling settings.</span></div></li>
-        <li><span class="q">?</span><div><strong>Layer dimensions</strong><span>Layer count, hidden size, head count and head dimension at 3B / 8B / 14B.</span></div></li>
-        <li><span class="q">?</span><div><strong>Attention variant</strong><span>GQA / MQA / MHA, FlashAttention version, kernel routing.</span></div></li>
-        <li><span class="q">?</span><div><strong>Training corpus</strong><span>Pretraining mix, total tokens seen, multilingual share, code share.</span></div></li>
-        <li><span class="q">?</span><div><strong>Training schedule</strong><span>Mixing ratio λ between AR and diffusion losses; curriculum across phases.</span></div></li>
-        <li><span class="q">?</span><div><strong>Diffusion specifics</strong><span>Noise / masking schedule, number of denoising steps used at train and inference.</span></div></li>
-        <li><span class="q">?</span><div><strong>Vision encoder</strong><span>VLM image backbone, resolution, patch size, and projector design.</span></div></li>
-        <li><span class="q">?</span><div><strong>Quantization</strong><span>Beyond <code class="mono">w4a16</code> on DGX Spark, supported precisions and recipes.</span></div></li>
-        <li><span class="q">?</span><div><strong>Accuracy benchmarks</strong><span>MMLU / HumanEval / GSM8K-class numbers per variant.</span></div></li>
+        <li><span class="q">!</span><div><strong>Training data and curriculum</strong><span>Official pages do not publish corpus mix, total tokens, or the full AR/diffusion curriculum; config files expose loss fields but not the training recipe.</span></div></li>
+        <li><span class="q">!</span><div><strong>Diffusion sampler details</strong><span>Configs confirm <code class="mono">block_size=32</code> and bidirectional diffusion mode, while full masking/noise schedules and per-task inference step policies are not detailed on the checked pages.</span></div></li>
+        <li><span class="q">!</span><div><strong>Benchmark harness granularity</strong><span>NVIDIA/HF publish headline throughput and acceptance ratios; prompt mix, sampling settings, and full per-benchmark accuracy tables are not reproduced as text here.</span></div></li>
+        <li><span class="q">!</span><div><strong>Deployment recipes</strong><span>The HF highlights cite <code class="mono">w4a16</code>, SGLang, GB200, DGX Spark, and custom CUDA kernels, but not a complete quantization or serving recipe for every checkpoint.</span></div></li>
       </ul>
     </div>
   </section>
@@ -1434,7 +1530,7 @@
       <div>
         Compiled from NVIDIA Research publication page and the
         <code class="mono">Nemotron-Labs-Diffusion-3B</code> Hugging Face model card,
-        fetched May 2026. Visualizations are schematic.
+        checked May 22, 2026. Visualizations are schematic.
       </div>
     </div>
     <div style="text-align: right;">

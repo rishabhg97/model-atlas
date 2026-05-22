@@ -60,6 +60,7 @@
       font-size: clamp(44px, 8vw, 90px);
       line-height: 0.95;
       letter-spacing: 0;
+      overflow-wrap: anywhere;
     }
 
     .summary {
@@ -165,20 +166,22 @@
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
       gap: 16px;
     }
 
     .card {
       display: grid;
-      gap: 18px;
-      min-height: 260px;
-      padding: 20px;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      gap: 16px;
+      min-height: 420px;
+      padding: 16px;
       border: 1px solid var(--line);
       border-radius: 6px;
       background: var(--panel);
       color: inherit;
       text-decoration: none;
+      min-width: 0;
       transition: border-color 160ms ease, transform 160ms ease;
     }
 
@@ -192,6 +195,7 @@
       align-items: flex-start;
       justify-content: space-between;
       gap: 16px;
+      min-width: 0;
     }
 
     h2 {
@@ -199,6 +203,31 @@
       font-size: 24px;
       line-height: 1.1;
       letter-spacing: 0;
+    }
+
+    .company-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .symbol {
+      display: inline-flex;
+      min-height: 26px;
+      align-items: center;
+      padding: 3px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fafaf7;
+      color: var(--ink);
+      font-size: 12px;
+      letter-spacing: 0;
+      text-transform: uppercase;
     }
 
     .mark {
@@ -223,6 +252,35 @@
       color: var(--muted);
     }
 
+    .model-visual {
+      display: grid;
+      width: 100%;
+      min-width: 0;
+      min-height: 138px;
+      overflow: hidden;
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background:
+        linear-gradient(135deg, rgba(17, 18, 22, 0.04), rgba(255, 255, 255, 0.2)),
+        #fafaf7;
+    }
+
+    .model-visual svg {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      height: 138px;
+    }
+
+    .visual-label {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
     .card-meta {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -244,10 +302,13 @@
 
     .card-meta strong {
       display: block;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      overflow-wrap: anywhere;
       font-size: 14px;
+      line-height: 1.25;
+    }
+
+    .card-meta .wide {
+      grid-column: 1 / -1;
     }
 
     .status-row {
@@ -264,10 +325,16 @@
       color: var(--ink);
     }
 
+    .aa-pill {
+      background: #e8f2ff;
+      color: #073a76;
+    }
+
     .status.available { background: #dff2bb; }
     .status.missing { background: #ffe0e7; color: #611124; }
 
     .path {
+      max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -309,10 +376,19 @@
         grid-template-columns: 1fr;
       }
       .filters { justify-content: flex-start; }
+      .grid { grid-template-columns: minmax(0, 1fr); }
       .meter,
       .card-meta {
         grid-template-columns: 1fr;
       }
+      h1 {
+        max-width: 12ch;
+        font-size: 40px;
+        line-height: 1;
+      }
+      .card { min-height: 0; }
+      .model-visual { max-width: 100%; }
+      .model-visual svg { height: 126px; }
     }
   </style>
 </head>
@@ -358,8 +434,21 @@
         href: "models/deepseek-v4/index.html",
         status: "downloaded",
         tags: ["MoE", "mHC", "CSA", "HCA", "benchmarks"],
-        note: "Downloaded Claude-design HTML artifact organized with local styles and assets.",
-        mark: "DS"
+        note: "Hybrid compressed attention and MoE page for V4-Pro and V4-Flash.",
+        mark: "DS",
+        company: "DeepSeek",
+        symbol: "Private",
+        context: "1M tokens",
+        size: "1.6T / 49B active",
+        dataset: "32-33T tokens",
+        aaIndex: "52",
+        aaLabel: "V4 Pro Max",
+        visual: {
+          kind: "moe",
+          title: "Compressed attention MoE",
+          accent: "#76b900",
+          labels: ["CSA", "HCA", "mHC", "MoE"]
+        }
       },
       {
         title: "Qwen2 7B Architecture",
@@ -368,8 +457,21 @@
         href: "models/qwen2-7b/index.html",
         status: "downloaded",
         tags: ["decoder", "attention", "RoPE", "GQA", "benchmarks"],
-        note: "Downloaded Claude-design HTML artifact moved from Downloads.",
-        mark: "Q2"
+        note: "Dense decoder-only Transformer with GQA, SwiGLU, RMSNorm, and RoPE/YARN.",
+        mark: "Q2",
+        company: "Alibaba Cloud",
+        symbol: "BABA / 9988.HK",
+        context: "131K tokens",
+        size: "7.07B dense",
+        dataset: "7T tokens",
+        aaIndex: "Not listed",
+        aaLabel: "Exact Qwen2 7B",
+        visual: {
+          kind: "dense",
+          title: "Dense decoder stack",
+          accent: "#0d69d4",
+          labels: ["GQA", "RoPE", "SwiGLU", "RMS"]
+        }
       },
       {
         title: "Nemotron 3 Nano 30B-A3B Architecture",
@@ -378,8 +480,21 @@
         href: "models/nemotron-3-nano/index.html",
         status: "downloaded",
         tags: ["MoE", "hybrid", "Nano", "NVIDIA", "benchmarks"],
-        note: "Downloaded Claude-design HTML artifact moved from Downloads.",
-        mark: "N3"
+        note: "Hybrid Mamba-Transformer MoE with sparse active parameters for efficient long context.",
+        mark: "N3",
+        company: "NVIDIA",
+        symbol: "NVDA",
+        context: "1M tokens",
+        size: "31.6B / 3.6B active",
+        dataset: "25T pretrain",
+        aaIndex: "24",
+        aaLabel: "Reasoning",
+        visual: {
+          kind: "hybrid",
+          title: "Mamba + attention + MoE",
+          accent: "#76b900",
+          labels: ["Mamba", "GQA", "MoE", "RL"]
+        }
       },
       {
         title: "Nemotron 3 Super 120B-A12B Architecture",
@@ -388,8 +503,21 @@
         href: "models/nemotron-3-super-120b/index.html",
         status: "downloaded",
         tags: ["LatentMoE", "Mamba-2", "MTP", "NVFP4", "benchmarks"],
-        note: "Downloaded Claude-design HTML artifact moved from the atlas root.",
-        mark: "NS"
+        note: "LatentMoE, Mamba-2, MTP, and NVFP4 overview for the Super checkpoint family.",
+        mark: "NS",
+        company: "NVIDIA",
+        symbol: "NVDA",
+        context: "1M tokens",
+        size: "120.6B / 12.7B active",
+        dataset: "25T+ pretrain",
+        aaIndex: "36",
+        aaLabel: "Reasoning",
+        visual: {
+          kind: "latent",
+          title: "LatentMoE hybrid stack",
+          accent: "#7052d8",
+          labels: ["Mamba-2", "Latent", "MTP", "NVFP4"]
+        }
       }
     ];
 
@@ -416,6 +544,13 @@
         page.model,
         page.status,
         page.note,
+        page.company,
+        page.symbol,
+        page.context,
+        page.size,
+        page.dataset,
+        page.aaIndex,
+        page.aaLabel,
         ...(page.tags || [])
       ].join(" ").toLowerCase();
     }
@@ -444,16 +579,132 @@
       }
     }
 
+    function modelVisual(page) {
+      const visual = page.visual || {};
+      const accent = visual.accent || "#76b900";
+      const labels = visual.labels || [];
+      const labelText = (index, fallback) => labels[index] || fallback;
+      const common = `
+        <defs>
+          <linearGradient id="cardGradient-${page.mark}" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0" stop-color="${accent}" stop-opacity="0.22"></stop>
+            <stop offset="1" stop-color="#111216" stop-opacity="0.05"></stop>
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width="420" height="138" rx="6" fill="url(#cardGradient-${page.mark})"></rect>
+        <text x="18" y="28" class="visual-label" fill="#111216">${visual.title || page.model}</text>
+      `;
+
+      if (visual.kind === "dense") {
+        return `
+          <svg viewBox="0 0 420 138" role="img" aria-label="${page.model} architecture thumbnail">
+            ${common}
+            <g fill="#fff" stroke="${accent}" stroke-width="2">
+              <rect x="32" y="62" width="42" height="34" rx="4"></rect>
+              <rect x="92" y="48" width="42" height="62" rx="4"></rect>
+              <rect x="152" y="48" width="42" height="62" rx="4"></rect>
+              <rect x="212" y="48" width="42" height="62" rx="4"></rect>
+              <rect x="272" y="48" width="42" height="62" rx="4"></rect>
+              <rect x="332" y="62" width="42" height="34" rx="4"></rect>
+            </g>
+            <g fill="#111216" font-size="10" font-weight="800" text-anchor="middle">
+              <text x="53" y="83">TOK</text>
+              <text x="113" y="83">${labelText(0, "GQA")}</text>
+              <text x="173" y="83">${labelText(1, "RoPE")}</text>
+              <text x="233" y="83">${labelText(2, "FFN")}</text>
+              <text x="293" y="83">${labelText(3, "Norm")}</text>
+              <text x="353" y="83">LOG</text>
+            </g>
+            <path d="M76 79H90M136 79H150M196 79H210M256 79H270M316 79H330" stroke="#111216" stroke-width="2"></path>
+          </svg>
+        `;
+      }
+
+      if (visual.kind === "latent") {
+        return `
+          <svg viewBox="0 0 420 138" role="img" aria-label="${page.model} architecture thumbnail">
+            ${common}
+            <g fill="#fff" stroke="${accent}" stroke-width="2">
+              <rect x="34" y="50" width="64" height="54" rx="4"></rect>
+              <rect x="118" y="50" width="64" height="54" rx="4"></rect>
+              <rect x="202" y="38" width="88" height="78" rx="4"></rect>
+              <rect x="318" y="50" width="64" height="54" rx="4"></rect>
+            </g>
+            <g stroke="#111216" stroke-width="2" fill="none">
+              <path d="M98 77H118M182 77H202M290 77H318"></path>
+              <path d="M222 56h48M222 77h48M222 98h48"></path>
+            </g>
+            <g fill="#111216" font-size="10" font-weight="800" text-anchor="middle">
+              <text x="66" y="73">${labelText(0, "Mamba")}</text>
+              <text x="66" y="87">state</text>
+              <text x="150" y="80">${labelText(1, "Latent")}</text>
+              <text x="246" y="80">${labelText(2, "MoE")}</text>
+              <text x="350" y="80">${labelText(3, "MTP")}</text>
+            </g>
+          </svg>
+        `;
+      }
+
+      if (visual.kind === "hybrid") {
+        return `
+          <svg viewBox="0 0 420 138" role="img" aria-label="${page.model} architecture thumbnail">
+            ${common}
+            <g stroke="#111216" stroke-width="2" fill="none">
+              <path d="M42 92C82 40 122 40 162 92S242 144 282 92 362 40 392 80"></path>
+            </g>
+            <g fill="#fff" stroke="${accent}" stroke-width="2">
+              <rect x="44" y="52" width="68" height="34" rx="4"></rect>
+              <rect x="136" y="52" width="68" height="34" rx="4"></rect>
+              <rect x="228" y="52" width="68" height="34" rx="4"></rect>
+              <rect x="320" y="52" width="58" height="34" rx="4"></rect>
+            </g>
+            <g fill="#111216" font-size="10" font-weight="800" text-anchor="middle">
+              <text x="78" y="73">${labelText(0, "Mamba")}</text>
+              <text x="170" y="73">${labelText(1, "GQA")}</text>
+              <text x="262" y="73">${labelText(2, "MoE")}</text>
+              <text x="349" y="73">${labelText(3, "RL")}</text>
+            </g>
+          </svg>
+        `;
+      }
+
+      return `
+        <svg viewBox="0 0 420 138" role="img" aria-label="${page.model} architecture thumbnail">
+          ${common}
+          <g fill="#fff" stroke="${accent}" stroke-width="2">
+            <rect x="36" y="56" width="58" height="42" rx="4"></rect>
+            <rect x="122" y="56" width="58" height="42" rx="4"></rect>
+            <rect x="208" y="42" width="74" height="70" rx="4"></rect>
+            <rect x="318" y="56" width="58" height="42" rx="4"></rect>
+          </g>
+          <path d="M94 77H122M180 77H208M282 77H318" stroke="#111216" stroke-width="2"></path>
+          <g fill="#111216" font-size="10" font-weight="800" text-anchor="middle">
+            <text x="65" y="80">${labelText(0, "CSA")}</text>
+            <text x="151" y="80">${labelText(1, "HCA")}</text>
+            <text x="245" y="74">${labelText(2, "mHC")}</text>
+            <text x="245" y="88">mix</text>
+            <text x="347" y="80">${labelText(3, "MoE")}</text>
+          </g>
+        </svg>
+      `;
+    }
+
     function card(page) {
       const link = document.createElement("a");
       link.className = "card";
       link.href = page.href;
       link.innerHTML = `
+        <figure class="model-visual">${modelVisual(page)}</figure>
         <div class="card-top">
           <div>
             <h2>${page.title}</h2>
+            <div class="company-line">
+              <span>${page.company || page.family}</span>
+              <span class="symbol">${page.symbol || "Private"}</span>
+            </div>
             <div class="status-row">
               <span class="status">${page.status || "page"}</span>
+              <span class="status aa-pill">AA ${page.aaIndex || "n/a"}</span>
               <span class="path">${page.href}</span>
             </div>
           </div>
@@ -461,10 +712,11 @@
         </div>
         <p>${page.note || ""}</p>
         <div class="card-meta">
-          <div><span>Family</span><strong>${page.family}</strong></div>
-          <div><span>Model</span><strong>${page.model || page.title}</strong></div>
-          <div><span>Tags</span><strong>${(page.tags || []).slice(0, 3).join(", ") || "HTML"}</strong></div>
-          <div><span>Source</span><strong>${page.status || "local"}</strong></div>
+          <div><span>Context</span><strong>${page.context || "Unknown"}</strong></div>
+          <div><span>Model size</span><strong>${page.size || "Unknown"}</strong></div>
+          <div><span>Dataset size</span><strong>${page.dataset || "Unknown"}</strong></div>
+          <div><span>AA Index</span><strong>${page.aaIndex || "Unknown"} ${page.aaLabel ? `- ${page.aaLabel}` : ""}</strong></div>
+          <div class="wide"><span>Tags</span><strong>${(page.tags || []).join(", ") || "HTML artifact"}</strong></div>
         </div>
       `;
       return link;

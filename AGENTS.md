@@ -39,7 +39,7 @@ models/nemotron-3-nano/index.html
 2. Move the downloaded HTML file to `models/<model-slug>/index.html`.
 3. Copy any referenced assets beside it, preserving relative paths such as `kaizen/` or `styles.css`.
 4. Add a visible back link from the model page to the atlas home. For pages under `models/<model-slug>/`, the link should point to `../../index.html` and use clear text such as `Atlas home`.
-5. Add one entry to the `ATLAS_PAGES` array in the root `index.html`.
+5. Always make a corresponding change to the root `index.html`: add one `ATLAS_PAGES` entry with the model page `href`, so homepage linkage is preserved for every new model file.
 6. Verify the root atlas page and the new model page return HTTP 200 from the local static server.
 7. After adding a new model file, commit the atlas update and push it to the remote branch.
 

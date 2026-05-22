@@ -1,0 +1,1825 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZAYA1-8B Architecture</title>
+<link rel="stylesheet" href="kaizen/colors_and_type.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--kui-bg-canvas); color: var(--kui-fg-strong); font-family: var(--kui-font-sans); }
+  body { font: var(--kui-body); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-decoration: none; }
+  code { font-family: var(--kui-font-mono); font-size: 12px; background: var(--kui-n050); padding: 1px 5px; }
+
+  /* per-mechanism palette */
+  :root {
+    --c-cca:      #0D69D4;   /* Compressed Convolutional Attention */
+    --c-cca-bg:   #E9F4FB;
+    --c-cca-dk:   #08498F;
+    --c-rtr:      #7C3AED;   /* ZAYA1 Router */
+    --c-rtr-bg:   #F1ECFB;
+    --c-rtr-dk:   #5B21B6;
+    --c-moe:      #76B900;   /* MoE / experts (brand green) */
+    --c-moe-bg:   #E8F4D6;
+    --c-moe-dk:   #5E9600;
+    --c-res:      #1FA18D;   /* Residual scaling */
+    --c-res-bg:   #E6F5F2;
+    --c-res-dk:   #156D5F;
+    --c-rsa:      #C54600;   /* Markovian RSA / TTC */
+    --c-rsa-bg:   #FDEFE6;
+    --c-rsa-dk:   #8F3300;
+    --c-amd:      #B23A48;   /* AMD MI300X */
+    --c-amd-bg:   #FCEBEE;
+    --c-amd-dk:   #7A1F2A;
+    --c-rl:       #D97757;   /* RL cascade */
+    --c-rl-bg:    #FBEEE5;
+    --c-rl-dk:    #8C3F22;
+    --c-norm:     #5E5E5E;
+  }
+
+  /* top bar */
+  .top-bar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 32px;
+    background: #000; color: #fff;
+    border-bottom: 4px solid var(--kui-brand-green);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .top-bar .wordmark { height: 22px; }
+  .top-bar .divider { width: 1px; height: 18px; background: rgba(255,255,255,0.25); }
+  .top-bar h1 { font: 500 15px/1 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0; }
+  .top-bar .home-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border: 1px solid rgba(255,255,255,0.25);
+    font: var(--kui-text-sm); color: rgba(255,255,255,0.85);
+    transition: border-color 120ms ease-out, background 120ms ease-out;
+  }
+  .top-bar .home-link:hover { border-color: var(--kui-brand-green); background: rgba(118,185,0,0.1); color: #fff; }
+  .top-bar .home-link::before { content: "\2190"; }
+  .top-bar .meta { margin-left: auto; display: flex; gap: 24px; font: var(--kui-text-sm); color: rgba(255,255,255,0.7); }
+  .top-bar .meta b { color: #fff; font-weight: 500; }
+
+  /* shell */
+  .shell { display: grid; grid-template-columns: 240px 1fr; min-height: calc(100vh - 56px); }
+  @media (max-width: 1100px) { .shell { grid-template-columns: 1fr; } .sidebar { display: none; } }
+
+  .sidebar {
+    position: sticky; top: 56px; align-self: start; height: calc(100vh - 56px);
+    background: #fff; border-right: 1px solid var(--kui-border-default);
+    padding: 24px 0; overflow-y: auto;
+  }
+  .sidebar .nav-label {
+    padding: 0 24px 8px; font-size: 10px; color: var(--kui-fg-muted);
+    letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500;
+  }
+  .sidebar .nav-label + .nav-label { margin-top: 20px; }
+  .sidebar nav a {
+    display: flex; align-items: baseline; gap: 12px;
+    padding: 7px 24px; font-size: 13px; color: var(--kui-fg-default);
+    border-left: 2px solid transparent;
+    transition: background 120ms ease-out, border-color 120ms ease-out;
+  }
+  .sidebar nav a:hover { background: var(--kui-n050); }
+  .sidebar nav a.active { border-left-color: var(--kui-brand-green); background: var(--kui-n050); color: var(--kui-fg-strong); font-weight: 500; }
+  .sidebar nav a .idx { font-family: var(--kui-font-mono); color: var(--kui-fg-muted); font-size: 10px; width: 18px; }
+  .sidebar .source-box { padding: 16px 24px 0; font-size: 11px; color: var(--kui-fg-muted); line-height: 1.55; border-top: 1px solid var(--kui-border-default); margin-top: 24px; }
+  .sidebar .source-box a { color: var(--c-cca); }
+
+  /* main */
+  .main { min-width: 0; }
+  section { padding: 64px 56px; border-bottom: 1px solid var(--kui-border-default); }
+  @media (max-width: 700px) { section { padding: 48px 24px; } }
+  section:last-of-type { border-bottom: 0; }
+
+  .sec-head { max-width: 920px; margin-bottom: 32px; }
+  .sec-head .num {
+    font: var(--kui-overline); letter-spacing: 0.15em; color: var(--kui-fg-muted);
+    text-transform: uppercase; margin-bottom: 10px;
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .sec-head .num::before { content: ""; width: 24px; height: 1px; background: var(--kui-brand-green); display: inline-block; }
+  .sec-head h2 { font: 500 32px/1.15 var(--kui-font-sans); letter-spacing: -0.5px; margin: 0 0 12px; }
+  .sec-head p.lede { font-size: 16px; line-height: 1.55; color: var(--kui-fg-default); margin: 0; max-width: 72ch; }
+  .sec-head p.lede b { font-weight: 500; color: var(--kui-fg-strong); }
+  .sec-head p.lede em { font-style: italic; color: var(--kui-fg-default); }
+
+  /* hero */
+  .hero { background: #fff; padding: 56px 56px 48px; border-bottom: 1px solid var(--kui-border-default); position: relative; }
+  .hero::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 6px; background: var(--kui-brand-green); }
+  .hero .eyebrow { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.15em; color: var(--kui-fg-muted); margin-bottom: 16px; }
+  .hero h2 { font: 500 44px/1.05 var(--kui-font-sans); letter-spacing: -0.75px; margin: 0 0 20px; max-width: 24ch; }
+  .hero h2 .accent { color: var(--kui-brand-green); }
+  .hero h2 .vio { color: var(--c-rtr-dk); }
+  .hero h2 .amd { color: var(--c-amd-dk); }
+  .hero .lede { font-size: 17px; line-height: 1.55; color: var(--kui-fg-default); max-width: 78ch; margin: 0 0 32px; }
+  .hero .lede b { font-weight: 500; color: var(--kui-fg-strong); }
+
+  .badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 32px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; font: 12px/1 var(--kui-font-mono);
+    border: 1px solid var(--kui-border-default); background: #fff; color: var(--kui-fg-default);
+  }
+  .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--kui-fg-default); }
+  .badge.brand { border-color: var(--kui-brand-green); background: var(--c-moe-bg); color: var(--c-moe-dk); } .badge.brand .dot { background: var(--c-moe-dk); }
+  .badge.cca { border-color: var(--c-cca); color: var(--c-cca); background: var(--c-cca-bg); } .badge.cca .dot { background: var(--c-cca); }
+  .badge.rtr { border-color: var(--c-rtr); color: var(--c-rtr-dk); background: var(--c-rtr-bg); } .badge.rtr .dot { background: var(--c-rtr); }
+  .badge.res { border-color: var(--c-res); color: var(--c-res-dk); background: var(--c-res-bg); } .badge.res .dot { background: var(--c-res); }
+  .badge.rsa { border-color: var(--c-rsa); color: var(--c-rsa); background: var(--c-rsa-bg); } .badge.rsa .dot { background: var(--c-rsa); }
+  .badge.amd { border-color: var(--c-amd); color: var(--c-amd-dk); background: var(--c-amd-bg); } .badge.amd .dot { background: var(--c-amd); }
+
+  .hero-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); }
+  @media (max-width: 1100px) { .hero-stats { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 700px) { .hero-stats { grid-template-columns: repeat(2, 1fr); } }
+  .hero-stats .stat { background: #fff; padding: 18px 18px 16px; position: relative; }
+  .hero-stats .label { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.1em; color: var(--kui-fg-muted); margin-bottom: 8px; font-size: 10px; }
+  .hero-stats .value { font: 500 22px/1 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .hero-stats .value small { font: 400 13px/1 var(--kui-font-sans); color: var(--kui-fg-muted); margin-left: 4px; letter-spacing: 0; }
+  .hero-stats .value.unk { color: var(--kui-fg-muted); font-style: italic; font-size: 13px; font-weight: 400; }
+  .hero-stats .sub { font-size: 11px; color: var(--kui-fg-muted); margin-top: 6px; font-family: var(--kui-font-mono); }
+
+  .hero-extras { margin-top: 32px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 1100px) { .hero-extras { grid-template-columns: 1fr; } }
+  .extra-card { border: 1px solid var(--kui-border-default); padding: 18px; background: #fff; }
+  .extra-card h5 { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.1em; color: var(--kui-fg-muted); margin: 0 0 10px; font-size: 10px; }
+  .extra-card .row { display: flex; flex-wrap: wrap; gap: 4px; }
+  .extra-card .chip {
+    display: inline-flex; align-items: center; padding: 3px 8px;
+    font: 12px/1.4 var(--kui-font-mono); background: var(--kui-n050); border: 1px solid var(--kui-border-default);
+  }
+  .extra-card .chip.brand { background: var(--c-moe-bg); border-color: var(--kui-brand-green); color: var(--c-moe-dk); }
+  .extra-card .chip.amd { background: var(--c-amd-bg); border-color: var(--c-amd); color: var(--c-amd-dk); }
+  .extra-card .chip.vio { background: var(--c-rtr-bg); border-color: var(--c-rtr); color: var(--c-rtr-dk); }
+  .extra-card .chip.rsa { background: var(--c-rsa-bg); border-color: var(--c-rsa); color: var(--c-rsa-dk); }
+
+  /* tagline strip under hero */
+  .moeplus-strip {
+    margin-top: 32px;
+    background: var(--kui-n050);
+    border: 1px solid var(--kui-border-default);
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px; background-color: var(--kui-border-default);
+  }
+  @media (max-width: 900px) { .moeplus-strip { grid-template-columns: 1fr; } }
+  .moeplus-strip .col { background: #fff; padding: 18px 20px; }
+  .moeplus-strip .col .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; margin-bottom: 6px; }
+  .moeplus-strip .col.cca .k { color: var(--c-cca-dk); }
+  .moeplus-strip .col.rtr .k { color: var(--c-rtr-dk); }
+  .moeplus-strip .col.res .k { color: var(--c-res-dk); }
+  .moeplus-strip .col h6 { font: 500 15px/1.25 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0 0 6px; }
+  .moeplus-strip .col p { font: 12px/1.5 var(--kui-font-sans); color: var(--kui-fg-default); margin: 0; }
+
+  /* forward-pass band */
+  .pass {
+    display: grid; grid-template-columns: repeat(6, 1fr);
+    background: #fff; border: 1px solid var(--kui-border-default);
+  }
+  @media (max-width: 1100px) { .pass { grid-template-columns: repeat(2, 1fr); } }
+  .pass .step { padding: 20px 18px; border-right: 1px solid var(--kui-border-default); border-bottom: 1px solid transparent; position: relative; }
+  .pass .step:last-child { border-right: 0; }
+  @media (max-width: 1100px) { .pass .step:nth-child(2n) { border-right: 0; } .pass .step { border-bottom: 1px solid var(--kui-border-default); } }
+  .pass .step.stack { background: #FAFAFA; }
+  .pass .step .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; color: var(--kui-fg-muted); font-size: 10px; margin-bottom: 6px; }
+  .pass .step .t { font: 500 15px/1.25 var(--kui-font-sans); letter-spacing: -0.25px; margin-bottom: 6px; }
+  .pass .step .d { font: 11px/1.45 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .pass .step .badge-mini { display: inline-block; margin-top: 8px; font: 10px/1 var(--kui-font-mono); padding: 3px 6px; background: var(--kui-n050); border: 1px solid var(--kui-border-default); color: var(--kui-fg-default); }
+
+  /* layer ribbon */
+  .ribbon-wrap { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .ribbon-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; margin-bottom: 16px; gap: 12px; }
+  .ribbon-head h4 { font: 500 18px/1.2 var(--kui-font-sans); margin: 0; letter-spacing: -0.25px; }
+  .ribbon-head .key { display: flex; flex-wrap: wrap; gap: 14px; font: var(--kui-text-sm); color: var(--kui-fg-default); }
+  .ribbon-head .key span { display: inline-flex; align-items: center; gap: 6px; }
+  .ribbon-head .key i { width: 12px; height: 12px; display: inline-block; }
+  .ribbon { display: grid; grid-template-columns: repeat(40, 1fr); gap: 3px; height: 124px; align-items: stretch; }
+  .ribbon .cell { position: relative; }
+  .ribbon .cell .attn { width: 100%; height: 60px; background: var(--c-cca); }
+  .ribbon .cell .ffn  { width: 100%; height: 40px; background: var(--c-moe); margin-top: 2px; }
+  .ribbon .cell .num  { position: absolute; bottom: -16px; left: 0; right: 0; text-align: center; font: 9px/1 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .ribbon-notes { margin-top: 36px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 1100px) { .ribbon-notes { grid-template-columns: repeat(2, 1fr); } }
+  .ribbon-notes .note { padding: 14px 16px; border: 1px solid var(--kui-border-default); }
+  .ribbon-notes .note .h { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; color: var(--kui-fg-muted); margin-bottom: 6px; font-size: 10px; }
+  .ribbon-notes .note .v { font: 500 22px/1 var(--kui-font-sans); margin-bottom: 4px; letter-spacing: -0.25px; }
+  .ribbon-notes .note .l { font: 12px/1.45 var(--kui-font-sans); color: var(--kui-fg-default); }
+  .ribbon-notes .note.A .v { color: var(--c-cca); }
+  .ribbon-notes .note.M .v { color: var(--c-moe-dk); }
+  .ribbon-notes .note.R .v { color: var(--c-rtr-dk); }
+  .ribbon-notes .note.T .v { color: var(--c-res-dk); }
+
+  /* block diagram */
+  .block-svg { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .block-svg h4 { font: 500 14px/1.2 var(--kui-font-sans); margin: 0 0 4px; letter-spacing: -0.25px; }
+  .block-svg .ann { font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); margin-bottom: 12px; }
+  .block-svg svg { display: block; width: 100%; height: auto; max-width: 720px; margin: 0 auto; }
+
+  /* deep dives */
+  .deep { background: #fff; border: 1px solid var(--kui-border-default); }
+  .deep-head { padding: 22px 26px; display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid var(--kui-border-default); }
+  .deep-head .e { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; color: var(--kui-fg-muted); font-size: 10px; margin-bottom: 4px; }
+  .deep-head h3 { font: 500 22px/1.15 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0; }
+  .deep-head .strip { width: 36px; height: 4px; }
+  .deep-body { display: grid; grid-template-columns: 1.4fr 1fr; gap: 0; }
+  @media (max-width: 1100px) { .deep-body { grid-template-columns: 1fr; } }
+  .deep-body .diagram { padding: 28px; border-right: 1px solid var(--kui-border-default); background: var(--kui-bg-canvas); }
+  @media (max-width: 1100px) { .deep-body .diagram { border-right: 0; border-bottom: 1px solid var(--kui-border-default); } }
+  .deep-body .side { padding: 28px; }
+  .deep-body .side p { font-size: 14px; line-height: 1.55; color: var(--kui-fg-default); margin: 0 0 14px; }
+  .deep-body .side p b { font-weight: 500; color: var(--kui-fg-strong); }
+  .spec-grid { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; padding-top: 14px; border-top: 1px solid var(--kui-border-default); font: 13px/1.4 var(--kui-font-sans); }
+  .spec-grid .k { color: var(--kui-fg-muted); }
+  .spec-grid .v { font: 500 13px/1.4 var(--kui-font-mono); color: var(--kui-fg-strong); text-align: right; }
+  .spec-grid .v.unk { color: var(--kui-fg-muted); font-style: italic; font-weight: 400; }
+
+  /* math panel */
+  .math-panel { background: var(--kui-n050); border: 1px solid var(--kui-border-default); padding: 16px; margin-top: 16px; font: 13px/1.65 var(--kui-font-mono); color: var(--kui-fg-strong); }
+  .math-panel .lbl { color: var(--kui-fg-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; font-family: var(--kui-font-sans); }
+  .math-panel .eq { padding: 4px 0; }
+  .math-panel .eq b.cca { color: var(--c-cca); font-weight: 700; }
+  .math-panel .eq b.rtr { color: var(--c-rtr-dk); font-weight: 700; }
+  .math-panel .eq b.moe { color: var(--c-moe-dk); font-weight: 700; }
+  .math-panel .eq b.res { color: var(--c-res-dk); font-weight: 700; }
+  .math-panel .comment { color: var(--kui-fg-muted); font-size: 11px; }
+
+  /* MoE viz */
+  .moe-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .moe-grid { grid-template-columns: 1fr; } }
+  .moe-svg { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .moe-stats { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+  .moe-stats .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 10px 0; border-top: 1px solid var(--kui-border-subtle); }
+  .moe-stats .row:first-child { border-top: 0; padding-top: 0; }
+  .moe-stats .row .k { font: 13px/1.3 var(--kui-font-sans); color: var(--kui-fg-default); }
+  .moe-stats .row .k small { display: block; color: var(--kui-fg-muted); font-family: var(--kui-font-mono); font-size: 11px; margin-top: 2px; }
+  .moe-stats .row .v { font: 500 20px/1 var(--kui-font-sans); letter-spacing: -0.25px; color: var(--c-moe-dk); text-align: right; }
+  .moe-stats .row .v.unk { color: var(--kui-fg-muted); font-style: italic; font-size: 13px; font-weight: 400; }
+  .moe-stats .row .v small { font: 400 12px/1 var(--kui-font-mono); color: var(--kui-fg-muted); margin-left: 4px; }
+
+  .experts-grid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; margin-top: 16px; }
+  .experts-grid .ex { aspect-ratio: 1 / 1; background: var(--kui-n100); position: relative; }
+  .experts-grid .ex .lbl { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 10px/1 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .experts-grid .ex.r { background: var(--c-moe); }
+  .experts-grid .ex.r .lbl { color: #fff; }
+  .experts-legend { font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 12px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .experts-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .experts-legend i { width: 10px; height: 10px; display: inline-block; }
+
+  /* RL cascade pipe */
+  .pipe { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; background: #fff; border: 1px solid var(--kui-border-default); }
+  @media (max-width: 1100px) { .pipe { grid-template-columns: repeat(2, 1fr); } }
+  .pipe .step { padding: 18px 16px; border-right: 1px solid var(--kui-border-default); position: relative; }
+  .pipe .step:last-child { border-right: 0; }
+  @media (max-width: 1100px) { .pipe .step:nth-child(2n) { border-right: 0; } .pipe .step { border-bottom: 1px solid var(--kui-border-default); } }
+  .pipe .step .num { font: 11px/1 var(--kui-font-mono); color: var(--c-rl); font-weight: 700; }
+  .pipe .step h6 { font: 500 14px/1.2 var(--kui-font-sans); margin: 6px 0 6px; letter-spacing: -0.25px; }
+  .pipe .step p { font: 12px/1.45 var(--kui-font-sans); color: var(--kui-fg-default); margin: 0; }
+  .pipe .step .vol { font: 10px/1 var(--kui-font-mono); color: var(--kui-fg-muted); display: inline-block; margin-top: 8px; padding: 3px 6px; background: var(--kui-n050); border: 1px solid var(--kui-border-default); }
+  .pipe .step .vol.brand { background: var(--c-moe-bg); border-color: var(--kui-brand-green); color: var(--c-moe-dk); }
+  .pipe .step .vol.rl { background: var(--c-rl-bg); border-color: var(--c-rl); color: var(--c-rl-dk); }
+  .pipe .step .vol.unk { color: var(--kui-fg-muted); font-style: italic; }
+
+  /* pretraining schedule table */
+  .schedule { background: #fff; border: 1px solid var(--kui-border-default); }
+  .schedule .row { display: grid; grid-template-columns: 90px 1fr 1.4fr 110px 90px 90px; padding: 14px 18px; border-bottom: 1px solid var(--kui-border-default); align-items: center; gap: 12px; }
+  .schedule .row.head { background: var(--kui-n050); font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.1em; color: var(--kui-fg-muted); font-size: 10px; }
+  .schedule .row.head > div { padding: 0; }
+  .schedule .row:last-child { border-bottom: 0; }
+  .schedule .row .phase { font: 500 14px/1.25 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .schedule .row .phase small { display: block; color: var(--kui-fg-muted); font-family: var(--kui-font-mono); font-size: 11px; margin-top: 3px; font-weight: 400; letter-spacing: 0; }
+  .schedule .row .emph { font: 13px/1.5 var(--kui-font-sans); color: var(--kui-fg-default); }
+  .schedule .row .num { font: 500 16px/1 var(--kui-font-mono); color: var(--kui-fg-strong); }
+  .schedule .row .num small { display: block; color: var(--kui-fg-muted); font-size: 10px; margin-top: 3px; }
+  .schedule .row .ctx-bar { display: flex; align-items: center; gap: 6px; }
+  .schedule .row .ctx-bar .b { height: 8px; background: var(--c-cca); display: inline-block; }
+  @media (max-width: 1100px) { .schedule .row { grid-template-columns: 1fr 1fr; row-gap: 6px; } .schedule .row.head { display: none; } .schedule .row .emph, .schedule .row .ctx-bar { grid-column: 1 / -1; } }
+
+  /* data mix bars */
+  .mix-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 20px; }
+  .mix-card h5 { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; color: var(--kui-fg-muted); font-size: 10px; margin: 0 0 14px; }
+  .mix-row { display: grid; grid-template-columns: 1fr 90px 64px; gap: 12px; align-items: center; padding: 6px 0; font-size: 13px; }
+  .mix-row .lbl { color: var(--kui-fg-default); }
+  .mix-row .bar { height: 8px; background: var(--kui-n100); position: relative; }
+  .mix-row .bar > div { height: 100%; background: var(--c-cca); }
+  .mix-row .val { font: 500 13px/1 var(--kui-font-mono); color: var(--kui-fg-strong); text-align: right; }
+  .mix-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .mix-pair { grid-template-columns: 1fr; } }
+
+  /* Markovian RSA viz */
+  .rsa-wrap { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .rsa-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .rsa-grid { grid-template-columns: 1fr; } }
+  .rsa-side { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .rsa-side h5 { font: 500 15px/1.25 var(--kui-font-sans); margin: 0 0 4px; letter-spacing: -0.25px; }
+  .rsa-side .sub { font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); margin-bottom: 14px; }
+  .rsa-side ul { margin: 0; padding: 0 0 0 16px; }
+  .rsa-side ul li { font: 13px/1.55 var(--kui-font-sans); color: var(--kui-fg-default); margin-bottom: 8px; }
+  .rsa-side ul li b { font-weight: 500; color: var(--kui-fg-strong); }
+
+  /* AMD hardware panel */
+  .hw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .hw-grid { grid-template-columns: 1fr; } }
+  .hw-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .hw-card h4 { font: 500 16px/1.25 var(--kui-font-sans); margin: 0 0 6px; letter-spacing: -0.25px; }
+  .hw-card .sub { font: 12px/1.4 var(--kui-font-sans); color: var(--kui-fg-muted); margin-bottom: 16px; }
+  .hw-row { display: grid; grid-template-columns: 130px 1fr; gap: 12px; padding: 8px 0; border-top: 1px solid var(--kui-border-subtle); font-size: 13px; align-items: baseline; }
+  .hw-row:first-of-type { border-top: 0; }
+  .hw-row .k { color: var(--kui-fg-muted); }
+  .hw-row .v { font: 500 13px/1.4 var(--kui-font-mono); color: var(--kui-fg-strong); }
+  .hw-row .v.unk { color: var(--kui-fg-muted); font-style: italic; font-weight: 400; }
+  .node-grid { display: grid; grid-template-columns: repeat(32, 1fr); gap: 2px; margin-top: 14px; }
+  .node-grid .nd { aspect-ratio: 1 / 1; background: var(--c-amd); opacity: 0.85; }
+
+  /* benchmarks */
+  .bench-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 1100px) { .bench-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 700px) { .bench-grid { grid-template-columns: 1fr; } }
+  .bench-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 20px; }
+  .bench-card h5 { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; color: var(--kui-fg-muted); font-size: 10px; margin: 0 0 12px; }
+  .bench-row { display: grid; grid-template-columns: 1fr 84px 56px; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--kui-border-subtle); font-size: 13px; }
+  .bench-row:first-of-type { border-top: 0; padding-top: 0; }
+  .bench-row .lbl { color: var(--kui-fg-default); }
+  .bench-row .bar { height: 6px; background: var(--kui-n100); position: relative; }
+  .bench-row .bar > div { height: 100%; background: var(--c-moe); }
+  .bench-row .bar > div.cca { background: var(--c-cca); }
+  .bench-row .bar > div.rsa { background: var(--c-rsa); }
+  .bench-row .val { font: 500 13px/1 var(--kui-font-mono); color: var(--kui-fg-strong); text-align: right; }
+  .bench-row .val.boost { color: var(--c-rsa); }
+
+  /* head-to-head */
+  .vs-wrap { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .vs-wrap h4 { font: 500 16px/1.25 var(--kui-font-sans); margin: 0 0 6px; letter-spacing: -0.25px; }
+  .vs-wrap .sub { font: 12px/1.4 var(--kui-font-sans); color: var(--kui-fg-muted); margin-bottom: 16px; }
+  .vs-key { display: flex; gap: 16px; flex-wrap: wrap; font: 11px/1 var(--kui-font-mono); color: var(--kui-fg-muted); margin-bottom: 12px; }
+  .vs-key span { display: inline-flex; align-items: center; gap: 6px; }
+  .vs-key i { width: 10px; height: 10px; display: inline-block; }
+  .vs-row { display: grid; grid-template-columns: 220px 1fr 110px; gap: 14px; align-items: center; padding: 12px 0; border-top: 1px solid var(--kui-border-subtle); }
+  .vs-row:first-of-type { border-top: 0; }
+  .vs-row .lbl { font: 13px/1.3 var(--kui-font-sans); }
+  .vs-row .lbl small { display: block; color: var(--kui-fg-muted); font-family: var(--kui-font-mono); font-size: 11px; margin-top: 2px; }
+  .vs-row .bars { display: flex; flex-direction: column; gap: 4px; }
+  .vs-row .bars .b { height: 14px; background: var(--kui-n100); position: relative; display: flex; align-items: center; }
+  .vs-row .bars .b > div { height: 100%; }
+  .vs-row .bars .b > div.k { background: var(--c-moe); }
+  .vs-row .bars .b > div.p1 { background: var(--kui-fg-muted); opacity: 0.65; }
+  .vs-row .bars .b > div.p2 { background: var(--kui-fg-muted); opacity: 0.35; }
+  .vs-row .bars .b > div.p3 { background: var(--kui-fg-muted); opacity: 0.5; }
+  .vs-row .bars .b span { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font: 10px/1 var(--kui-font-mono); color: var(--kui-fg-strong); }
+  .vs-row .val { text-align: right; font: 500 16px/1 var(--kui-font-mono); color: var(--c-moe-dk); }
+  .vs-row .val small { display: block; color: var(--kui-fg-muted); font-size: 11px; margin-top: 4px; font-weight: 400; }
+
+  /* caveats */
+  .caveats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  @media (max-width: 1100px) { .caveats { grid-template-columns: 1fr; } }
+  .caveat {
+    background: #FFFBF0; border-left: 3px solid var(--kui-warning); padding: 16px 20px;
+    border-top: 1px solid var(--kui-border-default); border-right: 1px solid var(--kui-border-default); border-bottom: 1px solid var(--kui-border-default);
+  }
+  .caveat h6 { font: 500 13px/1.25 var(--kui-font-sans); margin: 0 0 6px; color: var(--kui-fg-strong); }
+  .caveat p { font: 13px/1.5 var(--kui-font-sans); color: var(--kui-fg-default); margin: 0; }
+  .caveat code { background: #fff; }
+  .caveat.ok { background: #F2FAEC; border-left-color: var(--c-moe-dk); }
+
+  /* footer */
+  footer { padding: 24px 56px; background: #fff; border-top: 1px solid var(--kui-border-default); font: 12px/1.5 var(--kui-font-sans); color: var(--kui-fg-muted); }
+  footer .row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  footer a { color: var(--c-cca); }
+
+  /* SVG defaults */
+  svg text { font-family: var(--kui-font-sans); fill: var(--kui-fg-strong); }
+  svg .mono { font-family: var(--kui-font-mono); }
+  svg .muted { fill: var(--kui-fg-muted); }
+  svg .white { fill: #fff; }
+</style>
+</head>
+<body class="kui">
+
+<header class="top-bar">
+  <a class="home-link" href="../../index.html">Atlas home</a>
+  <div class="divider"></div>
+  <img src="kaizen/NVIDIA-wordmark.svg" class="wordmark" alt="NVIDIA">
+  <div class="divider"></div>
+  <h1>ZAYA1-8B Architecture</h1>
+  <div class="meta">
+    <div><b>Zyphra</b> · May 6, 2026</div>
+    <div>Apache-2.0</div>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="nav-label">Overview</div>
+    <nav>
+      <a href="#hero" class="active"><span class="idx">00</span><span>Identity &amp; headline specs</span></a>
+      <a href="#flow"><span class="idx">01</span><span>End-to-end forward pass</span></a>
+      <a href="#stack"><span class="idx">02</span><span>40-layer decoder stack</span></a>
+      <a href="#block"><span class="idx">03</span><span>Decoder block · MoE++</span></a>
+    </nav>
+    <div class="nav-label">Mechanisms</div>
+    <nav>
+      <a href="#cca"><span class="idx">04</span><span>CCA · attention</span></a>
+      <a href="#router"><span class="idx">05</span><span>ZAYA1 router · MLP + EDA</span></a>
+      <a href="#moe"><span class="idx">06</span><span>Sparse MoE · 16 experts · top-1</span></a>
+      <a href="#res"><span class="idx">07</span><span>Residual scaling</span></a>
+    </nav>
+    <div class="nav-label">Training &amp; inference</div>
+    <nav>
+      <a href="#train"><span class="idx">08</span><span>Pretraining &amp; midtraining</span></a>
+      <a href="#rl"><span class="idx">09</span><span>RL cascade</span></a>
+      <a href="#rsa"><span class="idx">10</span><span>Markovian RSA · TTC</span></a>
+      <a href="#hw"><span class="idx">11</span><span>AMD MI300X stack</span></a>
+      <a href="#bench"><span class="idx">12</span><span>Benchmarks</span></a>
+      <a href="#caveats"><span class="idx">13</span><span>Caveats &amp; unknowns</span></a>
+    </nav>
+    <div class="source-box">
+      Primary sources:
+      <a href="https://huggingface.co/Zyphra/ZAYA1-8B">huggingface.co/Zyphra/ZAYA1-8B</a>,
+      <a href="https://arxiv.org/abs/2605.05365">arXiv:2605.05365 (ZAYA1-8B Technical Report)</a>,
+      <a href="https://www.zyphra.com/post/zaya1-8b">Zyphra release blog (May 6, 2026)</a>.
+      Architecture table, configuration, and benchmarks reproduced from the technical report and official model card.
+    </div>
+  </aside>
+
+  <main class="main">
+
+  <!-- ───────── HERO ───────── -->
+  <section class="hero" id="hero">
+    <div class="eyebrow">Release · 2026-05-06 · Zyphra · arXiv 2605.05365</div>
+    <h2>A <span class="accent">0.76 B-active</span> reasoning MoE, trained end-to-end on <span class="amd">AMD MI300X</span>.</h2>
+    <p class="lede">
+      <b>ZAYA1-8B</b> is Zyphra's reasoning-focused, Apache-2.0 mixture-of-experts language model. It is the
+      first MoE pretrained, midtrained, and SFT'd on a full-stack <b>AMD MI300X + Pollara 400</b> platform.
+      The model has <b>8.4 B total parameters</b> and routes only <b>0.76 B active per token</b> through
+      <b>40 decoder layers</b>. Each block uses <b>Compressed Convolutional Attention (CCA)</b> in place of
+      MLA/GQA, a <b>three-layer MLP router</b> with exponential-depth averaging and PID-controlled bias
+      balancing for expert selection, and <b>learned residual scaling</b> on both the residual stream and the
+      block output. Together these define Zyphra's MoE++ recipe.
+    </p>
+
+    <div class="badge-row">
+      <span class="badge brand"><span class="dot"></span>Sparse MoE · 16 experts · top-1</span>
+      <span class="badge cca"><span class="dot"></span>CCA · CCGQA preconditioner</span>
+      <span class="badge rtr"><span class="dot"></span>ZAYA1 MLP router · PID balance</span>
+      <span class="badge res"><span class="dot"></span>Learned residual scaling</span>
+      <span class="badge rsa"><span class="dot"></span>Markovian RSA · test-time compute</span>
+      <span class="badge amd"><span class="dot"></span>AMD MI300X · 1,024 GPUs</span>
+    </div>
+
+    <div class="hero-stats">
+      <div class="stat">
+        <div class="label">Total params</div>
+        <div class="value">8.4 B</div>
+        <div class="sub">technical report · Table I</div>
+      </div>
+      <div class="stat">
+        <div class="label">Active / token</div>
+        <div class="value">0.76 B</div>
+        <div class="sub">top-1 of 16 experts</div>
+      </div>
+      <div class="stat">
+        <div class="label">Layers</div>
+        <div class="value">40<small> decoder</small></div>
+        <div class="sub">uniform CCA + MoE</div>
+      </div>
+      <div class="stat">
+        <div class="label">Hidden dim</div>
+        <div class="value">2,048</div>
+        <div class="sub">d_model</div>
+      </div>
+      <div class="stat">
+        <div class="label">Vocab · tokenizer</div>
+        <div class="value">262,272</div>
+        <div class="sub">Gemma3 tokenizer</div>
+      </div>
+      <div class="stat">
+        <div class="label">SFT context</div>
+        <div class="value">131 K</div>
+        <div class="sub">midtrain 32 K · pretrain 4 K</div>
+      </div>
+    </div>
+
+    <div class="hero-extras">
+      <div class="extra-card">
+        <h5>Released checkpoints</h5>
+        <div class="row">
+          <span class="chip brand">Zyphra/ZAYA1-8B (reasoning)</span>
+          <span class="chip">Zyphra/ZAYA1-reasoning-base</span>
+          <span class="chip">Zyphra/ZAYA1-base</span>
+          <span class="chip">~17.7 GB BF16</span>
+        </div>
+      </div>
+      <div class="extra-card">
+        <h5>Inference</h5>
+        <div class="row">
+          <span class="chip">vLLM · Zyphra fork</span>
+          <span class="chip">Transformers · Zyphra fork</span>
+          <span class="chip">Zyphra Cloud</span>
+          <span class="chip vio">tool parser: zaya_xml</span>
+        </div>
+      </div>
+      <div class="extra-card">
+        <h5>Training stack</h5>
+        <div class="row">
+          <span class="chip amd">1,024 × AMD MI300X</span>
+          <span class="chip amd">AMD Pensando Pollara 400</span>
+          <span class="chip amd">IBM-built cluster</span>
+          <span class="chip">Muon optimizer</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- MoE++ recap strip -->
+    <div class="moeplus-strip">
+      <div class="col cca">
+        <div class="k">MoE++ change · 1</div>
+        <h6>Compressed Convolutional Attention</h6>
+        <p>FLOP- and memory-efficient attention that mixes the sequence in a compressed latent space via a lightweight convolutional down-projector. 2× query and 8× KV compression vs. full multi-head attention.</p>
+      </div>
+      <div class="col rtr">
+        <div class="k">MoE++ change · 2</div>
+        <h6>ZAYA1 router</h6>
+        <p>Down-projection to a 256-dim latent, exponential-depth averaging with the previous layer's router state, then a three-layer GeLU MLP and softmax. Bias balancing via a PID controller wrapped in AdamW.</p>
+      </div>
+      <div class="col res">
+        <div class="k">MoE++ change · 3</div>
+        <h6>Learned residual scaling</h6>
+        <p>A learned per-channel gating coefficient α and bias β are applied to both the residual stream and the block output. Controls residual-norm growth through depth at negligible parameter and FLOP cost.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 01 · FORWARD PASS ───────── -->
+  <section id="flow">
+    <div class="sec-head">
+      <div class="num">01 · Forward pass</div>
+      <h2>From tokens to a reasoning trace.</h2>
+      <p class="lede">
+        ZAYA1-8B is a pure text decoder — no native vision or audio tower in this release (a separate
+        <b>ZAYA1-VL-8B</b> stacks a vision encoder atop this LLM). Tokens enter the Gemma3 BPE vocabulary,
+        traverse <b>40 uniform decoder layers</b> built from CCA attention and a top-1 MoE feed-forward, and
+        exit through a tied LM head. Reasoning traces are wrapped in <code>&lt;think&gt;...&lt;/think&gt;</code>
+        blocks following the SFT chat template; the <code>zaya_xml</code> tool parser handles structured tool
+        calls.
+      </p>
+    </div>
+
+    <div class="pass">
+      <div class="step">
+        <div class="k">A · Tokenize</div>
+        <div class="t">Gemma3 BPE</div>
+        <div class="d">Text &rarr; IDs<br>vocab = 262,272</div>
+        <span class="badge-mini">chat template ships</span>
+      </div>
+      <div class="step">
+        <div class="k">B · Embed</div>
+        <div class="t">Token embedding</div>
+        <div class="d">ID &rarr; &Ropf;^2048<br>d_model = 2,048</div>
+        <span class="badge-mini">tied head: not reported</span>
+      </div>
+      <div class="step stack">
+        <div class="k">C · Layers 0–39</div>
+        <div class="t">CCA + MoE × 40</div>
+        <div class="d">Res-scale &rarr; RMSNorm &rarr; CCA &rarr; +<br>Res-scale &rarr; RMSNorm &rarr; MoE &rarr; +</div>
+        <span class="badge-mini">top-1 of 16 experts</span>
+      </div>
+      <div class="step">
+        <div class="k">D · Final norm</div>
+        <div class="t">RMSNorm</div>
+        <div class="d">Stabilize before<br>logit projection</div>
+      </div>
+      <div class="step">
+        <div class="k">E · LM head</div>
+        <div class="t">Logits over 262,272</div>
+        <div class="d">Softmax + sampling<br>recommended T=1.0, top-p=0.95</div>
+        <span class="badge-mini">reasoning parser: qwen3</span>
+      </div>
+      <div class="step">
+        <div class="k">F · Output</div>
+        <div class="t">&lt;think&gt; · answer</div>
+        <div class="d">Tool calls in zaya_xml<br>optional Markovian-RSA loop</div>
+        <span class="badge-mini">see §10 · TTC</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 02 · LAYER STACK ───────── -->
+  <section id="stack">
+    <div class="sec-head">
+      <div class="num">02 · Layer stack</div>
+      <h2>40 uniform decoder layers — no F/S split, no dense warm-up.</h2>
+      <p class="lede">
+        Unlike DeepSeek-style designs that mix dense and MoE layers or alternate full and sparse attention,
+        every one of ZAYA1-8B's 40 blocks is the same shape: CCA attention with 2× query / 8× KV
+        compression, followed by a top-1 routed MoE feed-forward over 16 experts. The architectural variety
+        is internal to each block (the MLP router, EDA across depth, residual scaling) rather than positional.
+      </p>
+    </div>
+
+    <div class="ribbon-wrap">
+      <div class="ribbon-head">
+        <h4>Layer 0 &rarr; 39 · attention (top band) &amp; feed-forward (bottom band)</h4>
+        <div class="key">
+          <span><i style="background:var(--c-cca)"></i> CCA attention · CCGQA · 8 Q-heads · 2 KV-heads</span>
+          <span><i style="background:var(--c-moe)"></i> MoE feed-forward · 16 experts · top-1</span>
+        </div>
+      </div>
+
+      <div class="ribbon" id="ribbon"></div>
+
+      <div class="ribbon-notes">
+        <div class="note A">
+          <div class="h">CCA attention</div>
+          <div class="v">40 layers</div>
+          <div class="l">Uniform across the stack. 8 query heads, 2 KV heads, head dim 128, with a convolutional down-projector for sequence mixing in latent space.</div>
+        </div>
+        <div class="note M">
+          <div class="h">MoE feed-forward</div>
+          <div class="v">40 layers</div>
+          <div class="l">Every layer is MoE. 16 experts · top-1 routing · no shared / residual expert. Expert FFN is 4096 pre-activation / 2048 post-activation (2× expansion + GLU gate).</div>
+        </div>
+        <div class="note R">
+          <div class="h">Router type</div>
+          <div class="v">MLP · 3-layer</div>
+          <div class="l">Down-projection to a 256-dim latent, EDA across depth, then three GeLU MLP layers and softmax. Replaces the linear router used by Switch / DeepSeekMoE.</div>
+        </div>
+        <div class="note T">
+          <div class="h">Residual scaling</div>
+          <div class="v">2 · L · D · 2</div>
+          <div class="l">Learned (α, β) applied to both residual stream and block output at every layer — 4·L·D parameters total. Negligible FLOP overhead, controls depth norm growth.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 03 · DECODER BLOCK ───────── -->
+  <section id="block">
+    <div class="sec-head">
+      <div class="num">03 · Decoder block</div>
+      <h2>Pre-norm block with residual scaling on every wire.</h2>
+      <p class="lede">
+        The block uses the standard pre-norm residual structure — RMSNorm before attention, RMSNorm before
+        MoE, residual add after each — but with a Zyphra twist: a learned <b>residual-scaling</b> module
+        sits on every residual wire <em>and</em> every block output, parameterized as
+        <code>α &middot; x + β</code> with <code>α ∈ &Ropf;^D</code> initialized to <code>1</code> and
+        <code>β</code> initialized to <code>0</code>. The attention and MoE modules are described in the
+        deep-dive sections below.
+      </p>
+    </div>
+
+    <div class="block-svg">
+      <h4>ZAYA1-8B decoder block · CCA + ZAYA1-router-MoE + learned residual scaling</h4>
+      <div class="ann">x_ℓ → x_{ℓ+1} · pre-norm · residual scaling on both pathways</div>
+      <svg viewBox="0 0 720 600" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="#202020"/>
+          </marker>
+        </defs>
+        <!-- input -->
+        <line x1="360" y1="10" x2="360" y2="48" stroke="#202020" stroke-width="1.5" marker-end="url(#arr)"/>
+        <text x="372" y="28" font-size="12" class="mono muted">x_ℓ ∈ ℝ^{B×S×2048}</text>
+
+        <!-- left residual line -->
+        <line x1="90" y1="48" x2="90" y2="566" stroke="var(--c-res)" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="68" y="310" font-size="11" class="muted mono" transform="rotate(-90 68 310)" fill="var(--c-res-dk)">residual · scaled</text>
+
+        <!-- residual scale (top) on residual stream -->
+        <rect x="40" y="60" width="100" height="32" fill="var(--c-res-bg)" stroke="var(--c-res)" stroke-width="1.5"/>
+        <text x="90" y="80" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-res-dk)">Res-scale_res</text>
+        <line x1="90" y1="48" x2="90" y2="60" stroke="#202020" stroke-width="1.5"/>
+
+        <!-- RMSNorm 1 -->
+        <rect x="290" y="56" width="140" height="32" fill="#fff" stroke="var(--c-norm)" stroke-width="1.5"/>
+        <text x="360" y="76" text-anchor="middle" font-size="12" font-weight="500">RMSNorm</text>
+
+        <!-- CCA attention -->
+        <rect x="240" y="104" width="240" height="124" fill="var(--c-cca-bg)" stroke="var(--c-cca)" stroke-width="1.5"/>
+        <text x="360" y="124" text-anchor="middle" font-size="13" font-weight="500" fill="var(--c-cca-dk)">CCA · attention</text>
+        <text x="360" y="142" text-anchor="middle" font-size="10" class="mono muted">conv down-projector → latent mix</text>
+        <text x="360" y="156" text-anchor="middle" font-size="10" class="mono muted">CCGQA · 8 Q-heads, 2 KV-heads</text>
+        <text x="360" y="170" text-anchor="middle" font-size="10" class="mono muted">head dim 128 · 50% RoPE / head</text>
+        <text x="360" y="186" text-anchor="middle" font-size="10" class="mono" fill="var(--c-cca-dk)">2× query · 8× KV compression</text>
+        <text x="360" y="202" text-anchor="middle" font-size="10" class="mono muted">Q · Kᵀ / √d_h → softmax → V</text>
+        <text x="360" y="218" text-anchor="middle" font-size="10" class="mono" fill="var(--c-cca-dk)">W_O → output projection</text>
+
+        <line x1="360" y1="88" x2="360" y2="104" stroke="#202020" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- res-scale_out (top) -->
+        <rect x="280" y="240" width="160" height="32" fill="var(--c-res-bg)" stroke="var(--c-res)" stroke-width="1.5"/>
+        <text x="360" y="260" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-res-dk)">Res-scale_out</text>
+        <line x1="360" y1="228" x2="360" y2="240" stroke="#202020" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- add 1 -->
+        <circle cx="90" cy="284" r="14" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+        <text x="90" y="288" text-anchor="middle" font-size="14" font-weight="500">+</text>
+        <line x1="360" y1="272" x2="360" y2="284" stroke="#202020" stroke-width="1.5"/>
+        <line x1="360" y1="284" x2="104" y2="284" stroke="#202020" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- res-scale on residual stream (lower) -->
+        <rect x="40" y="306" width="100" height="32" fill="var(--c-res-bg)" stroke="var(--c-res)" stroke-width="1.5"/>
+        <text x="90" y="326" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-res-dk)">Res-scale_res</text>
+
+        <!-- RMSNorm 2 -->
+        <rect x="290" y="320" width="140" height="32" fill="#fff" stroke="var(--c-norm)" stroke-width="1.5"/>
+        <text x="360" y="340" text-anchor="middle" font-size="12" font-weight="500">RMSNorm</text>
+        <line x1="90" y1="298" x2="360" y2="298" stroke="#202020" stroke-width="1.5"/>
+        <line x1="360" y1="298" x2="360" y2="320" stroke="#202020" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- MoE block -->
+        <rect x="220" y="368" width="280" height="152" fill="var(--c-moe-bg)" stroke="var(--c-moe)" stroke-width="1.5"/>
+        <text x="360" y="388" text-anchor="middle" font-size="13" font-weight="500" fill="var(--c-moe-dk)">MoE feed-forward · top-1 of 16</text>
+        <text x="360" y="406" text-anchor="middle" font-size="10" class="mono muted">ZAYA1 router · MLP + EDA</text>
+        <text x="360" y="420" text-anchor="middle" font-size="10" class="mono" fill="var(--c-rtr-dk)">↓ down-proj to R=256 · ↓ EDA · ↓ 3-layer MLP</text>
+        <text x="360" y="434" text-anchor="middle" font-size="10" class="mono" fill="var(--c-rtr-dk)">softmax → top-1 + PID bias balance</text>
+        <text x="360" y="454" text-anchor="middle" font-size="10" class="mono muted">selected expert: SwiGLU-like</text>
+        <text x="360" y="468" text-anchor="middle" font-size="10" class="mono muted">4096 pre / 2048 post (2× expansion)</text>
+        <text x="360" y="488" text-anchor="middle" font-size="9" class="mono muted" style="font-style:italic">no shared expert · no residual expert</text>
+        <text x="360" y="502" text-anchor="middle" font-size="9" class="mono muted" style="font-style:italic">k = 1 (single expert per token)</text>
+
+        <line x1="360" y1="352" x2="360" y2="368" stroke="#202020" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- res-scale (lower) -->
+        <rect x="280" y="528" width="160" height="32" fill="var(--c-res-bg)" stroke="var(--c-res)" stroke-width="1.5"/>
+        <text x="360" y="548" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-res-dk)">Res-scale_out</text>
+        <line x1="360" y1="520" x2="360" y2="528" stroke="#202020" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- add 2 -->
+        <circle cx="90" cy="566" r="14" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+        <text x="90" y="570" text-anchor="middle" font-size="14" font-weight="500">+</text>
+        <line x1="360" y1="560" x2="360" y2="566" stroke="#202020" stroke-width="1.5"/>
+        <line x1="360" y1="566" x2="104" y2="566" stroke="#202020" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- output -->
+        <line x1="90" y1="580" x2="90" y2="596" stroke="#202020" stroke-width="1.5" marker-end="url(#arr)"/>
+        <text x="100" y="592" font-size="11" class="mono muted">x_{ℓ+1}</text>
+      </svg>
+    </div>
+
+    <div class="math-panel">
+      <div class="lbl">Block forward · per layer ℓ</div>
+      <div class="eq">a = <b class="res">Res-scale_res</b>(x_ℓ) + <b class="res">Res-scale_out</b>(<b class="cca">CCA</b>(RMSNorm(x_ℓ)))</div>
+      <div class="eq">x_{ℓ+1} = <b class="res">Res-scale_res</b>(a)  + <b class="res">Res-scale_out</b>(<b class="moe">MoE</b>(RMSNorm(a)))</div>
+      <div class="eq comment">Res-scale(x) = α ⊙ x + β · α ∈ ℝ^D init at 1 · β ∈ ℝ^D init at 0 · 4·L·D total params</div>
+    </div>
+  </section>
+
+  <!-- ───────── 04 · CCA ───────── -->
+  <section id="cca">
+    <div class="sec-head">
+      <div class="num">04 · Attention</div>
+      <h2>Compressed Convolutional Attention — sequence mixing in a latent space.</h2>
+      <p class="lede">
+        Where DeepSeek's MLA caches a low-rank latent <code>c_t^KV</code> per token and re-projects per
+        head at attention time, <b>CCA</b> instead performs the <em>sequence mixing itself</em> in a
+        compressed latent space via a lightweight convolutional down-projector. The result is FLOP-
+        and memory-efficient attention with comparable cache-compression to MLA but lower prefill
+        FLOPs and faster training throughput. In ZAYA1-8B the attention variant is reported as
+        <b>CCGQA with a CCA preconditioner</b>: 2× compression on queries and 8× compression on the
+        KV cache relative to full multi-head attention.
+      </p>
+    </div>
+
+    <div class="deep">
+      <div class="deep-head">
+        <div>
+          <div class="e">Attention module · all 40 layers</div>
+          <h3>CCA · CCGQA · 8 Q-heads / 2 KV-heads · head dim 128</h3>
+        </div>
+        <div class="strip" style="background:var(--c-cca)"></div>
+      </div>
+      <div class="deep-body">
+        <div class="diagram">
+          <svg viewBox="0 0 620 380" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <marker id="arrcca" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="#202020"/>
+              </marker>
+              <marker id="arrccab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="var(--c-cca)"/>
+              </marker>
+            </defs>
+
+            <!-- input -->
+            <rect x="20" y="172" width="100" height="44" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+            <text x="70" y="192" text-anchor="middle" font-size="12" font-weight="500">x_t</text>
+            <text x="70" y="208" text-anchor="middle" font-size="10" class="mono muted">d=2048</text>
+
+            <!-- conv down-projector -->
+            <rect x="160" y="60" width="180" height="60" fill="var(--c-cca-bg)" stroke="var(--c-cca)" stroke-width="1.5"/>
+            <text x="250" y="80" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-cca-dk)">Conv down-projector</text>
+            <text x="250" y="96" text-anchor="middle" font-size="10" class="mono muted">depthwise conv on x_{1:t}</text>
+            <text x="250" y="110" text-anchor="middle" font-size="10" class="mono" fill="var(--c-cca-dk)">compresses Q ↓2× · KV ↓8×</text>
+            <line x1="120" y1="180" x2="160" y2="100" stroke="var(--c-cca)" stroke-width="1.5" marker-end="url(#arrccab)"/>
+
+            <!-- latent K/V cache -->
+            <rect x="380" y="56" width="220" height="68" fill="#fff" stroke="var(--c-cca)" stroke-width="2" stroke-dasharray="4 3"/>
+            <text x="490" y="76" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-cca-dk)">Compressed KV cache</text>
+            <text x="490" y="92" text-anchor="middle" font-size="10" class="mono muted">latent k_t / v_t (8× compressed)</text>
+            <text x="490" y="108" text-anchor="middle" font-size="10" class="mono muted">conv_state + prev_hs (per layer)</text>
+            <text x="490" y="120" text-anchor="middle" font-size="9" class="mono muted">grouped: 2 KV-heads share 8 Q-heads</text>
+            <line x1="340" y1="90" x2="380" y2="90" stroke="var(--c-cca)" stroke-width="1.5" marker-end="url(#arrccab)"/>
+
+            <!-- query path -->
+            <rect x="160" y="170" width="180" height="44" fill="var(--c-cca-bg)" stroke="var(--c-cca)" stroke-width="1.5"/>
+            <text x="250" y="190" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-cca-dk)">Q projection · 8 heads</text>
+            <text x="250" y="206" text-anchor="middle" font-size="10" class="mono muted">Q ∈ ℝ^{8 × 128} · 2× compressed</text>
+            <line x1="120" y1="194" x2="160" y2="194" stroke="var(--c-cca)" stroke-width="1.5" marker-end="url(#arrccab)"/>
+
+            <!-- RoPE branch -->
+            <rect x="160" y="232" width="180" height="44" fill="#fff" stroke="var(--c-rtr)" stroke-width="1.5"/>
+            <text x="250" y="252" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-rtr-dk)">RoPE · 50% of each head</text>
+            <text x="250" y="268" text-anchor="middle" font-size="10" class="mono muted">half channels rotated · half plain</text>
+            <line x1="120" y1="210" x2="160" y2="252" stroke="var(--c-rtr)" stroke-width="1.5" marker-end="url(#arrcca)"/>
+
+            <!-- softmax attention -->
+            <rect x="380" y="170" width="220" height="58" fill="var(--c-cca-bg)" stroke="var(--c-cca)" stroke-width="1.5"/>
+            <text x="490" y="190" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-cca-dk)">Softmax attention</text>
+            <text x="490" y="206" text-anchor="middle" font-size="10" class="mono muted">softmax(Q Kᵀ / √128) · V</text>
+            <text x="490" y="220" text-anchor="middle" font-size="9" class="mono muted">causal · grouped-query · over compressed cache</text>
+            <line x1="340" y1="194" x2="380" y2="194" stroke="var(--c-cca)" stroke-width="1.5" marker-end="url(#arrccab)"/>
+            <line x1="340" y1="252" x2="380" y2="222" stroke="var(--c-rtr)" stroke-width="1.5" marker-end="url(#arrcca)"/>
+            <line x1="490" y1="124" x2="490" y2="170" stroke="var(--c-cca)" stroke-width="1.5" marker-end="url(#arrccab)"/>
+
+            <!-- W_O -->
+            <rect x="390" y="276" width="200" height="44" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+            <text x="490" y="296" text-anchor="middle" font-size="12" font-weight="500">W_O · output projection</text>
+            <text x="490" y="312" text-anchor="middle" font-size="10" class="mono muted">→ residual stream (d=2048)</text>
+            <line x1="490" y1="228" x2="490" y2="276" stroke="#202020" stroke-width="1.5" marker-end="url(#arrcca)"/>
+
+            <line x1="490" y1="320" x2="490" y2="350" stroke="#202020" stroke-width="1.5" marker-end="url(#arrcca)"/>
+            <text x="500" y="348" font-size="10" class="mono muted">→ + residual</text>
+          </svg>
+        </div>
+        <div class="side">
+          <p>
+            CCA is presented in the report as a <b>FLOP- and memory-efficient attention variant</b>
+            that "performs sequence mixing in a compressed latent space" via a lightweight convolutional
+            down-projector. The Apple-Silicon MLX quantization bundle confirms the on-device cache
+            shape: per-layer <b>standard KV plus conv_state and prev_hs</b>, propagated as part of the
+            CCA cache contract.
+          </p>
+          <p>
+            In ZAYA1-8B the variant is <b>CCGQA</b> (compressed-convolutional grouped-query attention):
+            <b>8 query heads share 2 KV heads</b>, head dimension is <b>128</b>, and CCA preconditions
+            the path with a 2× compression on queries and 8× on the KV cache. Position is carried by
+            <b>RoPE on 50% of each head's channels</b>, leaving the other half un-rotated — a deliberate
+            choice the report flags as preserving the no-position symmetry on half the representation.
+          </p>
+          <div class="math-panel">
+            <div class="lbl">CCA forward · per layer, per token</div>
+            <div class="eq">x̃ = <b class="cca">ConvDownProj</b>(x_{1:t}) &nbsp;<span class="comment"># latent sequence mixing</span></div>
+            <div class="eq">Q = <b class="cca">W_Q</b> · x̃ &nbsp;[8 heads × d_h=128, 2× compressed]</div>
+            <div class="eq">K, V = <b class="cca">W_K</b> · x̃, <b class="cca">W_V</b> · x̃ &nbsp;[2 KV-heads, 8× compressed]</div>
+            <div class="eq">Q_rope = RoPE(Q[:, :d_h/2]) ‖ Q[:, d_h/2:] &nbsp;<span class="comment"># half rotated</span></div>
+            <div class="eq">o = softmax(Q_rope · Kᵀ / √128) · V · <b class="cca">W_O</b></div>
+          </div>
+          <div class="spec-grid">
+            <div class="k">Variant</div><div class="v">CCGQA + CCA preconditioner</div>
+            <div class="k">Query heads</div><div class="v">8</div>
+            <div class="k">KV heads</div><div class="v">2</div>
+            <div class="k">Head dimension</div><div class="v">128</div>
+            <div class="k">Query compression</div><div class="v">2×</div>
+            <div class="k">KV-cache compression</div><div class="v">8× vs MHA</div>
+            <div class="k">Position</div><div class="v">RoPE on 50% per head</div>
+            <div class="k">RoPE base · pretrain</div><div class="v">10,000</div>
+            <div class="k">RoPE base · 32K midtrain</div><div class="v">1,000,000</div>
+            <div class="k">RoPE base · 131K SFT</div><div class="v">5,000,000</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 05 · ROUTER ───────── -->
+  <section id="router">
+    <div class="sec-head">
+      <div class="num">05 · Router</div>
+      <h2>ZAYA1 router — MLP, exponential-depth averaging, PID balance.</h2>
+      <p class="lede">
+        The router is where Zyphra spends its "marginal parameters." Standard MoE designs use a
+        <em>linear</em> projection to score experts; ZAYA1 instead runs a <b>three-layer GeLU MLP</b> in a
+        compressed 256-dim latent, after first mixing the current router representation with the
+        previous layer's via <b>Exponential Depth Averaging (EDA)</b>. Bias balancing is driven by a
+        <b>PID controller</b> wrapped in AdamW, with the error signal being the deviation of the empirical
+        expert-load distribution from uniform.
+      </p>
+    </div>
+
+    <div class="deep">
+      <div class="deep-head">
+        <div>
+          <div class="e">Expert selection · per MoE layer</div>
+          <h3>r_l = W_down · x_l  +  γ · r_{l-1}  →  MLP  →  top-1</h3>
+        </div>
+        <div class="strip" style="background:var(--c-rtr)"></div>
+      </div>
+      <div class="deep-body">
+        <div class="diagram">
+          <svg viewBox="0 0 620 380" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <marker id="arrr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="#202020"/>
+              </marker>
+              <marker id="arrrv" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="var(--c-rtr)"/>
+              </marker>
+            </defs>
+
+            <!-- x_l input -->
+            <rect x="20" y="172" width="100" height="44" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+            <text x="70" y="192" text-anchor="middle" font-size="12" font-weight="500">x_ℓ (normed)</text>
+            <text x="70" y="208" text-anchor="middle" font-size="10" class="mono muted">d=2048</text>
+
+            <!-- W_down -->
+            <rect x="160" y="172" width="120" height="44" fill="var(--c-rtr-bg)" stroke="var(--c-rtr)" stroke-width="1.5"/>
+            <text x="220" y="192" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-rtr-dk)">W_down</text>
+            <text x="220" y="208" text-anchor="middle" font-size="10" class="mono muted">2048 → R=256</text>
+            <line x1="120" y1="194" x2="160" y2="194" stroke="#202020" stroke-width="1.5" marker-end="url(#arrr)"/>
+
+            <!-- EDA -->
+            <rect x="320" y="172" width="120" height="44" fill="var(--c-rtr-bg)" stroke="var(--c-rtr)" stroke-width="1.5"/>
+            <text x="380" y="192" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-rtr-dk)">EDA</text>
+            <text x="380" y="208" text-anchor="middle" font-size="10" class="mono muted">r_ℓ + γ · r_{ℓ-1}</text>
+            <line x1="280" y1="194" x2="320" y2="194" stroke="var(--c-rtr)" stroke-width="1.5" marker-end="url(#arrrv)"/>
+
+            <!-- prev layer feedback -->
+            <rect x="320" y="60" width="120" height="44" fill="#fff" stroke="var(--c-rtr)" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <text x="380" y="80" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-rtr-dk)">r_{ℓ-1}</text>
+            <text x="380" y="96" text-anchor="middle" font-size="10" class="mono muted">previous layer's router state</text>
+            <line x1="380" y1="104" x2="380" y2="172" stroke="var(--c-rtr)" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arrrv)"/>
+            <text x="392" y="140" font-size="10" class="mono" fill="var(--c-rtr-dk)">× γ (learned)</text>
+
+            <!-- MLP -->
+            <rect x="480" y="172" width="120" height="44" fill="var(--c-rtr-bg)" stroke="var(--c-rtr)" stroke-width="1.5"/>
+            <text x="540" y="192" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-rtr-dk)">3-layer MLP</text>
+            <text x="540" y="208" text-anchor="middle" font-size="10" class="mono muted">GeLU · RMSnorm</text>
+            <line x1="440" y1="194" x2="480" y2="194" stroke="var(--c-rtr)" stroke-width="1.5" marker-end="url(#arrrv)"/>
+
+            <!-- softmax + bias -->
+            <rect x="320" y="248" width="280" height="44" fill="#fff" stroke="var(--c-rtr)" stroke-width="1.5"/>
+            <text x="460" y="268" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-rtr-dk)">softmax(MLP(r_ℓ))  +  b_ℓ</text>
+            <text x="460" y="284" text-anchor="middle" font-size="10" class="mono muted">scores ∈ ℝ^16 · bias-balanced</text>
+            <line x1="540" y1="216" x2="540" y2="248" stroke="var(--c-rtr)" stroke-width="1.5" marker-end="url(#arrrv)"/>
+
+            <!-- top-1 -->
+            <rect x="370" y="312" width="180" height="40" fill="var(--c-rtr)" stroke="var(--c-rtr-dk)" stroke-width="1.5"/>
+            <text x="460" y="332" text-anchor="middle" font-size="12" font-weight="500" class="white">argmax → expert idx</text>
+            <text x="460" y="346" text-anchor="middle" font-size="10" class="mono white">top-1 of 16</text>
+            <line x1="460" y1="292" x2="460" y2="312" stroke="#202020" stroke-width="1.5" marker-end="url(#arrr)"/>
+
+            <!-- PID feedback loop -->
+            <rect x="20" y="312" width="280" height="40" fill="#fff" stroke="var(--c-rl)" stroke-width="1.5"/>
+            <text x="160" y="332" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-rl-dk)">PID bias controller (AdamW-wrapped)</text>
+            <text x="160" y="346" text-anchor="middle" font-size="9" class="mono muted">∇b_{ℓ,e} = p_{ℓ,e} − 1/E · update bias b_ℓ</text>
+            <line x1="370" y1="332" x2="300" y2="332" stroke="var(--c-rl)" stroke-width="1.5" marker-end="url(#arrr)"/>
+            <line x1="160" y1="312" x2="160" y2="248" stroke="var(--c-rl)" stroke-width="1" stroke-dasharray="3 3"/>
+            <text x="168" y="278" font-size="10" class="mono muted" fill="var(--c-rl-dk)">+ b_ℓ</text>
+            <line x1="160" y1="252" x2="320" y2="270" stroke="var(--c-rl)" stroke-width="1" stroke-dasharray="3 3" marker-end="url(#arrr)"/>
+          </svg>
+        </div>
+        <div class="side">
+          <p>
+            The MLP router replaces the linear router used in Switch / DeepSeekMoE-style models with a
+            <b>three-layer GeLU MLP in a down-projected 256-dim space</b>. In the report's framing,
+            <em>"a small number of router parameters controls a much larger number of expert parameters, and
+            better routing decisions significantly reduce balancing instability and improve model quality."</em>
+          </p>
+          <p>
+            <b>EDA</b> mixes <code>r_ℓ</code> with the previous layer's <code>r_{ℓ-1}</code> via a learned
+            scalar γ — a variant of Depth-Weighted Averaging (DenseFormer). The result is a router that
+            "remembers" structure from earlier layers, which Zyphra argues makes balancing and expert
+            specialization easier and shows up as faster <b>router-load entropy</b> recovery vs. linear
+            routers.
+          </p>
+          <p>
+            <b>PID bias balancing.</b> Each expert has a learned bias <code>b_{ℓ,e}</code> added to its
+            score before <code>top-k</code>. The bias gradient is the deviation of the empirical
+            assignment probability <code>p_{ℓ,e}</code> from the uniform <code>1/E</code> — a classical
+            proportional-control error signal, fed through AdamW. The report describes this as
+            <em>"inspired by PID controllers"</em> and notes faster convergence than the DeepSeek
+            bias scheme.
+          </p>
+          <div class="math-panel">
+            <div class="lbl">ZAYA1 router · per MoE layer ℓ</div>
+            <div class="eq">r_ℓ = <b class="rtr">W_down</b> · x_ℓ &nbsp;<span class="comment"># 2048 → 256</span></div>
+            <div class="eq">r_ℓ = r_ℓ + γ · r_{ℓ-1} &nbsp;<span class="comment"># EDA · γ learned scalar</span></div>
+            <div class="eq">s_ℓ = softmax(<b class="rtr">MLP_3</b>(RMSnorm(r_ℓ))) &nbsp;∈ ℝ^16</div>
+            <div class="eq">e_idx = argmax_e (s_{ℓ,e} + b_{ℓ,e}) &nbsp;<span class="comment"># k=1</span></div>
+            <div class="eq">∇b_{ℓ,e} = p_{ℓ,e} − 1/E &nbsp;<span class="comment"># PID error, fed to AdamW</span></div>
+          </div>
+          <div class="spec-grid">
+            <div class="k">Router latent dim R</div><div class="v">256</div>
+            <div class="k">MLP depth</div><div class="v">3 layers</div>
+            <div class="k">Activation</div><div class="v">GeLU</div>
+            <div class="k">Norm</div><div class="v">RMSnorm</div>
+            <div class="k">Top-k</div><div class="v">1</div>
+            <div class="k">Bias balancing</div><div class="v">PID + AdamW</div>
+            <div class="k">Cross-layer mix</div><div class="v">EDA (γ learned)</div>
+            <div class="k">Replaced</div><div class="v">linear router (Switch / DeepSeekMoE)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 06 · MOE ───────── -->
+  <section id="moe">
+    <div class="sec-head">
+      <div class="num">06 · Feed-forward</div>
+      <h2>16 experts, top-1, no shared or residual expert.</h2>
+      <p class="lede">
+        Every MoE layer holds <b>16 routed experts</b>. Each expert is a SwiGLU-style FFN with a
+        <b>2× expansion factor</b>: <b>4,096 pre-activation</b> projection / <b>2,048 post-activation</b>
+        projection (matching <code>d_model</code>). The router selects exactly <b>one</b> expert per token
+        (<code>k = 1</code>) and there is <b>no shared expert and no residual expert</b> — unusual among
+        contemporary MoEs. Zyphra's argument is that the more expressive router produces more confident,
+        better-specialized routing, making additional experts in parallel less useful.
+      </p>
+    </div>
+
+    <div class="moe-grid">
+      <div class="moe-svg">
+        <svg viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" fill="#202020"/>
+            </marker>
+            <marker id="arr3g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" fill="var(--c-moe-dk)"/>
+            </marker>
+          </defs>
+
+          <rect x="20" y="156" width="120" height="44" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+          <text x="80" y="176" text-anchor="middle" font-size="12" font-weight="500">x_t (post-norm)</text>
+          <text x="80" y="192" text-anchor="middle" font-size="10" class="mono muted">d=2048</text>
+
+          <rect x="180" y="60" width="140" height="80" fill="var(--c-rtr-bg)" stroke="var(--c-rtr)" stroke-width="1.5"/>
+          <text x="250" y="80" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-rtr-dk)">ZAYA1 router</text>
+          <text x="250" y="96" text-anchor="middle" font-size="10" class="mono muted">MLP + EDA + PID bias</text>
+          <text x="250" y="112" text-anchor="middle" font-size="10" class="mono" fill="var(--c-rtr-dk)">→ argmax of 16</text>
+          <text x="250" y="128" text-anchor="middle" font-size="10" class="mono muted">(see §05)</text>
+
+          <line x1="140" y1="168" x2="180" y2="100" stroke="#202020" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+          <!-- 16 experts in a column with one selected -->
+          <g>
+            <rect x="380" y="40" width="80" height="22" fill="#fff" stroke="var(--kui-n300)" stroke-width="1"/>
+            <text x="420" y="56" text-anchor="middle" font-size="10" class="mono muted">E_00</text>
+            <rect x="380" y="64" width="80" height="22" fill="#fff" stroke="var(--kui-n300)" stroke-width="1"/>
+            <text x="420" y="80" text-anchor="middle" font-size="10" class="mono muted">E_01</text>
+            <rect x="380" y="88" width="80" height="22" fill="#fff" stroke="var(--kui-n300)" stroke-width="1"/>
+            <text x="420" y="104" text-anchor="middle" font-size="10" class="mono muted">E_02</text>
+            <rect x="380" y="112" width="80" height="22" fill="#fff" stroke="var(--kui-n300)" stroke-width="1"/>
+            <text x="420" y="128" text-anchor="middle" font-size="10" class="mono muted">…</text>
+            <!-- selected -->
+            <rect x="380" y="136" width="80" height="34" fill="var(--c-moe)" stroke="var(--c-moe-dk)" stroke-width="1.5"/>
+            <text x="420" y="153" text-anchor="middle" font-size="11" font-weight="500" class="white">E_07</text>
+            <text x="420" y="166" text-anchor="middle" font-size="9" class="mono white">SwiGLU · selected</text>
+            <rect x="380" y="172" width="80" height="22" fill="#fff" stroke="var(--kui-n300)" stroke-width="1"/>
+            <text x="420" y="188" text-anchor="middle" font-size="10" class="mono muted">E_08</text>
+            <rect x="380" y="196" width="80" height="22" fill="#fff" stroke="var(--kui-n300)" stroke-width="1"/>
+            <text x="420" y="212" text-anchor="middle" font-size="10" class="mono muted">…</text>
+            <rect x="380" y="220" width="80" height="22" fill="#fff" stroke="var(--kui-n300)" stroke-width="1"/>
+            <text x="420" y="236" text-anchor="middle" font-size="10" class="mono muted">E_15</text>
+          </g>
+
+          <line x1="320" y1="100" x2="380" y2="153" stroke="var(--c-moe-dk)" stroke-width="1.5" marker-end="url(#arr3g)"/>
+          <text x="334" y="124" font-size="9" class="mono" fill="var(--c-moe-dk)">argmax</text>
+
+          <!-- expert detail -->
+          <rect x="500" y="115" width="120" height="80" fill="#fff" stroke="var(--c-moe)" stroke-width="1.5"/>
+          <text x="560" y="135" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-moe-dk)">expert FFN</text>
+          <text x="560" y="152" text-anchor="middle" font-size="9" class="mono muted">W_gate, W_up → 4096</text>
+          <text x="560" y="166" text-anchor="middle" font-size="9" class="mono muted">SwiGLU gate</text>
+          <text x="560" y="182" text-anchor="middle" font-size="9" class="mono muted">W_down → 2048</text>
+          <line x1="460" y1="153" x2="500" y2="153" stroke="var(--c-moe-dk)" stroke-width="1.5" marker-end="url(#arr3g)"/>
+
+          <!-- output -->
+          <rect x="200" y="280" width="240" height="40" fill="var(--c-moe-bg)" stroke="var(--c-moe)" stroke-width="1.5"/>
+          <text x="320" y="300" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-moe-dk)">y_t = SwiGLU_{e*}(x_t)</text>
+          <text x="320" y="314" text-anchor="middle" font-size="10" class="mono muted">no shared expert · no residual expert</text>
+          <line x1="560" y1="195" x2="380" y2="290" stroke="var(--c-moe-dk)" stroke-width="1.5" marker-end="url(#arr3g)"/>
+        </svg>
+
+        <!-- 16-expert grid: 1 active -->
+        <div class="experts-grid" id="experts-grid"></div>
+        <div class="experts-legend">
+          <span><i style="background:var(--c-moe)"></i> Selected expert (1 of 16)</span>
+          <span><i style="background:var(--kui-n100)"></i> Inactive on this token</span>
+          <span style="color:var(--c-rsa)">No shared / residual expert</span>
+        </div>
+      </div>
+
+      <div class="moe-stats">
+        <div class="row">
+          <div class="k">Routed experts <small>per MoE layer</small></div>
+          <div class="v">16</div>
+        </div>
+        <div class="row">
+          <div class="k">Top-k <small>selected per token</small></div>
+          <div class="v">1</div>
+        </div>
+        <div class="row">
+          <div class="k">Shared expert <small>always on</small></div>
+          <div class="v" style="color:var(--c-rsa)">none</div>
+        </div>
+        <div class="row">
+          <div class="k">Residual expert</div>
+          <div class="v" style="color:var(--c-rsa)">none</div>
+        </div>
+        <div class="row">
+          <div class="k">Expert FFN width <small>pre-activation</small></div>
+          <div class="v">4,096</div>
+        </div>
+        <div class="row">
+          <div class="k">Expert FFN width <small>post-activation</small></div>
+          <div class="v">2,048</div>
+        </div>
+        <div class="row">
+          <div class="k">Expansion factor</div>
+          <div class="v">2×</div>
+        </div>
+        <div class="row">
+          <div class="k">MoE layers <small>of 40 total</small></div>
+          <div class="v">40 <small>(all layers)</small></div>
+        </div>
+        <div class="row">
+          <div class="k">Sparsity <small>active / total</small></div>
+          <div class="v">9.0 % <small>0.76 B / 8.4 B</small></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="math-panel" style="margin-top:24px;">
+      <div class="lbl">MoE feed-forward · per token, per layer</div>
+      <div class="eq">e* = <b class="rtr">argmax_e</b>(s_{ℓ,e} + b_{ℓ,e}) &nbsp;<span class="comment"># single winning expert</span></div>
+      <div class="eq">y = <b class="moe">SwiGLU_{e*}</b>(x) &nbsp;= ((W_gate · x) ⊙ σ(W_up · x)) · W_down</div>
+      <div class="eq comment">k=1 with no residual expert. FLOP-matched ablations favored top-1 under the ZAYA1 router.</div>
+    </div>
+  </section>
+
+  <!-- ───────── 07 · RESIDUAL SCALING ───────── -->
+  <section id="res">
+    <div class="sec-head">
+      <div class="num">07 · Residual scaling</div>
+      <h2>A 4·L·D-parameter knob on every residual wire.</h2>
+      <p class="lede">
+        The third MoE++ change is the smallest in parameter count but touches every block. A learned
+        gate <code>α ∈ &Ropf;^D</code> and bias <code>β ∈ &Ropf;^D</code> are applied as
+        <code>Res-scale(x) = α ⊙ x + β</code>, with separate <code>(α, β)</code> for the residual stream
+        and for each layer's output before the residual add. The report frames this as a
+        lower-overhead alternative to Qwen's attention gating: it lets the model down-weight
+        parts of the residual stream and control how much prior information is retained, controlling
+        residual-norm growth through depth without observing gradient vanishing.
+      </p>
+    </div>
+
+    <div class="deep">
+      <div class="deep-head">
+        <div>
+          <div class="e">Residual modulation · all 40 layers</div>
+          <h3>Res-scale_res and Res-scale_out · two-place gating per block</h3>
+        </div>
+        <div class="strip" style="background:var(--c-res)"></div>
+      </div>
+      <div class="deep-body">
+        <div class="diagram">
+          <svg viewBox="0 0 560 280" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <marker id="arrz" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="#202020"/>
+              </marker>
+            </defs>
+            <!-- residual stream -->
+            <line x1="40" y1="40" x2="40" y2="240" stroke="var(--c-res)" stroke-width="2" stroke-dasharray="4 3"/>
+            <text x="20" y="135" font-size="11" class="mono muted" transform="rotate(-90 20 135)" fill="var(--c-res-dk)">residual</text>
+
+            <!-- res-scale res -->
+            <rect x="80" y="56" width="150" height="36" fill="var(--c-res-bg)" stroke="var(--c-res)" stroke-width="1.5"/>
+            <text x="155" y="78" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-res-dk)">Res-scale_res</text>
+            <line x1="40" y1="74" x2="80" y2="74" stroke="var(--c-res)" stroke-width="1.5" marker-end="url(#arrz)"/>
+
+            <!-- layer -->
+            <rect x="270" y="56" width="190" height="100" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+            <text x="365" y="82" text-anchor="middle" font-size="13" font-weight="500">Layer block</text>
+            <text x="365" y="100" text-anchor="middle" font-size="10" class="mono muted">RMSnorm → CCA or MoE</text>
+            <text x="365" y="120" text-anchor="middle" font-size="10" class="mono muted">output before residual</text>
+            <line x1="230" y1="74" x2="270" y2="100" stroke="#202020" stroke-width="1.5" marker-end="url(#arrz)"/>
+
+            <!-- res-scale out -->
+            <rect x="270" y="180" width="190" height="36" fill="var(--c-res-bg)" stroke="var(--c-res)" stroke-width="1.5"/>
+            <text x="365" y="202" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-res-dk)">Res-scale_out</text>
+            <line x1="365" y1="156" x2="365" y2="180" stroke="#202020" stroke-width="1.5" marker-end="url(#arrz)"/>
+
+            <!-- add to residual -->
+            <circle cx="40" cy="240" r="14" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+            <text x="40" y="244" text-anchor="middle" font-size="14" font-weight="500">+</text>
+            <line x1="270" y1="198" x2="54" y2="240" stroke="var(--c-res)" stroke-width="1.5" marker-end="url(#arrz)"/>
+
+            <!-- annotation -->
+            <text x="500" y="80" text-anchor="end" font-size="10" class="mono muted">α_res, β_res ∈ ℝ^2048</text>
+            <text x="500" y="200" text-anchor="end" font-size="10" class="mono muted">α_out, β_out ∈ ℝ^2048</text>
+            <text x="280" y="244" font-size="10" class="mono muted">init α = 1, β = 0  →  default residual at start</text>
+          </svg>
+        </div>
+        <div class="side">
+          <p>
+            Two separate gating pairs per block — one on the residual stream, one on the layer output. With
+            <code>α</code> initialized at one and <code>β</code> at zero, the block starts behaving like a
+            standard residual connection and gradually learns to <b>downweight uninformative residual
+            channels</b> as training progresses.
+          </p>
+          <p>
+            <b>Cost.</b> The full bag of residual-scaling parameters is <code>4 · L · D</code> per network
+            (two pairs × two scalars × layers × hidden size). For ZAYA1-8B that is
+            <code>4 · 40 · 2048 ≈ 328K</code> parameters — well below the per-layer LayerNorm budget and
+            negligible against the 8.4 B-parameter total.
+          </p>
+          <p>
+            <b>Effect.</b> Zyphra reports residual scaling provides <em>"similar benefits to Qwen's
+            attention gating scheme without the parameter or FLOP overhead of an explicit gating matrix,"</em>
+            and helps control residual-norm growth through depth without observing gradient vanishing.
+          </p>
+          <div class="math-panel">
+            <div class="lbl">Residual-scaling forward · per layer ℓ</div>
+            <div class="eq"><b class="res">Res-scale</b>(x) = α ⊙ x + β</div>
+            <div class="eq">x_{ℓ+1} = <b class="res">Res-scale_res</b>(x_ℓ) + <b class="res">Res-scale_out</b>(Layer(RMSnorm(x_ℓ)))</div>
+            <div class="eq comment">Init: α = 1, β = 0 · total params 4·L·D ≈ 328K for ZAYA1-8B</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 08 · TRAINING ───────── -->
+  <section id="train">
+    <div class="sec-head">
+      <div class="num">08 · Pretraining &amp; midtraining</div>
+      <h2>Four-phase reasoning-first training, all on AMD.</h2>
+      <p class="lede">
+        ZAYA1-8B is <b>trained from scratch for reasoning</b>: long chain-of-thought data is included from
+        pretraining onwards via an <b>answer-preserving (AP) trimming</b> scheme that truncates reasoning
+        tails while preserving the final answer at every context budget. The full pretraining-through-SFT
+        sequence is roughly <b>13.86 T tokens</b> on a 1,024-node AMD MI300X cluster, with the Muon
+        optimizer (AdamW RMS matching).
+      </p>
+    </div>
+
+    <div class="schedule">
+      <div class="row head">
+        <div>Phase</div>
+        <div>Emphasis</div>
+        <div>Context budget</div>
+        <div>RoPE base</div>
+        <div>Tokens</div>
+        <div></div>
+      </div>
+      <div class="row">
+        <div class="phase">Base pretrain · 1<small>broad web</small></div>
+        <div class="emph">Broad web, code, math, multilingual mix. AP-trimming applied at 4K target.</div>
+        <div class="ctx-bar"><span class="b" style="width:8px;"></span><span class="mono" style="font-size:11px;color:var(--kui-fg-muted);">4 K</span></div>
+        <div class="num">10 K</div>
+        <div class="num">8.0 T<small>tokens</small></div>
+        <div></div>
+      </div>
+      <div class="row">
+        <div class="phase">Base pretrain · 2<small>upweight code/math</small></div>
+        <div class="emph">More code, math, reasoning, instruction-formatted data. Still 4K context.</div>
+        <div class="ctx-bar"><span class="b" style="width:8px;"></span><span class="mono" style="font-size:11px;color:var(--kui-fg-muted);">4 K</span></div>
+        <div class="num">10 K</div>
+        <div class="num">4.0 T<small>tokens</small></div>
+        <div></div>
+      </div>
+      <div class="row">
+        <div class="phase">32K midtrain<small>reasoning-focused</small></div>
+        <div class="emph">Long-CoT reasoning at 86.1% of the mix · all-gather KV context parallelism · 2 ranks.</div>
+        <div class="ctx-bar"><span class="b" style="width:64px;"></span><span class="mono" style="font-size:11px;color:var(--kui-fg-muted);">32 K</span></div>
+        <div class="num">1 M</div>
+        <div class="num">1.2 T<small>tokens</small></div>
+        <div></div>
+      </div>
+      <div class="row">
+        <div class="phase">131K SFT<small>chat + reasoning + TTC</small></div>
+        <div class="emph">Long-CoT reasoning 75.0% · chat template + tool calling · 8 ranks of CP · best-fit-decreasing packing.</div>
+        <div class="ctx-bar"><span class="b" style="width:124px;"></span><span class="mono" style="font-size:11px;color:var(--kui-fg-muted);">131 K</span></div>
+        <div class="num">5 M</div>
+        <div class="num">0.66 T<small>tokens</small></div>
+        <div></div>
+      </div>
+    </div>
+
+    <div class="mix-pair" style="margin-top:24px;">
+      <div class="mix-card">
+        <h5>32K midtraining data mix</h5>
+        <div class="mix-row"><div class="lbl">Long-CoT reasoning traces</div><div class="bar"><div style="width:86.1%"></div></div><div class="val">86.1 %</div></div>
+        <div class="mix-row"><div class="lbl">Web · synthetic web · multilingual</div><div class="bar"><div style="width:5.7%"></div></div><div class="val">5.7 %</div></div>
+        <div class="mix-row"><div class="lbl">Code corpus / code SFT</div><div class="bar"><div style="width:3.0%"></div></div><div class="val">3.0 %</div></div>
+        <div class="mix-row"><div class="lbl">Math / STEM corpus</div><div class="bar"><div style="width:3.0%"></div></div><div class="val">3.0 %</div></div>
+        <div class="mix-row"><div class="lbl">Short instruction / few-shot</div><div class="bar"><div style="width:1.4%"></div></div><div class="val">1.4 %</div></div>
+        <div class="mix-row"><div class="lbl">Natively long-context</div><div class="bar"><div style="width:0.8%"></div></div><div class="val">0.8 %</div></div>
+      </div>
+      <div class="mix-card">
+        <h5>131K SFT data mix</h5>
+        <div class="mix-row"><div class="lbl">Long-CoT reasoning traces</div><div class="bar"><div style="width:75.0%"></div></div><div class="val">75.0 %</div></div>
+        <div class="mix-row"><div class="lbl">Web · synthetic web · multilingual</div><div class="bar"><div style="width:9.8%"></div></div><div class="val">9.8 %</div></div>
+        <div class="mix-row"><div class="lbl">Natively long-context</div><div class="bar"><div style="width:6.4%"></div></div><div class="val">6.4 %</div></div>
+        <div class="mix-row"><div class="lbl">Code corpus / code SFT</div><div class="bar"><div style="width:5.0%"></div></div><div class="val">5.0 %</div></div>
+        <div class="mix-row"><div class="lbl">Math / STEM corpus</div><div class="bar"><div style="width:2.6%"></div></div><div class="val">2.6 %</div></div>
+        <div class="mix-row"><div class="lbl">Short instruction / few-shot</div><div class="bar"><div style="width:1.2%"></div></div><div class="val">1.2 %</div></div>
+      </div>
+    </div>
+
+    <!-- AP-Trimming explainer -->
+    <div class="block-svg" style="margin-top:24px; padding: 28px;">
+      <h4>Answer-Preserving (AP) Trimming · how long reasoning data fits at short contexts</h4>
+      <div class="ann">Applied <em>offline</em> during data construction. Re-applied at each context budget (4K → 32K → 131K).</div>
+      <svg viewBox="0 0 940 280" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <marker id="arrap" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="#202020"/>
+          </marker>
+        </defs>
+
+        <text x="20" y="30" font-size="11" font-weight="500" class="mono muted">Original trace · ~14K tokens (exceeds 4K budget)</text>
+        <rect x="20" y="40" width="900" height="32" fill="var(--c-cca-bg)" stroke="var(--c-cca)" stroke-width="1"/>
+        <rect x="20" y="40" width="120" height="32" fill="#fff" stroke="var(--c-cca)" stroke-width="1.5"/>
+        <text x="80" y="60" text-anchor="middle" font-size="10" class="mono" fill="var(--c-cca-dk)">prompt</text>
+        <rect x="140" y="40" width="600" height="32" fill="var(--c-cca-bg)" stroke="var(--c-cca)" stroke-width="0.5"/>
+        <text x="440" y="60" text-anchor="middle" font-size="10" class="mono" fill="var(--c-cca-dk)">&lt;think&gt; planning → exploration → consolidation … 12K tokens … &lt;/think&gt;</text>
+        <rect x="740" y="40" width="180" height="32" fill="#fff" stroke="var(--c-moe)" stroke-width="1.5"/>
+        <text x="830" y="60" text-anchor="middle" font-size="10" class="mono" fill="var(--c-moe-dk)">final answer</text>
+
+        <line x1="470" y1="80" x2="470" y2="110" stroke="#202020" stroke-width="1.5" marker-end="url(#arrap)"/>
+        <text x="486" y="100" font-size="11" class="muted">AP-trim · keep prefix of think, drop tail</text>
+
+        <text x="20" y="138" font-size="11" font-weight="500" class="mono muted">After AP-trim · fits in 4K · answer intact</text>
+        <rect x="20" y="148" width="600" height="32" fill="var(--c-cca-bg)" stroke="var(--c-cca)" stroke-width="1"/>
+        <rect x="20" y="148" width="120" height="32" fill="#fff" stroke="var(--c-cca)" stroke-width="1.5"/>
+        <text x="80" y="168" text-anchor="middle" font-size="10" class="mono" fill="var(--c-cca-dk)">prompt</text>
+        <rect x="140" y="148" width="300" height="32" fill="var(--c-cca-bg)" stroke="var(--c-cca)" stroke-width="0.5"/>
+        <text x="290" y="168" text-anchor="middle" font-size="10" class="mono" fill="var(--c-cca-dk)">&lt;think&gt; planning + start of explore …</text>
+        <rect x="440" y="148" width="180" height="32" fill="#fff" stroke="var(--c-moe)" stroke-width="1.5"/>
+        <text x="530" y="168" text-anchor="middle" font-size="10" class="mono" fill="var(--c-moe-dk)">final answer</text>
+        <text x="640" y="168" font-size="10" class="mono muted">↑ truncated from the tail, not the middle</text>
+
+        <text x="20" y="220" font-size="12" font-weight="500">Procedure (per sample, target budget C)</text>
+        <text x="20" y="240" font-size="11">1. If full conversation ≤ C → keep unchanged.</text>
+        <text x="20" y="256" font-size="11">2. Truncate tail of last reasoning block (before answer) so sample fits.</text>
+        <text x="500" y="240" font-size="11">3. If still too long, drop earlier turns' &lt;think&gt; blocks (preserve answers).</text>
+        <text x="500" y="256" font-size="11">4. If answer alone exceeds C → drop sample.</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ───────── 09 · RL CASCADE ───────── -->
+  <section id="rl">
+    <div class="sec-head">
+      <div class="num">09 · Post-training · RL cascade</div>
+      <h2>SFT → four sequential RL stages, then a behavioral polish.</h2>
+      <p class="lede">
+        Post-training is organized as a <b>four-stage verifiable-reasoning cascade</b> followed by a fifth
+        behavioral RL stage. The first three stages spend their compute on verifiable signals (puzzles,
+        math, code, RLVE-Gym); chat and preference rewards arrive only at the end. All RL stages share a
+        common spine: asynchronous <b>PipelineRL</b>, <b>DPPO Binary-TV</b> trust-region masking
+        (δ = 0.1), <b>Dr-GRPO SMTSN</b> loss aggregation, <b>MaxRL</b> advantage estimation, and
+        <b>no KL in the reward</b>. Optimizer is <b>Muon with momentum set to zero</b>.
+      </p>
+    </div>
+
+    <div class="pipe">
+      <div class="step">
+        <div class="num">SFT</div>
+        <h6>Supervised fine-tuning</h6>
+        <p>131K context · 660B tokens. Establishes the chat template, introduces aggregation examples used by Markovian RSA.</p>
+        <span class="vol brand">660 B tokens</span>
+      </div>
+      <div class="step">
+        <div class="num">RL 1</div>
+        <h6>Reasoning warmup</h6>
+        <p>Math, puzzles, TTC traces. Builds general reasoning circuits before the curriculum stage.</p>
+        <span class="vol rl">232 steps</span>
+      </div>
+      <div class="step">
+        <div class="num">RL 2</div>
+        <h6>RLVE-Gym curriculum</h6>
+        <p>400 adaptive verifiable environments. Puzzle difficulty adjusted dynamically; environment-verifier and solve-rate rewards.</p>
+        <span class="vol rl">400 steps · 400 envs</span>
+      </div>
+      <div class="step">
+        <div class="num">RL 3</div>
+        <h6>Math + Code + TTC</h6>
+        <p>Two phases (384 + 464 steps). Verifiable task reward · synthetic code environments from competitive-programming refs.</p>
+        <span class="vol rl">848 steps</span>
+      </div>
+      <div class="step">
+        <div class="num">RL 4</div>
+        <h6>Behavioral RL</h6>
+        <p>Chat / RM, simple IF, hard IF. Standard GRPO with reward standard-deviation normalization · IF gate on IF stages.</p>
+        <span class="vol rl">384 steps</span>
+      </div>
+    </div>
+
+    <div class="math-panel">
+      <div class="lbl">Shared algorithmic spine · all five RL stages</div>
+      <div class="eq">Trust region · <b>DPPO Binary-TV</b> · mask tokens with |Δ log-ratio| &gt; δ=0.1</div>
+      <div class="eq">Loss aggregation · <b>Dr-GRPO SMTSN</b> · sequence-mean over token-sum-norm</div>
+      <div class="eq">Advantage · <b>MaxRL</b> · Â_i = (r_i − r̄) / r̄  &nbsp;<span class="comment"># per-prompt mean normalization</span></div>
+      <div class="eq">Optimizer · <b>Muon</b> with momentum 0 · LR ∈ [2×10⁻⁶, 1×10⁻⁵]</div>
+      <div class="eq">Group size G = 16 rollouts/prompt · minibatch 128 prompts · max response 81,920 tokens</div>
+      <div class="eq comment">Trainer-to-rollout sync every 2 iterations · steady-state staleness bounded at 2 updates · no KL in reward</div>
+    </div>
+  </section>
+
+  <!-- ───────── 10 · MARKOVIAN RSA ───────── -->
+  <section id="rsa">
+    <div class="sec-head">
+      <div class="num">10 · Test-time compute</div>
+      <h2>Markovian RSA — bounded-tail recursive self-aggregation.</h2>
+      <p class="lede">
+        Markovian RSA is the model's headline test-time-compute mechanism. It combines the recursive
+        candidate-aggregation structure of <b>RSA</b> (Recursive Self-Aggregation) with the
+        bounded-workspace principle of <b>Markovian Thinking</b>. Each stage <em>generates N candidates
+        in parallel</em>, each candidate has a <em>bounded decode length β</em>, and the aggregation prefill
+        depends only on <b>C carried-forward tails of length τ</b> — not on the full reasoning history.
+        ZAYA1-8B is <b>trained for this workflow</b>: SFT data includes aggregation examples and RL stages
+        train both expert-model and self-aggregation variants. With a <b>40K / 4K</b> configuration
+        (40K total decode budget, 4K-token carried tail) the model reaches <b>91.9% AIME'25</b> and
+        <b>89.6% HMMT'25</b>.
+      </p>
+    </div>
+
+    <div class="rsa-wrap">
+      <svg viewBox="0 0 980 360" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <marker id="arrrsa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="#202020"/>
+          </marker>
+          <marker id="arrrsav" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--c-rsa)"/>
+          </marker>
+        </defs>
+
+        <!-- prompt -->
+        <rect x="20" y="160" width="120" height="48" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+        <text x="80" y="180" text-anchor="middle" font-size="12" font-weight="500">prompt</text>
+        <text x="80" y="196" text-anchor="middle" font-size="10" class="mono muted">problem statement</text>
+
+        <!-- round 1 -->
+        <text x="220" y="40" font-size="11" font-weight="500" class="mono" fill="var(--c-rsa-dk)">Round 1 · N parallel rollouts (bounded β tokens each)</text>
+        <g>
+          <rect x="180" y="60" width="120" height="36" fill="var(--c-rsa-bg)" stroke="var(--c-rsa)" stroke-width="1.5"/>
+          <text x="240" y="78" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-rsa-dk)">candidate 1</text>
+          <text x="240" y="90" text-anchor="middle" font-size="9" class="mono muted">decode ≤ β</text>
+          <rect x="180" y="104" width="120" height="36" fill="var(--c-rsa-bg)" stroke="var(--c-rsa)" stroke-width="1.5"/>
+          <text x="240" y="122" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-rsa-dk)">candidate 2</text>
+          <text x="240" y="134" text-anchor="middle" font-size="9" class="mono muted">decode ≤ β</text>
+          <rect x="180" y="148" width="120" height="36" fill="var(--c-rsa-bg)" stroke="var(--c-rsa)" stroke-width="1.5"/>
+          <text x="240" y="166" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-rsa-dk)">candidate 3</text>
+          <text x="240" y="178" text-anchor="middle" font-size="9" class="mono muted">decode ≤ β</text>
+          <rect x="180" y="192" width="120" height="36" fill="var(--c-rsa-bg)" stroke="var(--c-rsa)" stroke-width="1.5"/>
+          <text x="240" y="210" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-rsa-dk)">candidate 4</text>
+          <text x="240" y="222" text-anchor="middle" font-size="9" class="mono muted">decode ≤ β</text>
+        </g>
+        <line x1="140" y1="184" x2="180" y2="78" stroke="var(--c-rsa)" stroke-width="1.5" marker-end="url(#arrrsav)"/>
+        <line x1="140" y1="184" x2="180" y2="122" stroke="var(--c-rsa)" stroke-width="1.5" marker-end="url(#arrrsav)"/>
+        <line x1="140" y1="184" x2="180" y2="166" stroke="var(--c-rsa)" stroke-width="1.5" marker-end="url(#arrrsav)"/>
+        <line x1="140" y1="184" x2="180" y2="210" stroke="var(--c-rsa)" stroke-width="1.5" marker-end="url(#arrrsav)"/>
+
+        <!-- tail extraction -->
+        <rect x="340" y="100" width="100" height="84" fill="#fff" stroke="var(--c-rsa)" stroke-width="1.5"/>
+        <text x="390" y="124" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-rsa-dk)">tail(τ)</text>
+        <text x="390" y="142" text-anchor="middle" font-size="9" class="mono muted">last τ tokens</text>
+        <text x="390" y="156" text-anchor="middle" font-size="9" class="mono muted">of each candidate</text>
+        <text x="390" y="174" text-anchor="middle" font-size="9" class="mono" fill="var(--c-rsa-dk)">τ=4K default</text>
+        <line x1="300" y1="78" x2="340" y2="120" stroke="var(--c-rsa)" stroke-width="1" stroke-dasharray="3 3"/>
+        <line x1="300" y1="122" x2="340" y2="135" stroke="var(--c-rsa)" stroke-width="1" stroke-dasharray="3 3"/>
+        <line x1="300" y1="166" x2="340" y2="150" stroke="var(--c-rsa)" stroke-width="1" stroke-dasharray="3 3"/>
+        <line x1="300" y1="210" x2="340" y2="165" stroke="var(--c-rsa)" stroke-width="1" stroke-dasharray="3 3"/>
+
+        <!-- aggregator -->
+        <rect x="500" y="100" width="180" height="84" fill="var(--c-rsa)" stroke="var(--c-rsa-dk)" stroke-width="1.5"/>
+        <text x="590" y="126" text-anchor="middle" font-size="13" font-weight="500" class="white">Aggregation pass</text>
+        <text x="590" y="146" text-anchor="middle" font-size="10" class="mono white">prefill: prompt + C tails</text>
+        <text x="590" y="162" text-anchor="middle" font-size="10" class="mono white">C=4 · |prompt+tails| ≤ 20,480</text>
+        <text x="590" y="178" text-anchor="middle" font-size="9" class="mono white">model produces single improved sol.</text>
+        <line x1="440" y1="142" x2="500" y2="142" stroke="var(--c-rsa-dk)" stroke-width="1.5" marker-end="url(#arrrsa)"/>
+
+        <!-- decide branch -->
+        <rect x="740" y="100" width="180" height="84" fill="#fff" stroke="var(--c-rsa-dk)" stroke-width="1.5"/>
+        <text x="830" y="126" text-anchor="middle" font-size="13" font-weight="500" fill="var(--c-rsa-dk)">Decide</text>
+        <text x="830" y="146" text-anchor="middle" font-size="10" class="mono muted">return answer · OR</text>
+        <text x="830" y="162" text-anchor="middle" font-size="10" class="mono muted">spawn next round of N candidates</text>
+        <text x="830" y="178" text-anchor="middle" font-size="9" class="mono" fill="var(--c-rsa-dk)">→ Markovian (no history grows)</text>
+        <line x1="680" y1="142" x2="740" y2="142" stroke="#202020" stroke-width="1.5" marker-end="url(#arrrsa)"/>
+
+        <!-- loop back -->
+        <path d="M 830 184 L 830 280 L 80 280 L 80 220" fill="none" stroke="var(--c-rsa)" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrrsav)"/>
+        <text x="450" y="296" font-size="10" class="mono" fill="var(--c-rsa-dk)">tail carried forward · bounded by τ — context does not grow with depth</text>
+
+        <text x="80" y="320" font-size="11">Default 40K / 4K configuration: total decode budget 40K tokens, τ = 4K carried tail.</text>
+      </svg>
+    </div>
+
+    <div class="rsa-grid" style="margin-top:16px;">
+      <div class="rsa-side">
+        <h5>Why Markovian, not full RSA</h5>
+        <div class="sub">aggregation prefill depends only on C, τ — not on full reasoning history</div>
+        <ul>
+          <li><b>Full RSA</b> recursively aggregates all prior reasoning. Context cost grows with depth — eventually unbounded.</li>
+          <li><b>Markovian RSA</b> aggregates only <b>C carried tails of length τ</b>. Workspace stays bounded regardless of how many rounds run.</li>
+          <li>Trained-in: <b>SFT aggregation examples</b> from expert-model rollouts; RL stages train both expert-model and policy-self-aggregation variants.</li>
+          <li>Aggregation prompt budget at training time: <b>20,480 tokens</b> · sized to fit C=4 candidate tails plus the original prompt.</li>
+        </ul>
+      </div>
+      <div class="rsa-side">
+        <h5>Headline lift on AIME'25 / HMMT'25</h5>
+        <div class="sub">single-rollout vs. 40K / 4K Markovian RSA</div>
+        <div class="bench-row"><div class="lbl">AIME'25 · single rollout</div><div class="bar"><div style="width:70%; background:var(--c-moe);"></div></div><div class="val">baseline</div></div>
+        <div class="bench-row"><div class="lbl">AIME'25 · Markovian RSA</div><div class="bar"><div style="width:91.9%; background:var(--c-rsa);"></div></div><div class="val boost">91.9</div></div>
+        <div class="bench-row"><div class="lbl">HMMT'25 · single rollout</div><div class="bar"><div style="width:60%; background:var(--c-moe);"></div></div><div class="val">baseline</div></div>
+        <div class="bench-row"><div class="lbl">HMMT'25 · Markovian RSA</div><div class="bar"><div style="width:89.6%; background:var(--c-rsa);"></div></div><div class="val boost">89.6</div></div>
+        <div class="sub" style="margin-top:14px; margin-bottom:0;">Single-rollout AIME/HMMT'25 numbers not published in the model card; bars are illustrative of "headline lift" only. The 91.9 / 89.6 RSA values are source-reported.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 11 · HARDWARE ───────── -->
+  <section id="hw">
+    <div class="sec-head">
+      <div class="num">11 · Training stack</div>
+      <h2>1,024 AMD MI300X nodes on Pollara 400 — no NVIDIA in the loop.</h2>
+      <p class="lede">
+        ZAYA1-8B is the first MoE pretrained, midtrained, and SFT-d end-to-end on an
+        <b>AMD Instinct MI300X</b> stack. The cluster is a custom build with IBM, runs
+        <b>1,024 MI300X nodes</b> wired together with <b>AMD Pensando Pollara 400</b> interconnect, and was
+        validated against this 8B-MoE workload (not yet against substantially larger scales). Inference is
+        also AMD-friendly: the model fits on a single MI300X or H100, or on consumer-grade hardware with
+        4-bit quantization. Released ports include Apple-Silicon MXFP4 bundles, BNB INT8 / NF4 quants, and
+        Zyphra's own vLLM and Transformers forks.
+      </p>
+    </div>
+
+    <div class="hw-grid">
+      <div class="hw-card">
+        <h4>Pretraining cluster</h4>
+        <div class="sub">Anthony et al. 2025 · "Training Foundation Models on a Full-Stack AMD Platform"</div>
+        <div class="hw-row"><div class="k">GPU</div><div class="v">AMD Instinct MI300X</div></div>
+        <div class="hw-row"><div class="k">Node count</div><div class="v">1,024</div></div>
+        <div class="hw-row"><div class="k">Interconnect</div><div class="v">AMD Pensando Pollara 400</div></div>
+        <div class="hw-row"><div class="k">Builder</div><div class="v">Zyphra + IBM (custom)</div></div>
+        <div class="hw-row"><div class="k">Optimizer</div><div class="v">Muon · AdamW RMS matching</div></div>
+        <div class="hw-row"><div class="k">Context parallelism</div><div class="v">all-gather KV · 2 ranks @ 32K, 8 @ 131K</div></div>
+        <div class="hw-row"><div class="k">SFT packer</div><div class="v">best-fit-decreasing bin packing</div></div>
+        <div class="hw-row"><div class="k">Precision (FP32 set)</div><div class="v">router, attention scores, length-normed loss</div></div>
+        <div class="node-grid" aria-label="1024 nodes"></div>
+        <p style="font-size:11px; color: var(--kui-fg-muted); margin: 12px 0 0;">Each square = 8 MI300X nodes. Grid shows the full 1,024-node cluster footprint.</p>
+      </div>
+      <div class="hw-card">
+        <h4>Inference targets</h4>
+        <div class="sub">Apache-2.0 weights · runs on a single MI300X / H100 / consumer GPU (quantized)</div>
+        <div class="hw-row"><div class="k">vLLM (Zyphra fork)</div><div class="v">vllm @ git:Zyphra/vllm@zaya1-pr</div></div>
+        <div class="hw-row"><div class="k">Transformers fork</div><div class="v">transformers @ git:Zyphra/transformers@zaya1</div></div>
+        <div class="hw-row"><div class="k">Reasoning parser</div><div class="v">qwen3</div></div>
+        <div class="hw-row"><div class="k">Tool parser</div><div class="v">zaya_xml</div></div>
+        <div class="hw-row"><div class="k">Recommended sampling</div><div class="v">T=1.0 · top-p=0.95 · top-k=-1</div></div>
+        <div class="hw-row"><div class="k">Agentic sampling</div><div class="v">T=0.6 · top-p=0.95 · top-k=-1</div></div>
+        <div class="hw-row"><div class="k">Parallelism</div><div class="v">DP=EP (TP for CCA not yet in fork)</div></div>
+        <div class="hw-row"><div class="k">Cache dtype</div><div class="v">--mamba-cache-dtype float32 · dtype bfloat16</div></div>
+        <div class="hw-row"><div class="k">Released quants</div><div class="v">BF16 · MXFP4 · BNB NF4 / INT8</div></div>
+        <div class="hw-row"><div class="k">Apple-Silicon bundle</div><div class="v">OsaurusAI/ZAYA1-8B-MXFP4 (MLX/JANG runtime)</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 12 · BENCHMARKS ───────── -->
+  <section id="bench">
+    <div class="sec-head">
+      <div class="num">12 · Benchmarks</div>
+      <h2>Source-reported scores from the Zyphra evaluation harness.</h2>
+      <p class="lede">
+        All numbers below are from the official model card and technical report, run on the Zyphra
+        evaluation harness. Listed as <em>source-reported</em>, not independently verified. ZAYA1-8B leads
+        its in-class peers (Qwen3-4B-Thinking-2507, Qwen3.5-4B, Gemma-4-E4B-it) on mathematics and
+        coding benchmarks, with style/chat and agentic benchmarks favoring the larger Qwen models.
+      </p>
+    </div>
+
+    <div class="bench-grid">
+      <div class="bench-card">
+        <h5>Mathematics</h5>
+        <div class="bench-row"><div class="lbl">AIME'26</div><div class="bar"><div style="width:89.1%"></div></div><div class="val">89.1</div></div>
+        <div class="bench-row"><div class="lbl">HMMT Feb'26</div><div class="bar"><div style="width:71.6%"></div></div><div class="val">71.6</div></div>
+        <div class="bench-row"><div class="lbl">IMO-AnswerBench</div><div class="bar"><div style="width:59.3%"></div></div><div class="val">59.3</div></div>
+        <div class="bench-row"><div class="lbl">APEX-shortlist</div><div class="bar"><div style="width:32.2%"></div></div><div class="val">32.2</div></div>
+      </div>
+      <div class="bench-card">
+        <h5>Code · Knowledge</h5>
+        <div class="bench-row"><div class="lbl">LiveCodeBench-v6</div><div class="bar"><div style="width:65.8%; background:var(--c-cca);"></div></div><div class="val">65.8</div></div>
+        <div class="bench-row"><div class="lbl">GPQA-Diamond</div><div class="bar"><div style="width:71.0%; background:var(--c-cca);"></div></div><div class="val">71.0</div></div>
+        <div class="bench-row"><div class="lbl">MMLU-Pro</div><div class="bar"><div style="width:74.2%; background:var(--c-cca);"></div></div><div class="val">74.2</div></div>
+        <div class="bench-row"><div class="lbl">IFEval</div><div class="bar"><div style="width:85.58%; background:var(--c-cca);"></div></div><div class="val">85.58</div></div>
+        <div class="bench-row"><div class="lbl">IFBench</div><div class="bar"><div style="width:52.56%; background:var(--c-cca);"></div></div><div class="val">52.56</div></div>
+      </div>
+      <div class="bench-card">
+        <h5>Style · Chat · Agentic</h5>
+        <div class="bench-row"><div class="lbl">EQBench</div><div class="bar"><div style="width:72.95%; background:var(--c-rtr);"></div></div><div class="val">72.95</div></div>
+        <div class="bench-row"><div class="lbl">Creative Writing v3</div><div class="bar"><div style="width:62.97%; background:var(--c-rtr);"></div></div><div class="val">62.97</div></div>
+        <div class="bench-row"><div class="lbl">BFCL-v4</div><div class="bar"><div style="width:39.22%; background:var(--c-rtr);"></div></div><div class="val">39.22</div></div>
+        <div class="bench-row"><div class="lbl">τ² (tau²)</div><div class="bar"><div style="width:43.12%; background:var(--c-rtr);"></div></div><div class="val">43.12</div></div>
+      </div>
+    </div>
+
+    <div class="vs-wrap" style="margin-top:24px;">
+      <h4>Scaling comparison · ZAYA1-8B vs. substantially larger open-weight reasoning models</h4>
+      <div class="sub">All numbers from the Zyphra harness, model card · models ordered by total parameter count</div>
+      <div class="vs-key">
+        <span><i style="background:var(--c-moe)"></i> ZAYA1-8B (0.7 B active / 8 B total)</span>
+        <span><i style="background:var(--kui-fg-muted); opacity:0.5"></i> peer model</span>
+      </div>
+
+      <div class="vs-row">
+        <div class="lbl">AIME'26<small>mathematics</small></div>
+        <div class="bars">
+          <div class="b"><div class="k" style="width:89.1%"></div><span>89.1 · ZAYA1-8B (8 B)</span></div>
+          <div class="b"><div class="p3" style="width:90.1%"></div><span>90.1 · N3-Nano-30B (30 B)</span></div>
+          <div class="b"><div class="p1" style="width:90.2%"></div><span>90.2 · Qwen3-Next-80B (80 B)</span></div>
+          <div class="b"><div class="p2" style="width:86.4%"></div><span>86.4 · Mistral-Small-4 (119 B)</span></div>
+        </div>
+        <div class="val">89.1<small>vs 80–119 B</small></div>
+      </div>
+
+      <div class="vs-row">
+        <div class="lbl">HMMT'26<small>mathematics</small></div>
+        <div class="bars">
+          <div class="b"><div class="k" style="width:71.6%"></div><span>71.6 · ZAYA1-8B</span></div>
+          <div class="b"><div class="p3" style="width:75.5%"></div><span>75.5 · N3-Nano-30B</span></div>
+          <div class="b"><div class="p1" style="width:79.3%"></div><span>79.3 · Qwen3-Next-80B</span></div>
+          <div class="b"><div class="p2" style="width:70.6%"></div><span>70.6 · Mistral-Small-4 (119 B)</span></div>
+        </div>
+        <div class="val">71.6</div>
+      </div>
+
+      <div class="vs-row">
+        <div class="lbl">LCB-v6<small>coding</small></div>
+        <div class="bars">
+          <div class="b"><div class="k" style="width:63.8%"></div><span>63.8 · ZAYA1-8B</span></div>
+          <div class="b"><div class="p3" style="width:64.6%"></div><span>64.6 · N3-Nano-30B</span></div>
+          <div class="b"><div class="p1" style="width:67.8%"></div><span>67.8 · Qwen3-Next-80B</span></div>
+          <div class="b"><div class="p2" style="width:66.8%"></div><span>66.8 · Intellect-3 (106 B)</span></div>
+        </div>
+        <div class="val">63.8</div>
+      </div>
+
+      <div class="vs-row">
+        <div class="lbl">IFEval<small>instruction following</small></div>
+        <div class="bars">
+          <div class="b"><div class="k" style="width:85.8%"></div><span>85.8 · ZAYA1-8B</span></div>
+          <div class="b"><div class="p3" style="width:93.2%"></div><span>93.2 · OLMo-3.1-32B-Think (32 B)</span></div>
+          <div class="b"><div class="p1" style="width:88.5%"></div><span>88.5 · Qwen3-Next-80B</span></div>
+          <div class="b"><div class="p2" style="width:84.0%"></div><span>84.0 · Mistral-Small-4 (119 B)</span></div>
+        </div>
+        <div class="val neg">85.8</div>
+      </div>
+
+      <div class="vs-row">
+        <div class="lbl">GPQA-D<small>knowledge</small></div>
+        <div class="bars">
+          <div class="b"><div class="k" style="width:71.0%"></div><span>71.0 · ZAYA1-8B</span></div>
+          <div class="b"><div class="p3" style="width:75.1%"></div><span>75.1 · N3-Nano-30B</span></div>
+          <div class="b"><div class="p1" style="width:76.7%"></div><span>76.7 · Qwen3-Next-80B</span></div>
+          <div class="b"><div class="p2" style="width:77.2%"></div><span>77.2 · Mistral-Small-4</span></div>
+        </div>
+        <div class="val">71.0</div>
+      </div>
+
+      <div class="vs-row">
+        <div class="lbl">MMLU-Pro<small>knowledge</small></div>
+        <div class="bars">
+          <div class="b"><div class="k" style="width:74.2%"></div><span>74.2 · ZAYA1-8B</span></div>
+          <div class="b"><div class="p3" style="width:78.9%"></div><span>78.9 · N3-Nano-30B</span></div>
+          <div class="b"><div class="p1" style="width:82.6%"></div><span>82.6 · Qwen3-Next-80B</span></div>
+          <div class="b"><div class="p2" style="width:82.3%"></div><span>82.3 · Intellect-3 (106 B)</span></div>
+        </div>
+        <div class="val">74.2</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 13 · CAVEATS ───────── -->
+  <section id="caveats">
+    <div class="sec-head">
+      <div class="num">13 · Caveats &amp; unknowns</div>
+      <h2>What this page does and does not claim.</h2>
+      <p class="lede">
+        Every numeric value in this page comes from a primary source (the official Hugging Face model card,
+        the arXiv technical report, or the Zyphra release blog). Where a fact was not specified in those
+        sources, it is labeled as such and not inferred. The list below collects the most material
+        gaps and provenance notes.
+      </p>
+    </div>
+
+    <div class="caveats">
+      <div class="caveat ok">
+        <h6>Confirmed by primary sources</h6>
+        <p>Architecture configuration table (40 layers, d=2048, 8/2 heads, head dim 128, CCGQA+CCA, 16 experts top-1, R=256, 50% RoPE, Gemma3 tokenizer, vocab 262,272), 0.76 B active / 8.4 B total, MoE++ recipe, training schedule (4K/8T → 4K/4T → 32K/1.2T → 131K/660B), AMD MI300X cluster (1,024 nodes, Pollara 400, IBM), RL cascade composition, Markovian RSA defaults (40K/4K), all benchmarks in §12, Apache-2.0 license, and the May 6, 2026 release date.</p>
+      </div>
+      <div class="caveat">
+        <h6>Inventory used a slightly different label</h6>
+        <p>The local inventory describes the model as "Sparse MoE reasoning model · CCA plus GQA attention." The primary sources clarify the attention is <b>CCGQA</b> (a compressed-convolutional variant of GQA) with a CCA preconditioner. This page uses the source-backed naming throughout.</p>
+      </div>
+      <div class="caveat">
+        <h6>Active-parameter rounding</h6>
+        <p>The model card uses <b>0.76 B active</b>; the abstract of the technical report rounds to <b>700 M</b>. We use 0.76 B for arithmetic but display "0.7 B" when matching the source convention in benchmark tables.</p>
+      </div>
+      <div class="caveat">
+        <h6>Embedding tying</h6>
+        <p>The model card does not state whether the token embedding and LM head are tied. The standalone Apache-2.0 weight count is reported only as a total. <code>tied to LM head: not reported</code>.</p>
+      </div>
+      <div class="caveat">
+        <h6>Single-rollout AIME'25 / HMMT'25</h6>
+        <p>The 91.9 / 89.6 figures shown in §10 are with the 40K/4K Markovian RSA configuration. The single-rollout values on these benchmarks are not enumerated in the model card; the side-by-side bars there are illustrative of the lift, not a verified baseline.</p>
+      </div>
+      <div class="caveat">
+        <h6>"GQA attention" lead from the inventory</h6>
+        <p>The inventory's <code>Attention mechanism lead: GQA</code> resolves in primary sources to CCGQA (compressed-convolutional grouped-query). The grouping structure is real (8 Q-heads share 2 KV-heads), but the FLOP and memory profile is dominated by the CCA preconditioner, not stock GQA.</p>
+      </div>
+      <div class="caveat">
+        <h6>Inventory date</h6>
+        <p>The inventory lists "2026-05-06" — confirmed by the Zyphra release blog ("ZAYA1-8B: Frontier intelligence density, trained on AMD", May 6, 2026) and matched by the technical report's arXiv version stamp (<code>arXiv:2605.05365v1 [cs.AI] 06 May 2026</code>).</p>
+      </div>
+      <div class="caveat">
+        <h6>Vision variant out of scope</h6>
+        <p>Zyphra also released <b>ZAYA1-VL-8B</b>, a vision-language model built on this LLM with bidirectional image-token attention and LoRA-trained vision adapters. This page describes the text-only ZAYA1-8B; the VL variant is documented separately at <code>huggingface.co/Zyphra/ZAYA1-VL-8B</code>.</p>
+      </div>
+    </div>
+  </section>
+
+  </main>
+</div>
+
+<footer>
+  <div class="row">
+    <div>ZAYA1-8B Architecture · Zyphra · released May 6, 2026 · Apache-2.0</div>
+    <div>
+      <a href="https://huggingface.co/Zyphra/ZAYA1-8B">model card</a> ·
+      <a href="https://arxiv.org/abs/2605.05365">arXiv 2605.05365</a> ·
+      <a href="https://www.zyphra.com/post/zaya1-8b">Zyphra blog</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // 40-layer ribbon
+  (function() {
+    const ribbon = document.getElementById('ribbon');
+    if (!ribbon) return;
+    let html = '';
+    for (let i = 0; i < 40; i++) {
+      html += '<div class="cell"><div class="attn"></div><div class="ffn"></div>';
+      // label only every 5th
+      if (i % 5 === 0 || i === 39) {
+        html += '<div class="num">' + i + '</div>';
+      }
+      html += '</div>';
+    }
+    ribbon.innerHTML = html;
+  })();
+
+  // 16-expert grid · 1 active
+  (function() {
+    const grid = document.getElementById('experts-grid');
+    if (!grid) return;
+    const selected = 7;
+    let html = '';
+    for (let i = 0; i < 16; i++) {
+      const cls = i === selected ? 'ex r' : 'ex';
+      html += '<div class="' + cls + '"><div class="lbl">E_' + (i < 10 ? '0' + i : i) + '</div></div>';
+    }
+    grid.innerHTML = html;
+  })();
+
+  // 1,024-node cluster: 128 squares = 8 nodes each
+  (function() {
+    const grids = document.querySelectorAll('.node-grid');
+    grids.forEach(g => {
+      let html = '';
+      for (let i = 0; i < 128; i++) html += '<div class="nd"></div>';
+      g.innerHTML = html;
+    });
+  })();
+
+  // sidebar active-link scroll spy
+  (function() {
+    const links = document.querySelectorAll('.sidebar nav a');
+    const sections = Array.from(links).map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+    function onScroll() {
+      const y = window.scrollY + 100;
+      let idx = 0;
+      sections.forEach((s, i) => { if (s.offsetTop <= y) idx = i; });
+      links.forEach((a, i) => a.classList.toggle('active', i === idx));
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
+</body>
+</html>

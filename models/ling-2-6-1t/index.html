@@ -1,0 +1,1341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ling 2.6 1T — Architecture</title>
+<link rel="stylesheet" href="kaizen/colors_and_type.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--kui-bg-canvas); color: var(--kui-fg-strong); font: var(--kui-body); }
+  body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  a { color: inherit; text-decoration: none; }
+
+  /* ── per-page color tokens ── */
+  :root {
+    --c-mla:       #1FA18D;   /* teal — MLA full attention */
+    --c-mla-bg:    #E2F1EF;
+    --c-lin:       #6B3FA0;   /* purple — Lightning Linear attention */
+    --c-lin-bg:    #ECE4F4;
+    --c-moe:       #76B900;   /* nvidia green — routed experts */
+    --c-moe-bg:    #E8F4D6;
+    --c-shared:    #5E9600;
+    --c-mtp:       #C54600;   /* orange — Multi-Token Prediction */
+    --c-mtp-bg:    #FDEFE6;
+    --c-fp8:       #B58A00;   /* amber — FP8 mixed precision */
+    --c-fp8-bg:    #FFF7DA;
+    --c-embed:     #5E5E5E;
+    --c-embed-bg:  #F2F2F2;
+  }
+
+  /* ── app shell ── */
+  .top-bar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 32px;
+    background: #000; color: #fff;
+    border-bottom: 4px solid var(--kui-brand-green);
+  }
+  .top-bar .wordmark { height: 22px; }
+  .top-bar .divider { width: 1px; height: 18px; background: rgba(255,255,255,0.25); }
+  .top-bar .crumb { font: 500 12px/1 var(--kui-font-sans); text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,0.55); }
+  .top-bar h1 { font: 500 16px/1 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0; }
+  .top-bar .meta { margin-left: auto; display: flex; gap: 24px; font: var(--kui-text-sm); color: rgba(255,255,255,0.7); }
+  .top-bar .meta b { color: #fff; font-weight: 500; }
+
+  .layout { display: grid; grid-template-columns: 220px 1fr; gap: 0; }
+  .rail {
+    position: sticky; top: 0;
+    height: 100vh; border-right: 1px solid var(--kui-border-default);
+    padding: 32px 24px; background: #fff;
+    display: flex; flex-direction: column; gap: 4px;
+    overflow-y: auto;
+  }
+  .rail .who { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 14px; }
+  .rail a { font: var(--kui-body); color: var(--kui-fg-muted); padding: 7px 0; display: block; border-left: 2px solid transparent; padding-left: 12px; margin-left: -12px; }
+  .rail a.active, .rail a:hover { color: var(--kui-fg-strong); border-left-color: var(--kui-brand-green); }
+  .rail a .n { font-family: var(--kui-font-mono); font-size: 11px; color: var(--kui-fg-disabled); margin-right: 10px; }
+  .rail .home-link {
+    margin: 0 0 14px -12px;
+    color: var(--kui-fg-strong);
+    font-weight: 500;
+  }
+  .rail .home-link::before {
+    content: "←";
+    margin-right: 8px;
+    color: var(--kui-brand-green);
+  }
+  .rail .foot { margin-top: auto; padding-top: 24px; border-top: 1px solid var(--kui-border-default); font: var(--kui-caption); color: var(--kui-fg-muted); }
+  .rail .foot a { display: inline; padding: 0; margin: 0; border: 0; color: var(--c-mla); }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 40px 96px; }
+
+  /* ── hero ── */
+  .hero {
+    padding: 48px 0 40px;
+    border-bottom: 1px solid var(--kui-border-default);
+  }
+  .hero .row1 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 64px; align-items: end; margin-bottom: 32px; }
+  .hero .eyebrow { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 14px; display: flex; gap: 12px; align-items: center; }
+  .hero .eyebrow .pill { background: var(--c-lin-bg); color: var(--c-lin); padding: 3px 8px; border: 1px solid var(--c-lin); font-family: var(--kui-font-mono); font-size: 10px; }
+  .hero h2 {
+    font: 500 52px/1.04 var(--kui-font-sans); letter-spacing: -1px;
+    margin: 0 0 16px;
+  }
+  .hero h2 .accent { color: var(--c-mla); }
+  .hero h2 .accent2 { color: var(--c-lin); }
+  .hero h2 .accent3 { color: var(--c-moe); }
+  .hero p { font: var(--kui-body-md); color: var(--kui-fg-default); max-width: 60ch; margin: 0; }
+
+  .hero .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); }
+  .hero .stat { background: #fff; padding: 16px 18px; }
+  .hero .stat .label { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1px; color: var(--kui-fg-muted); margin-bottom: 6px; }
+  .hero .stat .value { font: 500 24px/1 var(--kui-font-sans); letter-spacing: -0.5px; }
+  .hero .stat .value small { font: 400 12px/1 var(--kui-font-sans); color: var(--kui-fg-muted); margin-left: 4px; letter-spacing: 0; }
+  .hero .stat .value.unk { color: var(--kui-fg-disabled); font-weight: 400; font-style: italic; font-size: 14px; letter-spacing: 0; }
+  .hero .stat .src { font: 10px/1 var(--kui-font-mono); color: var(--kui-fg-disabled); margin-top: 6px; }
+
+  /* identity sidebar block */
+  .ident {
+    background: #fff; border: 1px solid var(--kui-border-default);
+    padding: 24px;
+  }
+  .ident .row { display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 10px 0; border-top: 1px solid var(--kui-border-subtle); font: var(--kui-body); }
+  .ident .row:first-of-type { border-top: 0; padding-top: 0; }
+  .ident .row .k { color: var(--kui-fg-muted); }
+  .ident .row .v { font-family: var(--kui-font-mono); font-size: 13px; color: var(--kui-fg-strong); text-align: right; }
+  .ident h4 { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin: 0 0 14px; }
+
+  /* ── section ── */
+  section { padding: 64px 0; border-bottom: 1px solid var(--kui-border-default); scroll-margin-top: 24px; }
+  section:last-of-type { border-bottom: 0; }
+  .sec-head { display: grid; grid-template-columns: 180px 1fr; gap: 32px; margin-bottom: 32px; align-items: baseline; }
+  .sec-head .num { font: var(--kui-overline); letter-spacing: 1.5px; color: var(--kui-fg-muted); text-transform: uppercase; padding-top: 6px; }
+  .sec-head h3 { font: 500 28px/1.2 var(--kui-font-sans); letter-spacing: -0.5px; margin: 0 0 8px; }
+  .sec-head p { font: var(--kui-body-md); color: var(--kui-fg-default); max-width: 70ch; margin: 0; }
+
+  /* ── forward-pass band ── */
+  .pass {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 0;
+    align-items: stretch;
+    border: 1px solid var(--kui-border-default); background: #fff;
+  }
+  .pass .step {
+    padding: 22px 18px; border-right: 1px solid var(--kui-border-default);
+    display: flex; flex-direction: column; gap: 8px;
+    position: relative;
+  }
+  .pass .step:last-child { border-right: 0; }
+  .pass .step .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); }
+  .pass .step .t { font: 500 15px/1.25 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .pass .step .d { font: 400 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .pass .step.stack { background: var(--c-mla-bg); }
+  .pass .step.stack .t { color: var(--c-mla); }
+  .pass .step.mtp { background: var(--c-mtp-bg); }
+  .pass .step.mtp .t { color: var(--c-mtp); }
+  .pass .step .badge {
+    display: inline-block; align-self: flex-start;
+    font: var(--kui-text-sm); padding: 2px 8px;
+    background: var(--kui-bg-canvas); border: 1px solid var(--kui-border-default);
+    font-family: var(--kui-font-mono);
+  }
+  .pass-note { margin-top: 12px; font: var(--kui-caption); color: var(--kui-fg-muted); font-family: var(--kui-font-mono); }
+
+  /* ── stack visualizer (1:7 hybrid pattern) ── */
+  .stack-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; margin-top: 24px; }
+  .stack-card h4 { font: var(--kui-h4); margin: 0 0 6px; letter-spacing: -0.25px; }
+  .stack-card .sub { font: var(--kui-caption); color: var(--kui-fg-muted); margin-bottom: 18px; }
+  .stack-pat {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px; margin-bottom: 8px;
+  }
+  .stack-pat .blk { height: 48px; display: grid; place-items: center; font: 500 11px/1 var(--kui-font-mono); color: #fff; }
+  .stack-pat .blk.mla { background: var(--c-mla); }
+  .stack-pat .blk.lin { background: var(--c-lin); }
+  .stack-pat .blk.mtp { background: var(--c-mtp); }
+  .stack-rep { display: flex; justify-content: space-between; font: var(--kui-caption); color: var(--kui-fg-muted); font-family: var(--kui-font-mono); margin-top: 6px; }
+  .stack-key { display: flex; gap: 22px; margin-top: 16px; font: var(--kui-text-sm); color: var(--kui-fg-default); flex-wrap: wrap; }
+  .stack-key span { display: flex; align-items: center; gap: 6px; }
+  .stack-key i { width: 12px; height: 12px; display: inline-block; }
+
+  /* ── block schematic ── */
+  .block-wrap { display: grid; grid-template-columns: 1.1fr 1fr; gap: 32px; }
+  .block-svg-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .block-svg-card h4 { font: var(--kui-h4); margin: 0 0 16px; letter-spacing: -0.25px; }
+  .block-svg-card svg { width: 100%; height: auto; display: block; }
+
+  .block-prose { display: flex; flex-direction: column; gap: 16px; }
+  .block-prose .eq {
+    background: #fff; border: 1px solid var(--kui-border-default); padding: 16px 20px;
+  }
+  .block-prose .eq .lbl { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 6px; }
+  .block-prose .eq code { font: 13px/1.6 var(--kui-font-mono); display: block; color: var(--kui-fg-strong); white-space: pre-wrap; }
+
+  /* ── attention deep dives (2-up) ── */
+  .att-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: stretch; }
+  .att-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; display: flex; flex-direction: column; }
+  .att-card .hdr { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+  .att-card .hdr h4 { font: var(--kui-h3); letter-spacing: -0.25px; margin: 0; }
+  .att-card .hdr .chip { font: 500 10px/1 var(--kui-font-mono); padding: 5px 8px; }
+  .att-card .hdr .chip.mla { background: var(--c-mla-bg); color: var(--c-mla); border: 1px solid var(--c-mla); }
+  .att-card .hdr .chip.lin { background: var(--c-lin-bg); color: var(--c-lin); border: 1px solid var(--c-lin); }
+  .att-card .sub { font: var(--kui-caption); color: var(--kui-fg-muted); margin-bottom: 20px; }
+  .att-card svg { width: 100%; height: auto; display: block; margin-bottom: 14px; }
+  .att-card .props { margin-top: auto; }
+  .att-card .props .row { display: grid; grid-template-columns: 1fr auto; padding: 8px 0; border-top: 1px solid var(--kui-border-subtle); font: var(--kui-body); }
+  .att-card .props .row:first-of-type { border-top: 0; }
+  .att-card .props .row .k { color: var(--kui-fg-muted); }
+  .att-card .props .row .v { font-family: var(--kui-font-mono); font-size: 13px; }
+  .att-card .props .row .v.unk { color: var(--kui-fg-disabled); font-style: italic; font-family: var(--kui-font-sans); font-size: 12px; }
+
+  /* ── KV vs state comparison ── */
+  .kv-bars { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .kv-bars .row { display: grid; grid-template-columns: 140px 1fr 64px; gap: 14px; align-items: center; }
+  .kv-bars .row .nm { font: 500 12px/1.2 var(--kui-font-sans); }
+  .kv-bars .row .nm small { display: block; font: 400 10px/1 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 4px; }
+  .kv-bars .row .bar { height: 16px; background: var(--kui-n100); position: relative; }
+  .kv-bars .row .bar i { display: block; height: 100%; }
+  .kv-bars .row .bar i.mla { background: var(--c-mla); }
+  .kv-bars .row .bar i.lin { background: var(--c-lin); }
+  .kv-bars .row .bar i.mha { background: var(--kui-n400); }
+  .kv-bars .row .v { font-family: var(--kui-font-mono); font-size: 12px; text-align: right; color: var(--kui-fg-default); }
+
+  /* ── MoE deep dive ── */
+  .moe-wrap { display: grid; grid-template-columns: 1.1fr 1fr; gap: 32px; align-items: stretch; }
+  .moe-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .moe-card h4 { font: var(--kui-h3); letter-spacing: -0.25px; margin: 0 0 8px; }
+  .moe-card p  { font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 20px; max-width: 52ch; }
+  .moe-grid {
+    display: grid;
+    grid-template-columns: repeat(16, 1fr);
+    gap: 3px;
+  }
+  .moe-grid .e {
+    aspect-ratio: 1 / 1;
+    background: var(--kui-n100);
+    position: relative;
+  }
+  .moe-grid .e.active { background: var(--c-moe); }
+  .moe-grid .e.shared { background: var(--c-shared); }
+  .moe-grid .e.active::after, .moe-grid .e.shared::after {
+    content: attr(data-r); position: absolute; inset: 0;
+    display: grid; place-items: center;
+    font: 500 9px/1 var(--kui-font-mono); color: #fff;
+  }
+  .moe-key { display: flex; gap: 18px; margin-top: 18px; font: var(--kui-text-sm); color: var(--kui-fg-default); flex-wrap: wrap; }
+  .moe-key span { display: flex; align-items: center; gap: 6px; }
+  .moe-key i { width: 10px; height: 10px; display: inline-block; }
+  .moe-numbers { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); margin-top: 22px; }
+  .moe-numbers .n { background: #fff; padding: 14px 16px; }
+  .moe-numbers .n .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 4px; }
+  .moe-numbers .n .v { font: 500 22px/1 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .moe-numbers .n .v small { font: 400 12px/1 var(--kui-font-sans); color: var(--kui-fg-muted); margin-left: 4px; }
+  .moe-numbers .n .v.unk { color: var(--kui-fg-disabled); font-weight: 400; font-style: italic; font-size: 14px; }
+
+  .scaling-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .scaling-card h4 { font: var(--kui-h3); letter-spacing: -0.25px; margin: 0 0 8px; }
+  .scaling-card p { font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 18px; }
+  .scaling-card .dial { position: relative; height: 56px; background: var(--kui-bg-canvas); border: 1px solid var(--kui-border-default); margin-bottom: 12px; }
+  .scaling-card .dial .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--c-moe); }
+  .scaling-card .dial .label { position: absolute; top: 8px; left: 12px; font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: #fff; }
+  .scaling-card .dial .val { position: absolute; bottom: 8px; left: 12px; font: 500 14px/1 var(--kui-font-sans); color: #fff; font-family: var(--kui-font-mono); }
+  .scaling-card .dial .right { position: absolute; right: 12px; bottom: 8px; font: var(--kui-caption); color: var(--kui-fg-default); font-family: var(--kui-font-mono); }
+  .scaling-card .axis { display: flex; justify-content: space-between; font: var(--kui-caption); color: var(--kui-fg-muted); font-family: var(--kui-font-mono); padding-top: 6px; }
+
+  /* ── MTP ── */
+  .mtp-wrap { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .mtp-wrap h4 { font: var(--kui-h3); letter-spacing: -0.25px; margin: 0 0 8px; }
+  .mtp-wrap p { font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 22px; max-width: 70ch; }
+  .mtp-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 32px; align-items: start; }
+  .mtp-grid svg { width: 100%; height: auto; display: block; }
+  .mtp-knobs { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .mtp-knobs .k { display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 10px 14px; background: var(--c-mtp-bg); border: 1px solid var(--c-mtp); }
+  .mtp-knobs .k .name { font: 500 12px/1.1 var(--kui-font-sans); color: var(--c-mtp); }
+  .mtp-knobs .k .name small { display: block; font: 400 10px/1.2 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 4px; }
+  .mtp-knobs .k .val { font: 500 14px/1 var(--kui-font-mono); color: var(--c-mtp); align-self: center; }
+
+  /* ── context ruler ── */
+  .ctx-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .ctx-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .ctx-card h4 { font: var(--kui-h3); margin: 0 0 8px; letter-spacing: -0.25px; }
+  .ctx-card p { font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 24px; max-width: 50ch; }
+
+  .ruler { position: relative; height: 64px; background: var(--kui-bg-canvas); border: 1px solid var(--kui-border-default); overflow: hidden; }
+  .ruler .seg { position: absolute; top: 0; bottom: 0; border-right: 1px solid var(--kui-border-default); }
+  .ruler .label { position: absolute; top: 8px; left: 12px; font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); }
+  .ruler .val { position: absolute; bottom: 8px; left: 12px; font: 500 14px/1 var(--kui-font-sans); }
+  .ruler-ax { display: flex; justify-content: space-between; font: var(--kui-caption); color: var(--kui-fg-muted); font-family: var(--kui-font-mono); margin-top: 8px; }
+
+  /* ── benchmarks ── */
+  .bench { display: grid; grid-template-columns: 1fr; gap: 24px; }
+  .bench-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px 28px; }
+  .bench-card h4 { font: var(--kui-h4); margin: 0 0 4px; letter-spacing: -0.25px; }
+  .bench-card .ph { font: var(--kui-caption); color: var(--kui-fg-muted); margin-bottom: 18px; font-family: var(--kui-font-mono); }
+  .bench-card .row { display: grid; grid-template-columns: 240px 1fr 80px; gap: 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--kui-border-subtle); }
+  .bench-card .row:first-of-type { border-top: 0; }
+  .bench-card .row .name { font: 500 13px/1.2 var(--kui-font-sans); }
+  .bench-card .row .name small { font: 400 11px/1 var(--kui-font-mono); color: var(--kui-fg-muted); display: block; margin-top: 3px; }
+  .bench-card .row .bar-track { height: 12px; background: var(--kui-n100); position: relative; }
+  .bench-card .row .bar { height: 100%; background: var(--c-mla); }
+  .bench-card .row .bar.hi { background: var(--c-moe); }
+  .bench-card .row .bar.unk { background: repeating-linear-gradient(45deg, var(--kui-n150) 0 4px, transparent 4px 8px); }
+  .bench-card .row .score { font-family: var(--kui-font-mono); font-size: 14px; text-align: right; font-weight: 500; }
+  .bench-card .row .score.unk { color: var(--kui-fg-disabled); font-style: italic; font-weight: 400; font-size: 12px; }
+  .bench-foot { font: var(--kui-caption); color: var(--kui-fg-muted); margin-top: 16px; font-family: var(--kui-font-mono); }
+
+  /* ── training pipeline ── */
+  .pipe { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .pipe .track { display: grid; grid-template-columns: 4fr 1.2fr 1.2fr 1.2fr; gap: 4px; height: 60px; margin-bottom: 12px; }
+  .pipe .seg { padding: 10px 14px; position: relative; }
+  .pipe .seg .ph { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: rgba(0,0,0,0.6); }
+  .pipe .seg .nm { font: 500 13px/1.1 var(--kui-font-sans); margin-top: 4px; color: #000; }
+  .pipe .seg.a { background: var(--c-fp8-bg); }
+  .pipe .seg.b { background: var(--c-mla-bg); }
+  .pipe .seg.c { background: var(--c-lin-bg); }
+  .pipe .seg.d { background: var(--c-moe-bg); }
+  .pipe .ax { display: flex; justify-content: space-between; font: var(--kui-caption); color: var(--kui-fg-muted); font-family: var(--kui-font-mono); padding-top: 4px; border-top: 1px solid var(--kui-border-default); }
+  .pipe .detail { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 24px; }
+  .pipe .detail .it { padding: 16px 18px; border-left: 3px solid var(--kui-border-default); }
+  .pipe .detail .it h6 { font: var(--kui-h4); letter-spacing: -0.25px; margin: 0 0 8px; }
+  .pipe .detail .it p { font: var(--kui-caption); line-height: 1.5; color: var(--kui-fg-default); margin: 0; }
+  .pipe .detail .it.a { border-left-color: var(--c-fp8); }
+  .pipe .detail .it.b { border-left-color: var(--c-mla); }
+  .pipe .detail .it.c { border-left-color: var(--c-lin); }
+  .pipe .detail .it.d { border-left-color: var(--c-moe); }
+
+  /* ── specs ── */
+  .specs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); }
+  .specs .group { background: #F8F8F8; padding: 18px 20px 14px; grid-column: 1 / -1; border-top: 1px solid var(--kui-border-default); }
+  .specs .group:first-child { border-top: 0; }
+  .specs .group h5 { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-default); margin: 0; }
+  .specs .cell { background: #fff; padding: 16px 20px; }
+  .specs .cell .k { font: var(--kui-text-sm); color: var(--kui-fg-muted); margin-bottom: 6px; }
+  .specs .cell .v { font: 500 18px/1.1 var(--kui-font-sans); letter-spacing: -0.25px; font-family: var(--kui-font-mono); font-weight: 500; word-break: break-word; }
+  .specs .cell .v.unk { color: var(--kui-fg-disabled); font-weight: 400; font-style: italic; font-family: var(--kui-font-sans); font-size: 14px; }
+  .specs .cell .n { font: var(--kui-caption); color: var(--kui-fg-default); margin-top: 6px; }
+
+  /* ── caveats ── */
+  .caveats { background: #FFFCEB; border: 1px solid #E8C967; padding: 24px 28px; }
+  .caveats h4 { font: var(--kui-h4); margin: 0 0 14px; letter-spacing: -0.25px; display: flex; align-items: center; gap: 10px; }
+  .caveats h4::before { content: "△"; color: #B58A00; }
+  .caveats ul { margin: 0; padding-left: 22px; }
+  .caveats li { font: var(--kui-body); color: var(--kui-fg-default); margin-bottom: 8px; }
+  .caveats li b { color: var(--kui-fg-strong); font-weight: 500; }
+  .caveats li code { font: 12px/1 var(--kui-font-mono); background: #fff; padding: 1px 6px; border: 1px solid #E8C967; }
+
+  /* ── footer ── */
+  footer { padding: 32px 0; border-top: 1px solid var(--kui-border-default); background: #fff; margin-top: -1px; }
+  footer .row { max-width: 1240px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 0 40px; font: var(--kui-caption); color: var(--kui-fg-muted); flex-wrap: wrap; gap: 12px; }
+  footer a { color: var(--c-mla); }
+
+  /* ── SVG defaults ── */
+  svg text { font-family: var(--kui-font-sans); }
+  svg .mono { font-family: var(--kui-font-mono); }
+
+  /* responsive */
+  @media (max-width: 980px) {
+    .layout { grid-template-columns: 1fr; }
+    .rail { position: static; height: auto; flex-direction: row; overflow-x: auto; flex-wrap: nowrap; padding: 16px 24px; }
+    .rail .who, .rail .foot { display: none; }
+    .rail a { white-space: nowrap; padding: 8px 14px; border-left: 0; border-bottom: 2px solid transparent; margin: 0; }
+    .rail a.active { border-bottom-color: var(--kui-brand-green); }
+    .hero .row1 { grid-template-columns: 1fr; gap: 24px; }
+    .hero .stats { grid-template-columns: repeat(2, 1fr); }
+    .pass { grid-template-columns: 1fr 1fr; }
+    .pass .step { border-right: 0; border-bottom: 1px solid var(--kui-border-default); }
+    .block-wrap, .att-wrap, .moe-wrap, .ctx-wrap, .mtp-grid { grid-template-columns: 1fr; }
+    .specs { grid-template-columns: 1fr 1fr; }
+    .pipe .detail { grid-template-columns: 1fr 1fr; }
+    .pipe .track { grid-template-columns: 1fr; height: auto; }
+    .stack-pat { grid-template-columns: repeat(4, 1fr); }
+  }
+</style>
+</head>
+<body class="kui">
+
+<header class="top-bar">
+  <img src="kaizen/NVIDIA-wordmark.svg" class="wordmark" alt="NVIDIA">
+  <div class="divider"></div>
+  <div class="crumb">Model Atlas</div>
+  <h1>Ling 2.6 1T</h1>
+  <div class="meta">
+    <span><b>Architecture brief</b></span>
+    <span>Vendor: <b>inclusionAI / Ant Group</b></span>
+    <span>Released <b>Apr 2026</b> · MIT</span>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ── LEFT RAIL ── -->
+  <nav class="rail">
+    <div class="who">On this page</div>
+    <a class="home-link" href="../../index.html">Atlas home</a>
+    <a href="#identity" class="active"><span class="n">00</span>Identity</a>
+    <a href="#pass"><span class="n">01</span>Forward pass</a>
+    <a href="#stack"><span class="n">02</span>Hybrid stack</a>
+    <a href="#block"><span class="n">03</span>Decoder blocks</a>
+    <a href="#mla"><span class="n">04</span>MLA attention</a>
+    <a href="#linear"><span class="n">05</span>Lightning Linear</a>
+    <a href="#moe"><span class="n">06</span>Sparse MoE</a>
+    <a href="#mtp"><span class="n">07</span>MTP head</a>
+    <a href="#context"><span class="n">08</span>Long context</a>
+    <a href="#training"><span class="n">09</span>Training</a>
+    <a href="#benchmarks"><span class="n">10</span>Benchmarks</a>
+    <a href="#specs"><span class="n">11</span>Spec sheet</a>
+    <a href="#caveats"><span class="n">12</span>Unknowns</a>
+    <div class="foot">
+      Compiled from the <a href="https://huggingface.co/inclusionAI/Ling-2.6-1T">inclusionAI/Ling-2.6-1T</a> model card, the Ling-2.6-flash architectural note, the Ling&nbsp;2.0 release post, and arXiv 2507.17702 (Ling Scaling Law). Many block-level dimensions are not enumerated in primary sources — see <a href="#caveats">caveats</a>.
+    </div>
+  </nav>
+
+  <main class="wrap">
+
+    <!-- ─────────── HERO ─────────── -->
+    <section id="identity" class="hero">
+      <div class="row1">
+        <div>
+          <div class="eyebrow">
+            <span>Hybrid-Attention Sparse-MoE Transformer</span>
+            <span class="pill">bailing_hybrid · MIT · FP8</span>
+          </div>
+          <h2><span class="accent">MLA</span> &amp; <span class="accent2">Lightning&nbsp;Linear</span> hybrid attention on a <span class="accent3">trillion-parameter</span> sparse MoE backbone</h2>
+          <p>inclusionAI's flagship non-thinking flagship for agent and coding workflows. Ling 2.6 continues the Ling 2.0 lineage but upgrades the attention stack to a 1 : 7 MLA-to-Lightning-Linear interleave — global softmax attention every eighth layer, linear-state attention on the rest — and pairs it with a highly sparse Mixture-of-Experts FFN and a Multi-Token Prediction (MTP) head for speculative decoding.</p>
+        </div>
+
+        <aside class="ident">
+          <h4>Identity</h4>
+          <div class="row"><span class="k">Vendor / lab</span><span class="v">inclusionAI · Ant Group</span></div>
+          <div class="row"><span class="k">Repository</span><span class="v">inclusionAI/Ling-2.6-1T</span></div>
+          <div class="row"><span class="k">Architecture tag</span><span class="v">bailing_hybrid</span></div>
+          <div class="row"><span class="k">Config class</span><span class="v">configuration_bailing_<br>moe_v2_5.py</span></div>
+          <div class="row"><span class="k">License</span><span class="v">MIT</span></div>
+          <div class="row"><span class="k">Release</span><span class="v">2026-04-23</span></div>
+          <div class="row"><span class="k">Sibling</span><span class="v">Ling-2.6-flash · 104B</span></div>
+        </aside>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="label">Total params</div><div class="value">1 T</div><div class="src">HF model size tag</div></div>
+        <div class="stat"><div class="label">Active per token</div><div class="value">≈ 50 B<small>predecessor</small></div><div class="src">inherited from Ling-1T base · 1/32 sparsity</div></div>
+        <div class="stat"><div class="label">Attention pattern</div><div class="value">1 : 7<small>MLA : Linear</small></div><div class="src">Ling-2.6-flash card</div></div>
+        <div class="stat"><div class="label">Numerics</div><div class="value">FP8<small>E4M3 + BF16 + F32</small></div><div class="src">safetensors tensor types</div></div>
+        <div class="stat"><div class="label">Served context</div><div class="value">256 K<small>tokens</small></div><div class="src">SGLang launch flag</div></div>
+        <div class="stat"><div class="label">Speculative decode</div><div class="value">MTP<small>EAGLE-3 / 4-draft</small></div><div class="src">model card SGLang recipe</div></div>
+      </div>
+    </section>
+
+    <!-- ─────────── FORWARD PASS ─────────── -->
+    <section id="pass">
+      <div class="sec-head">
+        <div class="num">01 · Forward pass</div>
+        <div>
+          <h3>End-to-end signal flow</h3>
+          <p>A token id enters the embedding layer and exits as a logit vector at the LM head. Most layers route their hidden state through a linear-state attention path; a small fraction route through a softmax MLA path. An auxiliary MTP head, attached after the main stack, predicts the next several tokens in parallel to enable speculative decoding at serve time.</p>
+        </div>
+      </div>
+
+      <div class="pass">
+        <div class="step">
+          <div class="k">Input</div>
+          <div class="t">Token ids</div>
+          <div class="d">[B, T]</div>
+          <span class="badge">int</span>
+        </div>
+        <div class="step">
+          <div class="k">Pre</div>
+          <div class="t">Tokenizer</div>
+          <div class="d">qwen2.5 tool-call parser at serve</div>
+          <span class="badge">unknown vocab</span>
+        </div>
+        <div class="step">
+          <div class="k">Pre</div>
+          <div class="t">Token embedding</div>
+          <div class="d">V → d_model</div>
+          <span class="badge">trust_remote_code</span>
+        </div>
+        <div class="step stack">
+          <div class="k">Backbone · N layers</div>
+          <div class="t">Hybrid attention<br>+ Sparse MoE FFN</div>
+          <div class="d">1 MLA : 7 Lightning-Linear</div>
+          <span class="badge">N = unknown</span>
+        </div>
+        <div class="step">
+          <div class="k">Post</div>
+          <div class="t">Final RMSNorm</div>
+          <div class="d">stabilization</div>
+          <span class="badge">pre-norm conv.</span>
+        </div>
+        <div class="step">
+          <div class="k">Post</div>
+          <div class="t">LM head</div>
+          <div class="d">d_model → V</div>
+          <span class="badge">linear</span>
+        </div>
+        <div class="step mtp">
+          <div class="k">Aux</div>
+          <div class="t">MTP head</div>
+          <div class="d">predicts +1…+k tokens</div>
+          <span class="badge">EAGLE @ serve</span>
+        </div>
+      </div>
+      <div class="pass-note">Embedding width, layer count, RMSNorm placement, and vocabulary size are <b>not enumerated</b> in the Ling-2.6-1T model card. The MTP step is verified by the SGLang inference recipe (<code style="font-family: var(--kui-font-mono);">--speculative-algorithm EAGLE --speculative-num-draft-tokens 4</code>) and by the Ling-2.0 release post which documents an explicit MTP layer.</div>
+    </section>
+
+    <!-- ─────────── HYBRID STACK ─────────── -->
+    <section id="stack">
+      <div class="sec-head">
+        <div class="num">02 · Hybrid attention stack</div>
+        <div>
+          <h3>1 MLA layer for every 7 Lightning-Linear layers</h3>
+          <p>Where Ling 2.0 used GQA throughout, Ling 2.5 / 2.6 swap most attention layers for a linear-state variant ("Lightning Linear") and keep a sparse anchor of full softmax MLA layers. The Ling-2.6-flash release post enumerates the exact ratio as 1 : 7, achieved through incremental training from the Ling 2.0 base. The same hybrid pattern carries over to the 1 T variant.</p>
+        </div>
+      </div>
+
+      <div class="stack-card">
+        <h4>One 8-layer repeat</h4>
+        <div class="sub">Each tile is one transformer block. Pattern repeats N / 8 times across the backbone. The position of the MLA layer within each group of 8 is not specified in the published cards — shown here as the last layer of each octet, a common convention.</div>
+
+        <div class="stack-pat">
+          <div class="blk lin">Linear</div>
+          <div class="blk lin">Linear</div>
+          <div class="blk lin">Linear</div>
+          <div class="blk lin">Linear</div>
+          <div class="blk lin">Linear</div>
+          <div class="blk lin">Linear</div>
+          <div class="blk lin">Linear</div>
+          <div class="blk mla">MLA</div>
+        </div>
+        <div class="stack-rep">
+          <span>ℓ = 1</span><span>ℓ = 2</span><span>ℓ = 3</span><span>ℓ = 4</span>
+          <span>ℓ = 5</span><span>ℓ = 6</span><span>ℓ = 7</span><span>ℓ = 8</span>
+        </div>
+
+        <div class="stack-key">
+          <span><i style="background: var(--c-lin);"></i> Lightning Linear attention · O(T) state recurrence</span>
+          <span><i style="background: var(--c-mla);"></i> Multi-head Latent Attention · O(T²) global softmax</span>
+          <span><i style="background: var(--c-mtp);"></i> MTP head · attached after the final block</span>
+        </div>
+
+        <div style="margin-top: 18px; font: var(--kui-caption); color: var(--kui-fg-muted); font-family: var(--kui-font-mono);">
+          Block-level FFN is the <b style="color: var(--c-moe);">sparse-MoE</b> module — same on Linear and MLA layers. The hybrid only affects the attention sub-layer.
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── DECODER BLOCK ─────────── -->
+    <section id="block">
+      <div class="sec-head">
+        <div class="num">03 · Decoder block</div>
+        <div>
+          <h3>The two block shapes inside the backbone</h3>
+          <p>Every block uses pre-RMSNorm with two residual sub-layers: an attention path (one of two variants) and a sparse-MoE FFN. The residual stream width and FFN configuration are shared across both block shapes; only the attention module differs.</p>
+        </div>
+      </div>
+
+      <div class="block-wrap">
+        <div class="block-svg-card">
+          <h4>Both block shapes, side-by-side</h4>
+          <svg viewBox="0 0 580 540" role="img" aria-label="Linear-attention block on the left, MLA block on the right; identical MoE FFN below.">
+
+            <!-- column titles -->
+            <text x="135" y="20" font-size="12" font-weight="500" fill="#6B3FA0">Lightning-Linear block · ×7 of 8</text>
+            <text x="445" y="20" font-size="12" font-weight="500" fill="#1FA18D">MLA block · ×1 of 8</text>
+
+            <!-- residual guides -->
+            <line x1="25" y1="30" x2="25" y2="510" stroke="#D8D8D8" stroke-dasharray="3 3"/>
+            <line x1="335" y1="30" x2="335" y2="510" stroke="#D8D8D8" stroke-dasharray="3 3"/>
+
+            <!-- ── LEFT: linear block ── -->
+            <!-- input arrow -->
+            <line x1="25" y1="50" x2="80" y2="50" stroke="#202020"/>
+            <polygon points="80,46 88,50 80,54" fill="#202020"/>
+            <rect x="88" y="34" width="100" height="32" fill="#fff" stroke="#202020"/>
+            <text x="138" y="54" font-size="11" text-anchor="middle">RMSNorm</text>
+            <line x1="188" y1="50" x2="218" y2="50" stroke="#202020"/>
+            <polygon points="218,46 226,50 218,54" fill="#202020"/>
+            <rect x="226" y="22" width="80" height="56" fill="#ECE4F4" stroke="#6B3FA0" stroke-width="1.5"/>
+            <text x="266" y="44" font-size="11" text-anchor="middle" font-weight="500" fill="#6B3FA0">Lightning</text>
+            <text x="266" y="58" font-size="11" text-anchor="middle" fill="#6B3FA0">Linear Attn</text>
+            <text x="266" y="72" font-size="9" text-anchor="middle" fill="#6B3FA0" class="mono">state ∈ ℝ^d×d</text>
+            <line x1="266" y1="78" x2="266" y2="100" stroke="#6B3FA0"/>
+            <line x1="266" y1="100" x2="25" y2="100" stroke="#6B3FA0"/>
+            <circle cx="25" cy="100" r="8" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+            <text x="25" y="104" font-size="11" text-anchor="middle" font-weight="500">+</text>
+
+            <!-- linear FFN path -->
+            <line x1="25" y1="130" x2="80" y2="130" stroke="#202020"/>
+            <polygon points="80,126 88,130 80,134" fill="#202020"/>
+            <rect x="88" y="114" width="100" height="32" fill="#fff" stroke="#202020"/>
+            <text x="138" y="134" font-size="11" text-anchor="middle">RMSNorm</text>
+            <line x1="188" y1="130" x2="218" y2="130" stroke="#202020"/>
+            <polygon points="218,126 226,130 218,134" fill="#202020"/>
+            <rect x="226" y="110" width="80" height="44" fill="#E8F4D6" stroke="#76B900" stroke-width="1.5"/>
+            <text x="266" y="128" font-size="11" text-anchor="middle" font-weight="500" fill="#5E9600">Sparse MoE</text>
+            <text x="266" y="142" font-size="9" text-anchor="middle" fill="#5E9600" class="mono">router + experts</text>
+            <line x1="266" y1="154" x2="266" y2="178" stroke="#76B900"/>
+            <line x1="266" y1="178" x2="25" y2="178" stroke="#76B900"/>
+            <circle cx="25" cy="178" r="8" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+            <text x="25" y="182" font-size="11" text-anchor="middle" font-weight="500">+</text>
+
+            <line x1="25" y1="200" x2="120" y2="200" stroke="#202020"/>
+            <polygon points="120,196 128,200 120,204" fill="#202020"/>
+            <text x="138" y="204" font-size="11">→ layer ℓ+1</text>
+
+            <!-- ── RIGHT: MLA block ── -->
+            <line x1="335" y1="50" x2="390" y2="50" stroke="#202020"/>
+            <polygon points="390,46 398,50 390,54" fill="#202020"/>
+            <rect x="398" y="34" width="100" height="32" fill="#fff" stroke="#202020"/>
+            <text x="448" y="54" font-size="11" text-anchor="middle">RMSNorm</text>
+            <line x1="498" y1="50" x2="528" y2="50" stroke="#202020"/>
+            <polygon points="528,46 536,50 528,54" fill="#202020"/>
+            <rect x="478" y="22" width="92" height="56" fill="#E2F1EF" stroke="#1FA18D" stroke-width="1.5"/>
+            <text x="524" y="44" font-size="11" text-anchor="middle" font-weight="500" fill="#1FA18D">MLA</text>
+            <text x="524" y="58" font-size="9" text-anchor="middle" fill="#1FA18D">Multi-head Latent</text>
+            <text x="524" y="72" font-size="9" text-anchor="middle" fill="#1FA18D" class="mono">latent KV cache</text>
+            <line x1="524" y1="78" x2="524" y2="100" stroke="#1FA18D"/>
+            <line x1="524" y1="100" x2="335" y2="100" stroke="#1FA18D"/>
+            <circle cx="335" cy="100" r="8" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+            <text x="335" y="104" font-size="11" text-anchor="middle" font-weight="500">+</text>
+
+            <line x1="335" y1="130" x2="390" y2="130" stroke="#202020"/>
+            <polygon points="390,126 398,130 390,134" fill="#202020"/>
+            <rect x="398" y="114" width="100" height="32" fill="#fff" stroke="#202020"/>
+            <text x="448" y="134" font-size="11" text-anchor="middle">RMSNorm</text>
+            <line x1="498" y1="130" x2="528" y2="130" stroke="#202020"/>
+            <polygon points="528,126 536,130 528,134" fill="#202020"/>
+            <rect x="478" y="110" width="92" height="44" fill="#E8F4D6" stroke="#76B900" stroke-width="1.5"/>
+            <text x="524" y="128" font-size="11" text-anchor="middle" font-weight="500" fill="#5E9600">Sparse MoE</text>
+            <text x="524" y="142" font-size="9" text-anchor="middle" fill="#5E9600" class="mono">same FFN</text>
+            <line x1="524" y1="154" x2="524" y2="178" stroke="#76B900"/>
+            <line x1="524" y1="178" x2="335" y2="178" stroke="#76B900"/>
+            <circle cx="335" cy="178" r="8" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+            <text x="335" y="182" font-size="11" text-anchor="middle" font-weight="500">+</text>
+
+            <line x1="335" y1="200" x2="430" y2="200" stroke="#202020"/>
+            <polygon points="430,196 438,200 430,204" fill="#202020"/>
+            <text x="448" y="204" font-size="11">→ layer ℓ+1</text>
+
+            <!-- joining: caching note -->
+            <line x1="60" y1="240" x2="540" y2="240" stroke="#D8D8D8"/>
+            <text x="20" y="262" font-size="11" font-weight="500" fill="#202020">What each block keeps between tokens</text>
+            <rect x="20" y="272" width="280" height="60" fill="#ECE4F4"/>
+            <text x="160" y="293" font-size="11" text-anchor="middle" fill="#6B3FA0" font-weight="500">Lightning Linear · fixed-size state</text>
+            <text x="160" y="310" font-size="10" text-anchor="middle" fill="#6B3FA0" class="mono">S_t = decay(S_{t-1}) + k_t v_tᵀ</text>
+            <text x="160" y="324" font-size="10" text-anchor="middle" fill="#6B3FA0" class="mono">size independent of T</text>
+
+            <rect x="320" y="272" width="240" height="60" fill="#E2F1EF"/>
+            <text x="440" y="293" font-size="11" text-anchor="middle" fill="#1FA18D" font-weight="500">MLA · growing latent KV cache</text>
+            <text x="440" y="310" font-size="10" text-anchor="middle" fill="#1FA18D" class="mono">latent_kv ∈ ℝ^{T × d_kv}</text>
+            <text x="440" y="324" font-size="10" text-anchor="middle" fill="#1FA18D" class="mono">grows linearly with T</text>
+
+            <text x="20" y="370" font-size="11" font-weight="500" fill="#202020">Why the mix</text>
+            <text x="20" y="392" font-size="11" fill="#343434">·  Linear layers handle the bulk of the 256 K-token sequence at fixed VRAM and constant-time decode.</text>
+            <text x="20" y="412" font-size="11" fill="#343434">·  MLA layers re-introduce true global softmax routing — needed for in-context recall and long-range copy.</text>
+            <text x="20" y="432" font-size="11" fill="#343434">·  1 : 7 ratio means only 12.5 % of layers carry a quadratic-cost KV cache; the remainder are sub-quadratic.</text>
+            <text x="20" y="452" font-size="11" fill="#343434">·  At serve, SGLang carries a <tspan class="mono">--mamba-scheduler-strategy</tspan> for the linear state, separate from the MLA cache pool.</text>
+          </svg>
+        </div>
+
+        <div class="block-prose">
+          <div class="eq">
+            <div class="lbl">Attention sub-layer (block shape varies)</div>
+<code>h = x + Attn( RMSNorm(x) )
+
+   where Attn ∈ { Lightning_Linear,   // 7 of 8 layers
+                  MLA }                // 1 of 8 layers</code>
+          </div>
+
+          <div class="eq">
+            <div class="lbl">FFN sub-layer (identical in every block)</div>
+<code>z   = RMSNorm(h)
+g   = softmax_top-k( W_router · z )
+y_r = Σ_{i ∈ top-k}  g_i  ·  E_i(z)        // routed experts
+y_s = E_shared(z)                          // shared expert(s)
+x'  = h + y_r + y_s</code>
+            <div style="font: var(--kui-caption); color: var(--kui-fg-muted); margin-top: 8px;">Shared-expert count, top-k value, total routed-expert count, and any routed-scaling factor are <b>not enumerated</b> in the Ling-2.6-1T model card. The structure follows the <code style="font-family: var(--kui-font-mono);">bailing_moe_v2_5</code> configuration class shipped with the repo.</div>
+          </div>
+
+          <div class="eq">
+            <div class="lbl">Auxiliary MTP head (after the final block)</div>
+<code>// emits k draft tokens in parallel from one base hidden state
+[y_{t+1}, y_{t+2}, …, y_{t+k}]  =  MTP_head( h_final_t )
+
+// SGLang serve recipe:  --speculative-num-draft-tokens 4
+//                       --speculative-num-steps 3</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── MLA ─────────── -->
+    <section id="mla">
+      <div class="sec-head">
+        <div class="num">04 · MLA attention</div>
+        <div>
+          <h3>Multi-head Latent Attention — the global path</h3>
+          <p>The minority block shape uses Multi-head Latent Attention: queries, keys, and values are projected into a low-rank latent that is what actually gets cached. At read time the latent is decompressed back to a per-head key/value pair. The cache footprint is much smaller than a vanilla MHA cache while preserving global softmax behavior on the residual stream.</p>
+        </div>
+      </div>
+
+      <div class="att-wrap">
+        <div class="att-card">
+          <div class="hdr">
+            <h4>Latent compression path</h4>
+            <span class="chip mla">global softmax</span>
+          </div>
+          <div class="sub">Hidden states are projected through a low-rank latent. The latent — not the raw K and V — is what the cache stores. Decompression matrices materialize per-head K and V on demand.</div>
+
+          <svg viewBox="0 0 480 250" role="img" aria-label="MLA: hidden state into latent KV, then decompressed into per-head K and V.">
+            <!-- hidden -->
+            <rect x="20" y="20" width="120" height="36" fill="#fff" stroke="#202020"/>
+            <text x="80" y="42" font-size="11" text-anchor="middle">hidden  h ∈ ℝ^d</text>
+
+            <!-- compress arrow -->
+            <line x1="140" y1="38" x2="200" y2="38" stroke="#1FA18D"/>
+            <polygon points="200,34 208,38 200,42" fill="#1FA18D"/>
+            <text x="172" y="28" font-size="10" text-anchor="middle" fill="#1FA18D" class="mono">W_dkv</text>
+
+            <!-- latent -->
+            <rect x="208" y="20" width="120" height="36" fill="#E2F1EF" stroke="#1FA18D"/>
+            <text x="268" y="42" font-size="11" text-anchor="middle" fill="#1FA18D" font-weight="500">latent KV  c ∈ ℝ^{d_c}</text>
+
+            <!-- cached note -->
+            <text x="268" y="74" font-size="10" text-anchor="middle" class="mono" fill="#5E5E5E">↓ cached per token (d_c &lt;&lt; H · d_head)</text>
+
+            <!-- decompression arrows -->
+            <line x1="268" y1="96" x2="160" y2="140" stroke="#1FA18D"/>
+            <polygon points="166,144 158,140 166,134" fill="#1FA18D"/>
+            <text x="200" y="118" font-size="10" fill="#1FA18D" class="mono">W_uk</text>
+            <line x1="268" y1="96" x2="380" y2="140" stroke="#1FA18D"/>
+            <polygon points="374,144 382,140 374,134" fill="#1FA18D"/>
+            <text x="338" y="118" font-size="10" fill="#1FA18D" class="mono">W_uv</text>
+
+            <!-- per-head K, V -->
+            <rect x="80" y="148" width="160" height="36" fill="#fff" stroke="#1FA18D"/>
+            <text x="160" y="170" font-size="11" text-anchor="middle">per-head  K  ∈ ℝ^{H·d_k}</text>
+            <rect x="300" y="148" width="160" height="36" fill="#fff" stroke="#1FA18D"/>
+            <text x="380" y="170" font-size="11" text-anchor="middle">per-head  V  ∈ ℝ^{H·d_v}</text>
+
+            <!-- q path -->
+            <rect x="20" y="194" width="120" height="36" fill="#fff" stroke="#202020"/>
+            <text x="80" y="216" font-size="11" text-anchor="middle">Q from h · W_q</text>
+
+            <line x1="140" y1="212" x2="220" y2="212" stroke="#202020"/>
+            <text x="180" y="204" font-size="10" text-anchor="middle">softmax(Q·Kᵀ/√d) · V</text>
+          </svg>
+
+          <div class="props">
+            <div class="row"><span class="k">Cache stored</span><span class="v">latent KV — single low-rank tensor</span></div>
+            <div class="row"><span class="k">Cache cost vs. T</span><span class="v">O(T)</span></div>
+            <div class="row"><span class="k">Compute cost vs. T</span><span class="v">O(T²)</span></div>
+            <div class="row"><span class="k">d_c, head_dim, RoPE config</span><span class="v unk">not enumerated in Ling-2.6-1T card</span></div>
+          </div>
+        </div>
+
+        <div class="att-card">
+          <div class="hdr">
+            <h4>KV-cache footprint</h4>
+            <span class="chip mla">comparative</span>
+          </div>
+          <div class="sub">Schematic of relative per-token KV-cache size across attention variants in the same parameter class. Bars are proportional within a generic <code style="font-family: var(--kui-font-mono);">d_model = 4096</code> reference frame — not pulled from the Ling-2.6-1T config.</div>
+
+          <div class="kv-bars">
+            <div class="row">
+              <div class="nm">MHA<small>H heads · d_head each</small></div>
+              <div class="bar"><i class="mha" style="width: 100%;"></i></div>
+              <div class="v">baseline</div>
+            </div>
+            <div class="row">
+              <div class="nm">GQA<small>kv_groups &lt; H</small></div>
+              <div class="bar"><i class="mha" style="width: 40%;"></i></div>
+              <div class="v">~0.4×</div>
+            </div>
+            <div class="row">
+              <div class="nm">MLA<small>latent rank d_c</small></div>
+              <div class="bar"><i class="mla" style="width: 18%;"></i></div>
+              <div class="v">~0.18×</div>
+            </div>
+            <div class="row">
+              <div class="nm">Lightning Linear<small>fixed state</small></div>
+              <div class="bar"><i class="lin" style="width: 5%;"></i></div>
+              <div class="v">~0.05×</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 22px; font: var(--kui-caption); color: var(--kui-fg-muted); font-family: var(--kui-font-mono);">
+            Per-token footprint scales linearly with T for MHA / GQA / MLA; the Lightning Linear state is independent of T. Exact dimensions for the Ling-2.6-1T configuration are <b>not enumerated</b> in primary sources.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── LIGHTNING LINEAR ─────────── -->
+    <section id="linear">
+      <div class="sec-head">
+        <div class="num">05 · Lightning Linear attention</div>
+        <div>
+          <h3>The majority path — sub-quadratic state recurrence</h3>
+          <p>Seven of every eight blocks replace softmax attention with a linear-state attention module ("Lightning Linear" in the Ling-2.6-flash release post). Instead of scoring queries against a growing key/value cache, each layer carries a small fixed-size state tensor that is updated additively at each step. At serve time the state is allocated through SGLang's Mamba-style cache pool (<code style="font-family: var(--kui-font-mono);">--mamba-scheduler-strategy extra_buffer</code>, <code style="font-family: var(--kui-font-mono);">--mamba-full-memory-ratio 1.4</code>).</p>
+        </div>
+      </div>
+
+      <div class="att-wrap">
+        <div class="att-card">
+          <div class="hdr">
+            <h4>State recurrence at decode</h4>
+            <span class="chip lin">O(1) per token</span>
+          </div>
+          <div class="sub">During autoregressive decoding the layer holds one matrix-valued state S. New tokens contribute an outer-product update; the read is a linear projection of S by the current query.</div>
+
+          <svg viewBox="0 0 480 250" role="img" aria-label="Lightning Linear: previous state S decays, new k·v outer product added, q reads.">
+            <!-- previous state -->
+            <rect x="20" y="20" width="120" height="44" fill="#ECE4F4" stroke="#6B3FA0"/>
+            <text x="80" y="44" font-size="11" text-anchor="middle" fill="#6B3FA0" font-weight="500">S_{t-1}</text>
+            <text x="80" y="58" font-size="9" text-anchor="middle" fill="#6B3FA0" class="mono">d × d state</text>
+
+            <!-- decay -->
+            <line x1="140" y1="42" x2="200" y2="42" stroke="#6B3FA0"/>
+            <polygon points="200,38 208,42 200,46" fill="#6B3FA0"/>
+            <text x="172" y="32" font-size="10" text-anchor="middle" fill="#6B3FA0" class="mono">α  · decay</text>
+
+            <!-- + k·vᵀ -->
+            <rect x="208" y="20" width="120" height="44" fill="#fff" stroke="#6B3FA0"/>
+            <text x="268" y="40" font-size="11" text-anchor="middle">α·S_{t-1} + k_t · v_tᵀ</text>
+            <text x="268" y="56" font-size="9" text-anchor="middle" class="mono" fill="#5E5E5E">outer product update</text>
+
+            <!-- = S_t -->
+            <line x1="328" y1="42" x2="368" y2="42" stroke="#6B3FA0"/>
+            <polygon points="368,38 376,42 368,46" fill="#6B3FA0"/>
+            <rect x="376" y="20" width="80" height="44" fill="#ECE4F4" stroke="#6B3FA0"/>
+            <text x="416" y="44" font-size="11" text-anchor="middle" fill="#6B3FA0" font-weight="500">S_t</text>
+            <text x="416" y="58" font-size="9" text-anchor="middle" fill="#6B3FA0" class="mono">cached</text>
+
+            <!-- read -->
+            <text x="20" y="100" font-size="11" font-weight="500" fill="#202020">Read by current query q_t</text>
+            <rect x="20" y="110" width="120" height="36" fill="#fff" stroke="#202020"/>
+            <text x="80" y="132" font-size="11" text-anchor="middle">q_t ∈ ℝ^d</text>
+            <line x1="140" y1="128" x2="200" y2="128" stroke="#6B3FA0"/>
+            <rect x="208" y="110" width="160" height="36" fill="#ECE4F4" stroke="#6B3FA0"/>
+            <text x="288" y="132" font-size="11" text-anchor="middle" fill="#6B3FA0" font-weight="500">o_t = q_tᵀ · S_t</text>
+            <line x1="368" y1="128" x2="448" y2="128" stroke="#6B3FA0"/>
+            <polygon points="448,124 456,128 448,132" fill="#6B3FA0"/>
+            <text x="468" y="132" font-size="11" font-weight="500" fill="#6B3FA0">→ o_t</text>
+
+            <!-- bottom: properties -->
+            <text x="20" y="180" font-size="11" fill="#343434">·  No softmax — state read is a single linear projection.</text>
+            <text x="20" y="200" font-size="11" fill="#343434">·  State size is fixed; cache cost does not grow with sequence length.</text>
+            <text x="20" y="220" font-size="11" fill="#343434">·  Prefill is chunked; SGLang's <tspan class="mono">--chunked-prefill-size 8192</tspan> applies.</text>
+            <text x="20" y="240" font-size="11" fill="#343434">·  Decay schedule α can be learned per-head; specific parameterization not enumerated.</text>
+          </svg>
+
+          <div class="props">
+            <div class="row"><span class="k">Cache cost vs. T</span><span class="v">O(1) — fixed</span></div>
+            <div class="row"><span class="k">Compute cost vs. T</span><span class="v">O(T) — linear</span></div>
+            <div class="row"><span class="k">Allocator at serve</span><span class="v">SGLang Mamba pool</span></div>
+            <div class="row"><span class="k">State dimensions</span><span class="v unk">not enumerated in Ling-2.6-1T card</span></div>
+          </div>
+        </div>
+
+        <div class="att-card">
+          <div class="hdr">
+            <h4>Why the hybrid wins for agents</h4>
+            <span class="chip lin">design intent</span>
+          </div>
+          <div class="sub">Stated rationale from the Ling-2.6-flash release post and Ling-2.6-1T model card. All claims are vendor-reported.</div>
+
+          <div style="display: grid; grid-template-columns: 1fr; gap: 16px; font: var(--kui-body); color: var(--kui-fg-default);">
+            <div style="padding: 14px 16px; background: var(--c-lin-bg); border-left: 3px solid var(--c-lin);">
+              <div style="font: 500 12px/1.2 var(--kui-font-sans); color: var(--c-lin); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Long-input throughput</div>
+              Agent workflows feed long tool-trace and code histories. Linear-state cache holds size constant, so VRAM does not bloat with sequence length.
+            </div>
+            <div style="padding: 14px 16px; background: var(--c-lin-bg); border-left: 3px solid var(--c-lin);">
+              <div style="font: 500 12px/1.2 var(--kui-font-sans); color: var(--c-lin); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Latency on long output</div>
+              Linear decode cost per token; the Ling-2.6-flash post reports up to ~4× higher decode throughput vs. comparable dense-attention models.
+            </div>
+            <div style="padding: 14px 16px; background: var(--c-mla-bg); border-left: 3px solid var(--c-mla);">
+              <div style="font: 500 12px/1.2 var(--kui-font-sans); color: var(--c-mla); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Where MLA is still needed</div>
+              Pure linear stacks lose accuracy on long-range copy / recall (MRCR-style tasks). A 1 : 7 sprinkling of MLA anchors restores global routing without the full quadratic-cost tax.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── MOE ─────────── -->
+    <section id="moe">
+      <div class="sec-head">
+        <div class="num">06 · Sparse Mixture-of-Experts</div>
+        <div>
+          <h3>Highly sparse routed FFN — ≈ 1/32 activation</h3>
+          <p>Every FFN slot in the backbone is a sparse MoE bank. The Ling-2.0 release post for the predecessor Ling-1T model reports a <b>1/32</b> activation ratio — ~50 B active parameters out of 1 T total. The Ling-2.6-1T model card does not republish those numbers and does not enumerate routed-expert counts, top-k, or shared-expert count, but the configuration class (<code style="font-family: var(--kui-font-mono);">bailing_moe_v2_5</code>) is a continuation of the same family.</p>
+        </div>
+      </div>
+
+      <div class="moe-wrap">
+        <div class="moe-card">
+          <h4>One routing event (illustrative)</h4>
+          <p>Each tile is one of an unspecified number of routed experts. For the current token, the router selects a small top-k; those experts fire, weighted by gate scores. One or more shared experts fire for every token.</p>
+
+          <div class="moe-grid" id="moe-grid"></div>
+
+          <div class="moe-key">
+            <span><i style="background: var(--kui-n100);"></i> Idle expert</span>
+            <span><i style="background: var(--c-moe);"></i> Routed (top-k)</span>
+            <span><i style="background: var(--c-shared);"></i> Shared</span>
+          </div>
+
+          <div class="moe-numbers">
+            <div class="n"><div class="k">Total params</div><div class="v">1 T</div></div>
+            <div class="n"><div class="k">Active per token</div><div class="v">≈ 50 B <small>1/32</small></div></div>
+            <div class="n"><div class="k">Routed experts</div><div class="v unk">not enumerated</div></div>
+            <div class="n"><div class="k">Top-k</div><div class="v unk">not enumerated</div></div>
+            <div class="n"><div class="k">Shared experts</div><div class="v unk">not enumerated</div></div>
+            <div class="n"><div class="k">Expert FFN width</div><div class="v unk">not enumerated</div></div>
+          </div>
+        </div>
+
+        <div class="scaling-card">
+          <h4>Activation ratio in context</h4>
+          <p>Ling 2.0 was designed for a <b>1/32 sparsity ratio</b> — the Ling Scaling Law (arXiv 2507.17702) reports this as the sweet spot for trillion-scale efficiency. The ratio carries into the 2.6 generation.</p>
+
+          <div class="dial">
+            <div class="fill" style="width: 3.125%;"></div>
+            <div class="label">active</div>
+            <div class="val">≈ 50 B</div>
+            <div class="right">total = 1 000 B</div>
+          </div>
+          <div class="axis"><span>0 B</span><span>250 B</span><span>500 B</span><span>750 B</span><span>1 T</span></div>
+
+          <div style="margin-top: 28px; padding: 16px 18px; background: var(--c-fp8-bg); border-left: 3px solid var(--c-fp8); font: var(--kui-body); color: var(--kui-fg-default);">
+            <div style="font: 500 12px/1.2 var(--kui-font-sans); color: var(--c-fp8); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">FP8 mixed precision</div>
+            Ling-1T was trained end-to-end in FP8 mixed precision — "the largest FP8-trained foundation model known to date," per the predecessor release post. The 2.6-1T safetensors continue to expose <code style="font-family: var(--kui-font-mono);">F8_E4M3</code>, <code style="font-family: var(--kui-font-mono);">BF16</code>, and <code style="font-family: var(--kui-font-mono);">F32</code> tensor types.
+          </div>
+
+          <div style="margin-top: 16px; padding: 16px 18px; background: var(--c-moe-bg); border-left: 3px solid var(--c-moe); font: var(--kui-body); color: var(--kui-fg-default);">
+            <div style="font: 500 12px/1.2 var(--kui-font-sans); color: var(--c-shared); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Heterogeneous pipeline</div>
+            The Ling 2.0 release post lists per-layer types <code style="font-family: var(--kui-font-mono);">Embedding · Dense · MoE · MTP · Loss</code> and reports an interleaved 1F1B pipeline customized for this heterogeneity — &gt; 40 % end-to-end speedup over a homogeneous pipeline at trillion scale.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── MTP ─────────── -->
+    <section id="mtp">
+      <div class="sec-head">
+        <div class="num">07 · Multi-Token Prediction (MTP)</div>
+        <div>
+          <h3>Speculative decoding head trained alongside the LM</h3>
+          <p>Ling 2.0 architecture diagrams include an explicit <b>MTP layer</b> appended to the backbone. At serve time, Ling-2.6-1T uses MTP through SGLang's EAGLE-style speculative-decoding driver: the MTP head proposes several next-token candidates from a single forward pass, and the main LM head verifies them — accepted candidates skip ahead, rejected ones are recomputed.</p>
+        </div>
+      </div>
+
+      <div class="mtp-wrap">
+        <h4>How MTP is wired into the forward pass</h4>
+        <p>The MTP head is a small additional module that reads the final hidden state and produces logits for tokens beyond <code style="font-family: var(--kui-font-mono);">t+1</code>. Both the LM head and the MTP head are trained jointly during pretraining (Ling 2.0 release post). At inference the MTP head runs as the speculative draft model; the main LM head is the verifier.</p>
+
+        <div class="mtp-grid">
+          <svg viewBox="0 0 580 280" role="img" aria-label="MTP draft and verify cycle.">
+            <!-- residual stream -->
+            <line x1="40" y1="40" x2="560" y2="40" stroke="#D8D8D8" stroke-dasharray="3 3"/>
+            <text x="36" y="35" font-size="10" fill="#5E5E5E" text-anchor="end">stream</text>
+
+            <!-- final hidden -->
+            <rect x="40" y="56" width="120" height="40" fill="#fff" stroke="#202020"/>
+            <text x="100" y="76" font-size="11" text-anchor="middle">h_final at t</text>
+            <text x="100" y="90" font-size="9" text-anchor="middle" class="mono" fill="#5E5E5E">last block output</text>
+
+            <!-- to LM head -->
+            <line x1="160" y1="76" x2="220" y2="76" stroke="#202020"/>
+            <polygon points="220,72 228,76 220,80" fill="#202020"/>
+            <rect x="228" y="56" width="120" height="40" fill="#E2F1EF" stroke="#1FA18D"/>
+            <text x="288" y="76" font-size="11" text-anchor="middle" fill="#1FA18D" font-weight="500">LM head</text>
+            <text x="288" y="90" font-size="9" text-anchor="middle" class="mono" fill="#1FA18D">verifier · gold logits</text>
+
+            <line x1="348" y1="76" x2="408" y2="76" stroke="#1FA18D"/>
+            <polygon points="408,72 416,76 408,80" fill="#1FA18D"/>
+            <text x="450" y="80" font-size="11" font-weight="500" fill="#1FA18D">y_{t+1}</text>
+
+            <!-- MTP path -->
+            <line x1="100" y1="96" x2="100" y2="140" stroke="#C54600"/>
+            <polygon points="96,140 100,148 104,140" fill="#C54600"/>
+            <rect x="40" y="148" width="120" height="40" fill="#FDEFE6" stroke="#C54600"/>
+            <text x="100" y="168" font-size="11" text-anchor="middle" fill="#C54600" font-weight="500">MTP head</text>
+            <text x="100" y="182" font-size="9" text-anchor="middle" class="mono" fill="#C54600">speculative draft</text>
+
+            <!-- 4 draft tokens -->
+            <line x1="160" y1="168" x2="200" y2="168" stroke="#C54600"/>
+            <polygon points="200,164 208,168 200,172" fill="#C54600"/>
+            <rect x="210" y="148" width="60" height="40" fill="#fff" stroke="#C54600"/>
+            <text x="240" y="172" font-size="11" text-anchor="middle">d₁</text>
+            <rect x="275" y="148" width="60" height="40" fill="#fff" stroke="#C54600"/>
+            <text x="305" y="172" font-size="11" text-anchor="middle">d₂</text>
+            <rect x="340" y="148" width="60" height="40" fill="#fff" stroke="#C54600"/>
+            <text x="370" y="172" font-size="11" text-anchor="middle">d₃</text>
+            <rect x="405" y="148" width="60" height="40" fill="#fff" stroke="#C54600"/>
+            <text x="435" y="172" font-size="11" text-anchor="middle">d₄</text>
+            <text x="338" y="143" font-size="10" text-anchor="middle" fill="#C54600" class="mono">draft tokens — speculative-num-draft-tokens 4</text>
+
+            <!-- verify -->
+            <line x1="240" y1="188" x2="240" y2="220" stroke="#C54600"/>
+            <line x1="305" y1="188" x2="305" y2="220" stroke="#C54600"/>
+            <line x1="370" y1="188" x2="370" y2="220" stroke="#C54600"/>
+            <line x1="435" y1="188" x2="435" y2="220" stroke="#C54600"/>
+
+            <rect x="210" y="220" width="255" height="36" fill="#E2F1EF" stroke="#1FA18D"/>
+            <text x="338" y="244" font-size="11" text-anchor="middle" fill="#1FA18D" font-weight="500">LM head verifies → accept prefix, reject tail</text>
+
+            <text x="40" y="270" font-size="10" fill="#5E5E5E" class="mono">on accept: skip k tokens in one step  ·  on reject: fall back to single-token decode</text>
+          </svg>
+
+          <div class="mtp-knobs">
+            <div style="font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 4px;">SGLang serve flags</div>
+            <div class="k">
+              <div class="name">--speculative-algorithm<small>which draft engine to use</small></div>
+              <div class="val">EAGLE</div>
+            </div>
+            <div class="k">
+              <div class="name">--speculative-num-steps<small>draft tree depth</small></div>
+              <div class="val">3</div>
+            </div>
+            <div class="k">
+              <div class="name">--speculative-eagle-topk<small>candidates per step</small></div>
+              <div class="val">1</div>
+            </div>
+            <div class="k">
+              <div class="name">--speculative-num-draft-tokens<small>tokens proposed per cycle</small></div>
+              <div class="val">4</div>
+            </div>
+            <div class="k">
+              <div class="name">--mamba-scheduler-strategy<small>linear-state cache pool</small></div>
+              <div class="val">extra_buffer</div>
+            </div>
+            <div class="k">
+              <div class="name">--mamba-full-memory-ratio<small>state-pool reserve</small></div>
+              <div class="val">1.4</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── CONTEXT ─────────── -->
+    <section id="context">
+      <div class="sec-head">
+        <div class="num">08 · Long context</div>
+        <div>
+          <h3>256 K-token context window served by default</h3>
+          <p>The SGLang inference recipe published with the model card launches with <code style="font-family: var(--kui-font-mono);">--context-length 262144</code> — a 256 K-token window. The bulk of that window is processed by the linear-state attention path; the 1-in-8 MLA layers retain global softmax on a much smaller fraction of the compute. Benchmarks reported include MRCR at the 16 K – 256 K range.</p>
+        </div>
+      </div>
+
+      <div class="ctx-wrap">
+        <div class="ctx-card">
+          <h4>Served context window</h4>
+          <p>Bands show the boundaries used by SGLang and by the published MRCR evaluation. Native pretraining window before any extension is <b>not stated</b> in the Ling-2.6-1T card.</p>
+
+          <div class="ruler">
+            <div class="seg" style="left: 0; width: 6.25%; background: var(--c-fp8-bg);"></div>
+            <div class="seg" style="left: 6.25%; width: 18.75%; background: var(--c-mla-bg);"></div>
+            <div class="seg" style="left: 25%; width: 75%; background: var(--c-lin-bg);"></div>
+            <div class="label">SGLang served</div>
+            <div class="val">≤ 262 144 tokens</div>
+          </div>
+          <div class="ruler-ax">
+            <span>0</span><span>16 K</span><span>64 K</span><span>128 K</span><span>256 K</span>
+          </div>
+          <div style="margin-top: 16px; font: var(--kui-caption); color: var(--kui-fg-muted); font-family: var(--kui-font-mono);">
+            MRCR is evaluated by inclusionAI across 16 K – 256 K spans (model card). Position-encoding scheme (RoPE base, YaRN, NoPE, etc.) is <b>not stated</b>.
+          </div>
+        </div>
+
+        <div class="ctx-card">
+          <h4>Recommended runtime settings</h4>
+          <p>From the SGLang quickstart in the Ling-2.6-1T model card. The vLLM recipe is parameter-light by comparison; the SGLang recipe documents the full hybrid cache configuration.</p>
+
+          <div class="ident">
+            <div class="row"><span class="k">Tensor-parallel size</span><span class="v">8</span></div>
+            <div class="row"><span class="k">Max running requests</span><span class="v">32</span></div>
+            <div class="row"><span class="k">Mem-fraction-static</span><span class="v">0.92</span></div>
+            <div class="row"><span class="k">Chunked-prefill size</span><span class="v">8 192</span></div>
+            <div class="row"><span class="k">Context length</span><span class="v">262 144</span></div>
+            <div class="row"><span class="k">Tool-call parser</span><span class="v">qwen25</span></div>
+            <div class="row"><span class="k">Multithread loader</span><span class="v">num_threads = 64</span></div>
+            <div class="row"><span class="k">Reference SGLang branch</span><span class="v">antgroup/sglang : ling_2_6</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── TRAINING ─────────── -->
+    <section id="training">
+      <div class="sec-head">
+        <div class="num">09 · Training</div>
+        <div>
+          <h3>FP8 pretraining, incremental hybrid retrofit, fast-thinking post-train</h3>
+          <p>The 2.6 family is not trained from scratch. Per the Ling-2.6-flash release post, the hybrid attention stack was reached by <b>incremental training</b> from the Ling-2.0 base — the GQA layers of Ling 2.0 were converted into the 1 : 7 MLA + Lightning Linear interleave through continued training. Post-training introduces a "Contextual Process Redundancy Suppression" reward to shorten chain-of-thought.</p>
+        </div>
+      </div>
+
+      <div class="pipe">
+        <div class="track">
+          <div class="seg a">
+            <div class="ph">Phase 1 · Pretrain (inherited)</div>
+            <div class="nm">Ling-1T base · 20 T+ tokens · FP8 mixed precision</div>
+          </div>
+          <div class="seg b">
+            <div class="ph">Phase 2</div>
+            <div class="nm">Hybrid retrofit · incremental</div>
+          </div>
+          <div class="seg c">
+            <div class="ph">Phase 3</div>
+            <div class="nm">SFT / instruction</div>
+          </div>
+          <div class="seg d">
+            <div class="ph">Phase 4</div>
+            <div class="nm">Fast-thinking RL</div>
+          </div>
+        </div>
+        <div class="ax">
+          <span>0</span><span>20 T tokens (cumulative)</span><span>incremental</span><span>—</span>
+        </div>
+
+        <div class="detail">
+          <div class="it a">
+            <h6>FP8 pretraining</h6>
+            <p>Ling-1T base: 20 T+ high-quality, reasoning-dense tokens. End-to-end FP8 mixed precision; the predecessor release post reports ≤ 0.1 % loss deviation from BF16 across 1 T tokens of comparison, and a heterogeneous interleaved 1F1B pipeline that lifts utilization &gt; 40 %.</p>
+          </div>
+          <div class="it b">
+            <h6>Hybrid retrofit</h6>
+            <p>Ling-2.6-flash release post: GQA attention layers of the Ling-2.0 base are converted into a 1 : 7 MLA + Lightning Linear hybrid through continued training, rather than a from-scratch redesign. The 2.6-1T model is the trillion-parameter sibling of this conversion.</p>
+          </div>
+          <div class="it c">
+            <h6>Instruction / SFT</h6>
+            <p>Exact SFT corpus composition is <b>not enumerated</b> in the Ling-2.6-1T card. The 2.6 family targets agent and code workflows — Claude Code, OpenClaw, OpenCode, and CodeBuddy compatibility is explicitly tested.</p>
+          </div>
+          <div class="it d">
+            <h6>Fast-thinking RL</h6>
+            <p>"Contextual Process Redundancy Suppression" reward during post-training — a reward shape that penalizes verbose chain-of-thought and rewards direct answers. The model card describes this as a "fast thinking" mechanism that compresses output tokens without losing task accuracy.</p>
+          </div>
+        </div>
+
+        <div style="margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--kui-border-default); font: var(--kui-caption); color: var(--kui-fg-muted); font-family: var(--kui-font-mono);">
+          Underlying scaling law referenced by the Ling 2.0 release post: arXiv 2507.17702. Additional arXiv IDs linked from the Ling-1T repo: 2507.17634, 2510.22115.
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── BENCHMARKS ─────────── -->
+    <section id="benchmarks">
+      <div class="sec-head">
+        <div class="num">10 · Benchmarks</div>
+        <div>
+          <h3>Reported scores</h3>
+          <p>Self-reported by inclusionAI in the model-card text and on Artificial Analysis. Only one numeric score is published as a community evaluation result on the Hugging Face leaderboard (SWE-bench Verified). Most other listed benchmarks are described as "open-source SOTA" or "first-tier" without published numbers in the public card.</p>
+        </div>
+      </div>
+
+      <div class="bench">
+        <div class="bench-card">
+          <h4>Engineering &amp; agent execution</h4>
+          <div class="ph">primary: HF leaderboard · model-card prose</div>
+
+          <div class="row">
+            <div class="name">SWE-bench Verified<small>community eval · HF leaderboard</small></div>
+            <div class="bar-track"><div class="bar hi" style="width: 72.2%;"></div></div>
+            <div class="score">72.2</div>
+          </div>
+          <div class="row">
+            <div class="name">BFCL-V4<small>tool calling — model card "open-source SOTA"</small></div>
+            <div class="bar-track"><div class="bar unk" style="width: 100%;"></div></div>
+            <div class="score unk">not reported</div>
+          </div>
+          <div class="row">
+            <div class="name">TAU2-Bench<small>model card "first-tier"</small></div>
+            <div class="bar-track"><div class="bar unk" style="width: 100%;"></div></div>
+            <div class="score unk">not reported</div>
+          </div>
+          <div class="row">
+            <div class="name">Claw-Eval<small>model card "first-tier"</small></div>
+            <div class="bar-track"><div class="bar unk" style="width: 100%;"></div></div>
+            <div class="score unk">not reported</div>
+          </div>
+          <div class="row">
+            <div class="name">PinchBench<small>model card "first-tier"</small></div>
+            <div class="bar-track"><div class="bar unk" style="width: 100%;"></div></div>
+            <div class="score unk">not reported</div>
+          </div>
+        </div>
+
+        <div class="bench-card">
+          <h4>Reasoning, instruction-following, long context</h4>
+          <div class="ph">primary: model-card prose · Artificial Analysis</div>
+
+          <div class="row">
+            <div class="name">AIME26<small>model card · "leads non-thinking models"</small></div>
+            <div class="bar-track"><div class="bar unk" style="width: 100%;"></div></div>
+            <div class="score unk">not reported</div>
+          </div>
+          <div class="row">
+            <div class="name">IFBench<small>instruction following · model card</small></div>
+            <div class="bar-track"><div class="bar unk" style="width: 100%;"></div></div>
+            <div class="score unk">not reported</div>
+          </div>
+          <div class="row">
+            <div class="name">MRCR 16 K – 256 K<small>long-context retrieval · model card</small></div>
+            <div class="bar-track"><div class="bar unk" style="width: 100%;"></div></div>
+            <div class="score unk">not reported</div>
+          </div>
+          <div class="row">
+            <div class="name">Artificial Analysis · Intelligence Index<small>~16 M output tokens evaluated</small></div>
+            <div class="bar-track"><div class="bar" style="width: 34%;"></div></div>
+            <div class="score">34</div>
+          </div>
+
+          <div class="bench-foot">All values self-reported by inclusionAI or community-uploaded to the HF leaderboard. Independent third-party numbers not collected.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── SPECS ─────────── -->
+    <section id="specs">
+      <div class="sec-head">
+        <div class="num">11 · Spec sheet</div>
+        <div>
+          <h3>All published numbers in one place</h3>
+          <p>Cells marked italic are <b>unknown in the public Ling-2.6-1T model card</b>; in some cases a value is inherited from the Ling-1T predecessor where the lineage is explicit. Verify against the config.json shipped in the repo before relying on any of these for engineering work.</p>
+        </div>
+      </div>
+
+      <div class="specs">
+        <div class="group"><h5>Model identity</h5></div>
+        <div class="cell"><div class="k">Vendor</div><div class="v">inclusionAI / Ant Group</div></div>
+        <div class="cell"><div class="k">Repository</div><div class="v">inclusionAI/Ling-2.6-1T</div></div>
+        <div class="cell"><div class="k">License</div><div class="v">MIT</div></div>
+        <div class="cell"><div class="k">Release date</div><div class="v">2026-04-23</div><div class="n">inventory · matches HF commit history</div></div>
+
+        <div class="group"><h5>Scale</h5></div>
+        <div class="cell"><div class="k">Total parameters</div><div class="v">1 T</div></div>
+        <div class="cell"><div class="k">Active per token</div><div class="v">≈ 50 B</div><div class="n">inherited from Ling-1T base (1/32 sparsity) — not re-stated in 2.6-1T card</div></div>
+        <div class="cell"><div class="k">Numerics</div><div class="v">FP8 E4M3 + BF16 + F32</div></div>
+        <div class="cell"><div class="k">Safetensors size</div><div class="v">≈ 1.04 TB</div><div class="n">HF repo tree</div></div>
+
+        <div class="group"><h5>Backbone</h5></div>
+        <div class="cell"><div class="k">Architecture tag</div><div class="v">bailing_hybrid</div></div>
+        <div class="cell"><div class="k">Config class</div><div class="v">configuration_bailing_moe_v2_5</div></div>
+        <div class="cell"><div class="k">Attention pattern</div><div class="v">MLA : Lightning Linear = 1 : 7</div><div class="n">Ling-2.6-flash release post; carried to 2.6-1T</div></div>
+        <div class="cell"><div class="k">Layer count N</div><div class="v unk">unknown in source inventory</div></div>
+        <div class="cell"><div class="k">Hidden size d_model</div><div class="v unk">unknown in source inventory</div></div>
+        <div class="cell"><div class="k">FFN intermediate (dense / MoE)</div><div class="v unk">unknown in source inventory</div></div>
+        <div class="cell"><div class="k">Attention heads</div><div class="v unk">unknown in source inventory</div></div>
+        <div class="cell"><div class="k">MLA d_c / head_dim</div><div class="v unk">unknown in source inventory</div></div>
+        <div class="cell"><div class="k">Linear-attn state dim</div><div class="v unk">unknown in source inventory</div></div>
+        <div class="cell"><div class="k">Position encoding</div><div class="v unk">not stated in card</div></div>
+
+        <div class="group"><h5>Mixture-of-Experts</h5></div>
+        <div class="cell"><div class="k">Activation ratio</div><div class="v">≈ 1 / 32</div><div class="n">Ling-2.0 release post</div></div>
+        <div class="cell"><div class="k">Routed experts</div><div class="v unk">not enumerated</div></div>
+        <div class="cell"><div class="k">Top-k</div><div class="v unk">not enumerated</div></div>
+        <div class="cell"><div class="k">Shared experts</div><div class="v unk">not enumerated</div></div>
+
+        <div class="group"><h5>Context &amp; serving</h5></div>
+        <div class="cell"><div class="k">Served context window</div><div class="v">262 144 tokens</div><div class="n">SGLang launch flag · 256 K</div></div>
+        <div class="cell"><div class="k">Native pretrain window</div><div class="v unk">not stated</div></div>
+        <div class="cell"><div class="k">Tokenizer / vocab</div><div class="v unk">unknown in source inventory</div></div>
+        <div class="cell"><div class="k">Tool-call parser</div><div class="v">qwen25</div></div>
+
+        <div class="group"><h5>Speculative decoding</h5></div>
+        <div class="cell"><div class="k">MTP head</div><div class="v">present</div><div class="n">Ling-2.0 release diagram; SGLang flag set</div></div>
+        <div class="cell"><div class="k">SGLang algorithm</div><div class="v">EAGLE</div></div>
+        <div class="cell"><div class="k">Draft tokens per cycle</div><div class="v">4</div></div>
+        <div class="cell"><div class="k">Speculative steps</div><div class="v">3</div></div>
+
+        <div class="group"><h5>Training</h5></div>
+        <div class="cell"><div class="k">Pretraining tokens</div><div class="v">20 T+</div><div class="n">Ling-1T base · "reasoning-dense"</div></div>
+        <div class="cell"><div class="k">FP8 loss deviation</div><div class="v">≤ 0.1 %</div><div class="n">FP8 vs. BF16 over 1 T tokens · Ling-1T post</div></div>
+        <div class="cell"><div class="k">Hybrid retrofit</div><div class="v">incremental from 2.0</div><div class="n">Ling-2.6-flash post · same approach for 2.6-1T</div></div>
+        <div class="cell"><div class="k">Post-train reward</div><div class="v">CPRS (fast thinking)</div><div class="n">Contextual Process Redundancy Suppression</div></div>
+      </div>
+    </section>
+
+    <!-- ─────────── CAVEATS ─────────── -->
+    <section id="caveats">
+      <div class="sec-head">
+        <div class="num">12 · Unknowns &amp; caveats</div>
+        <div>
+          <h3>What is, and is not, in the published Ling-2.6-1T sources</h3>
+          <p>The model card is short and prose-led. Many block-level dimensions that one would normally pull from <code style="font-family: var(--kui-font-mono);">config.json</code> are not surfaced in the public README and have not been independently verified for this brief.</p>
+        </div>
+      </div>
+
+      <div class="caveats">
+        <h4>Source-inventory gaps</h4>
+        <ul>
+          <li><b>Layer count, hidden size, head count, head dim, intermediate sizes</b> — not enumerated in the public Ling-2.6-1T card prose. The repo ships <code>config.json</code> and <code>configuration_bailing_moe_v2_5.py</code>; consult those directly before quoting numbers.</li>
+          <li><b>Routed-expert count, top-k, shared-expert count, routed scaling factor</b> — not enumerated. The architecture tag <code>bailing_hybrid</code> and config class name <code>bailing_moe_v2_5</code> place this in the same family as Ling-1T but the exact MoE topology is not re-stated.</li>
+          <li><b>Active parameter count (≈ 50 B)</b> — taken from the Ling-1T predecessor release post which describes 1 T total / 50 B active / 1-in-32 sparsity. The Ling-2.6-1T card does <b>not</b> republish the active-parameter number; if the hybrid retrofit changed the per-layer FFN, the 50 B figure may be approximate.</li>
+          <li><b>Hybrid pattern position</b> — the 1 : 7 MLA : Linear ratio is taken from the Ling-2.6-flash release post, which says the architecture was carried into the 2.6 family. The exact position of the MLA layer within each octet is not stated; this brief draws it as the last layer of each group of 8 by convention only.</li>
+          <li><b>Position encoding</b> — RoPE base, YaRN factor, or NoPE behaviour are <b>not described</b> in the Ling-2.6-1T card. MRCR is evaluated up to 256 K but the mechanism for reaching that window is not enumerated.</li>
+          <li><b>Tokenizer / vocabulary</b> — vocab size and tokenizer family are <b>not stated</b> in the prose. The tool-call parser at serve is <code>qwen25</code> but that does not imply the underlying tokenizer.</li>
+          <li><b>Benchmark numbers</b> — only SWE-bench Verified at <b>72.2</b> is published (community-uploaded HF leaderboard entry) and Artificial Analysis Intelligence Index of <b>34</b>. Other benchmarks (AIME26, BFCL-V4, TAU2-Bench, Claw-Eval, PinchBench, MRCR, IFBench) are described qualitatively in the model card without numeric scores in the README itself.</li>
+          <li><b>Lineage assumptions</b> — every figure inherited from Ling-1T or Ling-2.6-flash is labelled as such in the spec sheet; verify against the trillion-parameter card before quoting.</li>
+        </ul>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <div class="row">
+    <span>NVIDIA Model Atlas · Ling-2.6-1T brief · compiled from primary sources current as of May 2026.</span>
+    <span>Sources: <a href="https://huggingface.co/inclusionAI/Ling-2.6-1T">HF model card</a> · <a href="https://huggingface.co/inclusionAI/Ling-2.6-flash">2.6-flash card</a> · <a href="https://huggingface.co/inclusionAI/Ling-1T">Ling-1T base</a> · arXiv 2507.17702</span>
+  </div>
+</footer>
+
+<script>
+  // ── MoE grid (illustrative — counts not from card) ──
+  (function buildMoE() {
+    const grid = document.getElementById('moe-grid');
+    if (!grid) return;
+    const N = 128;                       // illustrative bank size
+    const activeRouted = new Set([19, 37, 52, 66, 81, 95, 108, 121]); // top-8 picks (illustrative)
+    const shared = new Set([0]);         // illustrative
+    for (let i = 0; i < N; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'e';
+      if (shared.has(i)) {
+        cell.classList.add('shared');
+        cell.dataset.r = 'S';
+      } else if (activeRouted.has(i)) {
+        cell.classList.add('active');
+        // gate score, decorative
+        cell.dataset.r = String(([...activeRouted].indexOf(i) + 1));
+      }
+      grid.appendChild(cell);
+    }
+  })();
+
+  // ── Active section in rail ──
+  (function activeRail() {
+    const links = Array.from(document.querySelectorAll('.rail a'))
+      .filter(a => (a.getAttribute('href') || '').startsWith('#'));
+    const sections = links
+      .map(a => document.querySelector(a.getAttribute('href')))
+      .filter(Boolean);
+
+    function update() {
+      const fromTop = window.scrollY + 120;
+      let current = sections[0];
+      for (const s of sections) {
+        if (s.offsetTop <= fromTop) current = s;
+      }
+      links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + current.id));
+    }
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  })();
+</script>
+
+</body>
+</html>

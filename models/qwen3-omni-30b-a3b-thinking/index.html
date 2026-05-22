@@ -1,0 +1,1334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qwen3-Omni-30B-A3B-Thinking Architecture</title>
+<link rel="stylesheet" href="kaizen/colors_and_type.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--kui-bg-canvas); color: var(--kui-fg-strong); font: var(--kui-body); }
+  body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  a { color: inherit; text-decoration: none; }
+  a.link { color: var(--kui-info); }
+  a.link:hover { text-decoration: underline; }
+
+  /* ── per-modality palette ── */
+  :root {
+    --c-txt:     #5E5E5E;   /* text */
+    --c-txt-bg:  #F2F2F2;
+    --c-aud:     #C54600;   /* audio */
+    --c-aud-bg:  #FDEFE6;
+    --c-vis:     #0D69D4;   /* image */
+    --c-vis-bg:  #E9F4FB;
+    --c-vid:     #6E27C5;   /* video */
+    --c-vid-bg:  #F1E8FB;
+    --c-pos:     #1FA18D;   /* TM-RoPE positional */
+    --c-pos-bg:  #E1F4F0;
+    --c-think:   #B58A00;   /* thinking / reasoning */
+    --c-think-bg:#FFF7DA;
+    --c-moe:     #76B900;   /* MoE / experts */
+    --c-moe-bg:  #E8F4D6;
+    --c-mute:    #8F8F8F;
+  }
+
+  /* ── top bar ── */
+  .top-bar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 32px;
+    background: #000; color: #fff;
+    border-bottom: 4px solid var(--kui-brand-green);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .top-bar .wordmark { height: 22px; }
+  .top-bar .divider { width: 1px; height: 18px; background: rgba(255,255,255,0.25); }
+  .top-bar .crumb { font: 500 11px/1 var(--kui-font-mono); text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,0.55); }
+  .top-bar h1 { font: 500 16px/1 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0; }
+  .top-bar .meta { margin-left: auto; display: flex; gap: 24px; font: var(--kui-text-sm); color: rgba(255,255,255,0.7); }
+  .top-bar .meta b { color: #fff; font-weight: 500; }
+
+  /* ── layout ── */
+  .layout {
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    max-width: 1520px;
+    margin: 0 auto;
+    align-items: start;
+  }
+  nav.rail {
+    position: sticky; top: 60px;
+    padding: 40px 24px 40px 32px;
+    border-right: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-canvas);
+    align-self: start;
+  }
+  nav.rail .label { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 12px; }
+  nav.rail ol { list-style: none; padding: 0; margin: 0; counter-reset: sec; }
+  nav.rail li { counter-increment: sec; }
+  nav.rail a {
+    display: grid; grid-template-columns: 28px 1fr; gap: 8px;
+    padding: 7px 0;
+    font: var(--kui-text-sm); color: var(--kui-fg-default);
+  }
+  nav.rail a::before {
+    content: counter(sec, decimal-leading-zero);
+    font-family: var(--kui-font-mono); color: var(--kui-fg-muted);
+    font-size: 11px;
+  }
+  nav.rail a:hover { color: var(--kui-fg-strong); }
+  nav.rail a.active { color: var(--kui-brand-green-darker); font-weight: 500; }
+  nav.rail .home-link {
+    display: block;
+    margin: 0 0 16px;
+    padding: 0;
+    color: var(--kui-fg-strong);
+    font-weight: 500;
+  }
+  nav.rail .home-link::before {
+    content: "←";
+    margin-right: 8px;
+    color: var(--kui-brand-green);
+    font-family: var(--kui-font-sans);
+  }
+  nav.rail .foot { font: var(--kui-caption); color: var(--kui-fg-muted); margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--kui-border-default); }
+
+  .wrap { padding: 0 40px 96px; max-width: 1240px; }
+
+  /* ── hero ── */
+  .hero { padding: 56px 0 40px; border-bottom: 1px solid var(--kui-border-default); }
+  .hero .eyebrow { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 12px; display: flex; gap: 10px; align-items: center; }
+  .hero .eyebrow .pill { background: var(--c-think-bg); color: var(--c-think); padding: 4px 8px; border: 1px solid var(--c-think); font-family: var(--kui-font-mono); font-size: 10px; }
+  .hero h2 { font: 500 52px/1.04 var(--kui-font-sans); letter-spacing: -1px; margin: 0 0 16px; max-width: 22ch; }
+  .hero h2 .accent { color: var(--c-think); }
+  .hero h2 .accent2 { color: var(--c-aud); }
+  .hero h2 .accent3 { color: var(--c-vis); }
+  .hero p { font: var(--kui-body-md); color: var(--kui-fg-default); max-width: 72ch; margin: 0 0 32px; }
+  .hero .topline { display: grid; grid-template-columns: 1.4fr 1fr; gap: 56px; align-items: end; margin-bottom: 28px; }
+
+  .modchips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--kui-border-default); background: #fff; font: var(--kui-text-sm); }
+  .chip .sw { width: 10px; height: 10px; display: inline-block; }
+  .chip.txt .sw { background: var(--c-txt); }
+  .chip.aud .sw { background: var(--c-aud); }
+  .chip.vis .sw { background: var(--c-vis); }
+  .chip.vid .sw { background: var(--c-vid); }
+  .chip.out { border-color: var(--c-think); color: var(--c-think); }
+  .chip.out .sw { background: var(--c-think); }
+  .chip.disabled { color: var(--c-mute); background: var(--c-txt-bg); text-decoration: line-through; }
+
+  .talker-badge {
+    margin-top: 14px;
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 8px 14px; background: #fff;
+    border: 1px solid var(--c-mute); border-left: 4px solid var(--c-mute);
+    font: var(--kui-text-sm);
+  }
+  .talker-badge .k { font: 11px/1 var(--kui-font-mono); color: var(--c-mute); text-transform: uppercase; letter-spacing: 1.2px; }
+  .talker-badge code { font: 12px/1 var(--kui-font-mono); background: var(--c-txt-bg); padding: 2px 6px; }
+
+  .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); }
+  .stat { background: #fff; padding: 16px 18px; min-height: 100px; }
+  .stat .label { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1px; color: var(--kui-fg-muted); margin-bottom: 6px; }
+  .stat .value { font: 500 26px/1 var(--kui-font-sans); letter-spacing: -0.5px; }
+  .stat .value small { font: 400 13px/1 var(--kui-font-sans); color: var(--kui-fg-muted); margin-left: 4px; letter-spacing: 0; }
+  .stat .note { font: 11px/1.3 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 6px; }
+  .stat .value.dual { font-size: 22px; }
+
+  /* ── section primitives ── */
+  section { padding: 64px 0; border-bottom: 1px solid var(--kui-border-default); scroll-margin-top: 80px; }
+  section:last-of-type { border-bottom: 0; }
+  .sec-head { display: grid; grid-template-columns: 180px 1fr; gap: 32px; margin-bottom: 32px; align-items: baseline; }
+  .sec-head .num { font: var(--kui-overline); letter-spacing: 1.5px; color: var(--kui-fg-muted); text-transform: uppercase; padding-top: 6px; }
+  .sec-head h3 { font: 500 30px/1.2 var(--kui-font-sans); letter-spacing: -0.5px; margin: 0 0 8px; }
+  .sec-head p { font: var(--kui-body-md); color: var(--kui-fg-default); max-width: 72ch; margin: 0; }
+
+  /* ── system diagram container ── */
+  .system { background: #fff; border: 1px solid var(--kui-border-default); padding: 32px; }
+  .system svg { width: 100%; height: auto; display: block; }
+  .system .legend { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--kui-border-subtle); font: var(--kui-text-sm); }
+  .system .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .system .legend i { width: 14px; height: 14px; display: inline-block; }
+
+  /* ── card grid ── */
+  .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .threecol { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .card { background: #fff; border: 1px solid var(--kui-border-default); display: flex; flex-direction: column; }
+  .card .strip { height: 6px; background: #000; }
+  .card.aud .strip { background: var(--c-aud); }
+  .card.vis .strip { background: var(--c-vis); }
+  .card.vid .strip { background: var(--c-vid); }
+  .card.pos .strip { background: var(--c-pos); }
+  .card.think .strip { background: var(--c-think); }
+  .card.moe .strip { background: var(--c-moe); }
+  .card .body { padding: 28px; display: flex; flex-direction: column; gap: 16px; flex: 1; }
+  .card .eyebrow { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); }
+  .card h4 { font: 500 22px/1.2 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0; }
+  .card p { font: var(--kui-body); color: var(--kui-fg-default); margin: 0; }
+  .card code { font: 12px/1 var(--kui-font-mono); background: var(--kui-bg-canvas); padding: 2px 6px; border: 1px solid var(--kui-border-default); }
+  .card .spec {
+    display: grid; grid-template-columns: 1fr auto; gap: 6px 16px;
+    font: var(--kui-body); padding-top: 12px;
+    border-top: 1px solid var(--kui-border-default);
+  }
+  .card .spec .k { color: var(--kui-fg-muted); }
+  .card .spec .v { font-family: var(--kui-font-mono); font-size: 12px; color: var(--kui-fg-strong); text-align: right; }
+
+  /* ── identity panel ── */
+  .id-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 32px; align-items: start; margin-top: 8px; }
+  .id-panel { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .id-panel h4 { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin: 0 0 14px; }
+  .id-panel .row { display: grid; grid-template-columns: 140px 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--kui-border-subtle); font: var(--kui-body); }
+  .id-panel .row:first-of-type { border-top: 0; padding-top: 0; }
+  .id-panel .row .k { color: var(--kui-fg-muted); }
+  .id-panel .row .v { font-family: var(--kui-font-mono); font-size: 12px; color: var(--kui-fg-strong); }
+  .id-panel .row .v.t { font-family: var(--kui-font-sans); font-size: 14px; }
+
+  /* ── benchmarks ── */
+  .bench { background: #fff; border: 1px solid var(--kui-border-default); }
+  .bench-h { padding: 16px 24px; border-bottom: 1px solid var(--kui-border-default); display: flex; align-items: center; gap: 12px; }
+  .bench-h .dot { width: 10px; height: 10px; }
+  .bench-h h4 { font: 500 16px/1 var(--kui-font-sans); margin: 0; }
+  .bench-h .sub { margin-left: auto; font: 11px/1 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .bench-rows { padding: 8px 0; }
+  .bench-row {
+    display: grid; grid-template-columns: 180px 1fr 60px;
+    align-items: center; gap: 12px; padding: 7px 24px;
+    font: var(--kui-text-sm);
+  }
+  .bench-row .nm { color: var(--kui-fg-default); }
+  .bench-row .bar { height: 10px; background: var(--kui-n050); border: 1px solid var(--kui-border-subtle); position: relative; }
+  .bench-row .bar > div { height: 100%; }
+  .bench-row.aud .bar > div { background: var(--c-aud); }
+  .bench-row.vis .bar > div { background: var(--c-vis); }
+  .bench-row.txt .bar > div { background: var(--c-think); }
+  .bench-row.av .bar > div { background: var(--c-vid); }
+  .bench-row .val { font-family: var(--kui-font-mono); font-size: 12px; text-align: right; color: var(--kui-fg-strong); }
+
+  /* ── notes / caveats ── */
+  .caveats { background: #fff; border: 1px solid var(--kui-border-default); padding: 0; }
+  .caveats .item { padding: 22px 28px; border-bottom: 1px solid var(--kui-border-subtle); display: grid; grid-template-columns: 220px 1fr; gap: 24px; }
+  .caveats .item:last-child { border-bottom: 0; }
+  .caveats .item .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); padding-top: 2px; }
+  .caveats .item .v { font: var(--kui-body); color: var(--kui-fg-default); }
+  .caveats .item .v code { font: 12px/1 var(--kui-font-mono); background: var(--c-txt-bg); padding: 2px 6px; }
+
+  /* ── training pipeline ── */
+  .train { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .train h4 { font: 500 16px/1 var(--kui-font-sans); margin: 0 0 18px; letter-spacing: -0.25px; }
+  .train-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); margin-bottom: 24px; }
+  .train-row .stage { background: #fff; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .train-row .stage .ph { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); }
+  .train-row .stage .nm { font: 500 16px/1.2 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .train-row .stage p { font: 12px/1.4 var(--kui-font-sans); color: var(--kui-fg-default); margin: 0; }
+  .train-row .stage.s1 { background: linear-gradient(180deg, #fff 78%, #F5F8FB 100%); }
+  .train-row .stage.s2 { background: linear-gradient(180deg, #fff 60%, #E9F4FB 100%); }
+  .train-row .stage.s3 { background: linear-gradient(180deg, #fff 40%, #D6E8F6 100%); }
+
+  .mod-bars { display: grid; grid-template-columns: 90px 1fr 90px; gap: 12px; align-items: center; margin: 8px 0; font: 12px/1 var(--kui-font-sans); }
+  .mod-bars .lab { color: var(--kui-fg-default); }
+  .mod-bars .track { height: 14px; background: var(--kui-n050); border: 1px solid var(--kui-border-subtle); position: relative; }
+  .mod-bars .fill { height: 100%; }
+  .mod-bars .fill.txt { background: var(--c-txt); }
+  .mod-bars .fill.aud { background: var(--c-aud); }
+  .mod-bars .fill.vis { background: var(--c-vis); }
+  .mod-bars .fill.vid { background: var(--c-vid); }
+  .mod-bars .fill.va  { background: linear-gradient(90deg, var(--c-vid) 0 50%, var(--c-aud) 50% 100%); }
+  .mod-bars .v { font-family: var(--kui-font-mono); font-size: 12px; text-align: right; color: var(--kui-fg-strong); }
+
+  .post-train { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 8px; }
+  .post-train .ptile { border: 1px solid var(--kui-border-default); padding: 16px; }
+  .post-train .ptile .h { font: 500 13px/1.2 var(--kui-font-sans); margin-bottom: 8px; }
+  .post-train .ptile .h .n { font-family: var(--kui-font-mono); color: var(--c-think); margin-right: 8px; font-size: 11px; }
+  .post-train .ptile p { font: 12px/1.45 var(--kui-font-sans); color: var(--kui-fg-default); margin: 0; }
+  .post-train .ptile code { font: 11px/1 var(--kui-font-mono); background: var(--c-think-bg); color: var(--c-think); padding: 1px 5px; }
+
+  /* ── thinker block diagram bits ── */
+  .layer-stack { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .layer-stack h4 { font: 500 16px/1 var(--kui-font-sans); margin: 0 0 18px; letter-spacing: -0.25px; display: flex; align-items: center; gap: 12px; }
+  .layer-stack h4 .tag { font: 11px/1 var(--kui-font-mono); padding: 3px 7px; background: var(--c-think-bg); color: var(--c-think); border: 1px solid var(--c-think); text-transform: uppercase; letter-spacing: 1px; }
+  .ribbon { display: grid; grid-template-columns: repeat(48, 1fr); gap: 1px; height: 36px; margin-bottom: 6px; }
+  .ribbon .cell { background: var(--c-think); }
+  .ribbon-cap { display: flex; justify-content: space-between; font: 11px/1 var(--kui-font-mono); color: var(--kui-fg-muted); margin-bottom: 18px; }
+  .layer-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border-top: 1px solid var(--kui-border-default); border-left: 1px solid var(--kui-border-default); }
+  .layer-grid .lg-item {
+    padding: 14px 16px; border-right: 1px solid var(--kui-border-default); border-bottom: 1px solid var(--kui-border-default);
+  }
+  .layer-grid .lg-item .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 5px; }
+  .layer-grid .lg-item .v { font: 500 18px/1 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .layer-grid .lg-item .v small { color: var(--kui-fg-muted); font-weight: 400; font-size: 11px; font-family: var(--kui-font-mono); margin-left: 6px; }
+
+  /* ── tokenizer/router viz ── */
+  .moe-vis { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .moe-vis h4 { font: 500 16px/1 var(--kui-font-sans); margin: 0 0 16px; letter-spacing: -0.25px; }
+  .expert-grid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 3px; }
+  .expert-grid .ex {
+    aspect-ratio: 1/1; background: var(--kui-n050);
+    border: 1px solid var(--kui-border-subtle);
+    position: relative;
+  }
+  .expert-grid .ex.active { background: var(--c-moe-bg); border-color: var(--c-moe); }
+  .expert-grid .ex.active::after { content: ""; position: absolute; inset: 22%; background: var(--c-moe); }
+  .moe-foot { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 16px; border: 1px solid var(--kui-border-default); }
+  .moe-foot .f { padding: 12px 16px; border-right: 1px solid var(--kui-border-default); }
+  .moe-foot .f:last-child { border-right: 0; }
+  .moe-foot .f .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); }
+  .moe-foot .f .v { font: 500 20px/1 var(--kui-font-sans); margin-top: 4px; }
+  .moe-foot .f .v small { color: var(--kui-fg-muted); font-weight: 400; font-size: 11px; font-family: var(--kui-font-mono); margin-left: 4px; }
+
+  /* equation */
+  .eq { background: var(--kui-bg-canvas); border: 1px solid var(--kui-border-default); padding: 14px 18px; font: 13px/1.5 var(--kui-font-mono); color: var(--kui-fg-strong); margin: 8px 0; }
+  .eq .lbl { color: var(--c-think); }
+
+  /* TM-RoPE allocation */
+  .rope-alloc { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .rope-alloc h4 { font: 500 16px/1 var(--kui-font-sans); margin: 0 0 18px; letter-spacing: -0.25px; }
+  .rope-bar {
+    display: grid; grid-template-columns: 24fr 20fr 20fr;
+    height: 50px; border: 1px solid var(--kui-border-default);
+  }
+  .rope-bar .seg { display: grid; place-items: center; color: #fff; font: 500 14px/1 var(--kui-font-sans); position: relative; }
+  .rope-bar .seg .l { font-size: 11px; font-family: var(--kui-font-mono); opacity: 0.85; margin-top: 4px; }
+  .rope-bar .t { background: var(--c-pos); }
+  .rope-bar .h { background: #6E27C5; }
+  .rope-bar .w { background: #0D69D4; }
+  .rope-bar .seg > div { text-align: center; }
+  .rope-axis { display: grid; grid-template-columns: 24fr 20fr 20fr; font: 11px/1 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 6px; }
+  .rope-axis span { padding: 4px 6px; border-right: 1px dashed var(--kui-border-default); }
+  .rope-axis span:last-child { border-right: 0; }
+
+  /* mel spectrogram mock */
+  .mel { display: grid; grid-template-columns: repeat(64, 1fr); grid-auto-rows: 4px; gap: 1px; padding: 12px; background: #fff; border: 1px solid var(--kui-border-default); }
+  .mel .px { background: var(--c-aud); opacity: 0.15; }
+
+  /* deployment */
+  .mem-table { background: #fff; border: 1px solid var(--kui-border-default); }
+  .mem-table table { width: 100%; border-collapse: collapse; }
+  .mem-table th, .mem-table td { padding: 12px 18px; text-align: left; border-bottom: 1px solid var(--kui-border-subtle); font: var(--kui-body); }
+  .mem-table th { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); background: #FAFAFA; }
+  .mem-table td.num { font-family: var(--kui-font-mono); font-size: 13px; text-align: right; }
+  .mem-table td.bar-cell { padding: 8px 18px 8px 0; width: 38%; }
+  .mem-table .mbar { background: var(--c-think-bg); border-left: 3px solid var(--c-think); height: 18px; }
+
+  .deploy-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
+  .deploy-cards .dc { background: #fff; border: 1px solid var(--kui-border-default); padding: 20px; }
+  .deploy-cards .dc .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 8px; }
+  .deploy-cards .dc .v { font: 500 18px/1.2 var(--kui-font-sans); margin-bottom: 8px; }
+  .deploy-cards .dc p { font: 12px/1.5 var(--kui-font-sans); color: var(--kui-fg-default); margin: 0; }
+  .deploy-cards .dc code { font: 11px/1 var(--kui-font-mono); background: var(--kui-bg-canvas); padding: 2px 6px; border: 1px solid var(--kui-border-default); }
+
+  /* Thinking vs Instruct compare */
+  .thinking-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--kui-border-default); background: var(--kui-border-default); }
+  .thinking-compare .tc { background: #fff; padding: 24px 28px; }
+  .thinking-compare .tc h5 { font: 500 18px/1.2 var(--kui-font-sans); margin: 0 0 6px; letter-spacing: -0.25px; }
+  .thinking-compare .tc .tag { display: inline-block; font: 11px/1 var(--kui-font-mono); padding: 3px 7px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .thinking-compare .tc.this .tag { background: var(--c-think-bg); color: var(--c-think); border: 1px solid var(--c-think); }
+  .thinking-compare .tc.that .tag { background: var(--c-txt-bg); color: var(--c-mute); border: 1px solid var(--c-mute); }
+  .thinking-compare .tc ul { padding: 0; margin: 0; list-style: none; }
+  .thinking-compare .tc ul li { padding: 8px 0; border-top: 1px solid var(--kui-border-subtle); font: var(--kui-body); display: grid; grid-template-columns: 130px 1fr; gap: 10px; }
+  .thinking-compare .tc ul li:first-child { border-top: 0; }
+  .thinking-compare .tc ul li .k { font-family: var(--kui-font-mono); font-size: 11px; color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 1px; padding-top: 2px; }
+  .thinking-compare .tc ul li .v { color: var(--kui-fg-strong); }
+  .thinking-compare .tc.that ul li .v { color: var(--c-mute); }
+
+  /* footer */
+  footer { padding: 32px; border-top: 1px solid var(--kui-border-default); background: #fff; }
+  footer .row { max-width: 1440px; margin: 0 auto; display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 32px; font: var(--kui-caption); color: var(--kui-fg-muted); }
+  footer h6 { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-default); margin: 0 0 10px; }
+  footer a.link { color: var(--kui-info); display: block; padding: 4px 0; word-break: break-all; }
+
+  /* svg defaults */
+  svg text { font-family: var(--kui-font-sans); }
+  svg .mono { font-family: var(--kui-font-mono); }
+
+  /* responsive */
+  @media (max-width: 1024px) {
+    .layout { grid-template-columns: 1fr; }
+    nav.rail { position: static; border-right: 0; border-bottom: 1px solid var(--kui-border-default); padding: 20px; }
+    nav.rail ol { columns: 2; }
+    .hero h2 { font-size: 40px; }
+    .hero .topline, .id-grid, .twocol, .threecol, .post-train, .deploy-cards, .thinking-compare, .train-row { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: repeat(3, 1fr); }
+    .layer-grid { grid-template-columns: 1fr 1fr; }
+    .expert-grid { grid-template-columns: repeat(8, 1fr); }
+    .caveats .item { grid-template-columns: 1fr; }
+    .moe-foot { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body class="kui">
+
+<header class="top-bar">
+  <img src="kaizen/NVIDIA-wordmark.svg" class="wordmark" alt="">
+  <div class="divider"></div>
+  <div class="crumb">Model atlas</div>
+  <h1>Qwen3-Omni-30B-A3B-Thinking</h1>
+  <div class="meta">
+    <span>Vendor: <b>Alibaba Qwen</b></span>
+    <span>License: <b>Apache-2.0</b></span>
+    <span>Report: <b>arXiv 2509.17765</b></span>
+    <span>Sep 22, 2025</span>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ─────── NAV RAIL ─────── -->
+  <nav class="rail">
+    <div class="label">On this page</div>
+    <a class="home-link" href="../../index.html">Atlas home</a>
+    <ol>
+      <li><a href="#identity">Identity &amp; specs</a></li>
+      <li><a href="#system">End-to-end system map</a></li>
+      <li><a href="#audio">AuT audio encoder</a></li>
+      <li><a href="#vision">Vision encoder</a></li>
+      <li><a href="#rope">TM-RoPE positions</a></li>
+      <li><a href="#thinker">Thinker 30B-A3B</a></li>
+      <li><a href="#thinking">Thinking behavior</a></li>
+      <li><a href="#deploy">Deployment &amp; memory</a></li>
+      <li><a href="#training">Training pipeline</a></li>
+      <li><a href="#benchmarks">Benchmarks</a></li>
+      <li><a href="#caveats">Caveats &amp; unknowns</a></li>
+    </ol>
+    <div class="foot">
+      Values are taken from the Hugging Face model card, <code>config.json</code>, <code>generation_config.json</code>, and the Qwen3-Omni technical report (arXiv 2509.17765). All benchmark numbers are source-reported and not independently verified.
+    </div>
+  </nav>
+
+  <!-- ─────── MAIN ─────── -->
+  <main class="wrap">
+
+    <!-- ─── HERO / IDENTITY ─── -->
+    <section id="identity" class="hero" style="border-bottom: 1px solid var(--kui-border-default);">
+      <div class="topline">
+        <div>
+          <div class="eyebrow">
+            <span>Open · Omni-modal understanding · Thinker-only checkpoint</span>
+            <span class="pill">Chain-of-thought reasoning</span>
+          </div>
+          <h2><span class="accent">Audio, video and text in</span> — <span class="accent3">reasoning text</span> out</h2>
+          <p>Qwen3-Omni-30B-A3B-Thinking is the Thinker-only release of Alibaba Qwen's omni-modal stack. It pairs the <strong>AuT</strong> audio encoder and a Qwen3-VL / SigLIP2-derived vision encoder with a 30B-A3B Mixture-of-Experts Transformer that consumes interleaved modality tokens under <strong>TM-RoPE</strong> positional encoding and emits text only — including an explicit reasoning trace. The Talker, MTP and Code2Wav speech-generation modules that ship with the broader Qwen3-Omni system are <em>not</em> part of this checkpoint.</p>
+          <div class="modchips">
+            <span class="chip aud"><i class="sw"></i> Audio in</span>
+            <span class="chip vid"><i class="sw"></i> Video in</span>
+            <span class="chip vis"><i class="sw"></i> Image in</span>
+            <span class="chip txt"><i class="sw"></i> Text in</span>
+            <span class="chip out"><i class="sw"></i> Reasoning text out</span>
+            <span class="chip disabled">Speech out</span>
+          </div>
+          <div class="talker-badge">
+            <span class="k">No Talker in this checkpoint</span>
+            <code>"enable_audio_output": false</code>
+          </div>
+        </div>
+
+        <div class="id-panel">
+          <h4>Checkpoint identity</h4>
+          <div class="row"><span class="k">Model id</span><span class="v">Qwen/Qwen3-Omni-30B-A3B-Thinking</span></div>
+          <div class="row"><span class="k">Family</span><span class="v t">Alibaba Qwen — Qwen3-Omni</span></div>
+          <div class="row"><span class="k">License</span><span class="v">Apache-2.0</span></div>
+          <div class="row"><span class="k">Role</span><span class="v t">Thinker-only · text output · CoT reasoning</span></div>
+          <div class="row"><span class="k">Report</span><span class="v">arXiv 2509.17765 · 2025-09-22</span></div>
+          <div class="row"><span class="k">HF release</span><span class="v">September 2025</span></div>
+          <div class="row"><span class="k">Config arch</span><span class="v">Qwen3OmniMoeForConditionalGeneration</span></div>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="label">Thinker scale</div>
+          <div class="value">30 B<small>≈ 3 B active</small></div>
+          <div class="note">MoE · 128 experts · top-8</div>
+        </div>
+        <div class="stat">
+          <div class="label">Languages</div>
+          <div class="value dual">119 text · 19 speech</div>
+          <div class="note">speech-input languages</div>
+        </div>
+        <div class="stat">
+          <div class="label">Audio per instance</div>
+          <div class="value">40 min</div>
+          <div class="note">single-clip cap, 16 kHz</div>
+        </div>
+        <div class="stat">
+          <div class="label">Context (config)</div>
+          <div class="value">65 536<small>tok</small></div>
+          <div class="note">max_position_embeddings</div>
+        </div>
+        <div class="stat">
+          <div class="label">Long-ctx training</div>
+          <div class="value">32 768<small>tok</small></div>
+          <div class="note">S3 pretraining target</div>
+        </div>
+        <div class="stat">
+          <div class="label">Reasoning budget</div>
+          <div class="value">32 768<small>new tok</small></div>
+          <div class="note">generation_config.json</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 02 · SYSTEM MAP ─── -->
+    <section id="system">
+      <div class="sec-head">
+        <div class="num">02 · System map</div>
+        <div>
+          <h3>From three modality lanes to one reasoning stream</h3>
+          <p>Audio, image/video and text each have a dedicated front-end. Modality tokens are stitched into a single sequence under TM-RoPE — the same backbone that the Talker normally hangs off of in the Instruct system. In this Thinking checkpoint that branch is muted: the Thinker emits a thinking trace followed by the final answer in text.</p>
+        </div>
+      </div>
+
+      <div class="system">
+        <svg viewBox="0 0 1180 460" preserveAspectRatio="xMidYMid meet" aria-label="Qwen3-Omni-Thinking end to end system map">
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#5E5E5E"/>
+            </marker>
+            <marker id="arr-mute" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#8F8F8F"/>
+            </marker>
+          </defs>
+
+          <!-- Lane labels -->
+          <text x="20" y="22" font-size="10" font-weight="600" fill="#C54600" letter-spacing="1.5">AUDIO LANE</text>
+          <text x="20" y="148" font-size="10" font-weight="600" fill="#0D69D4" letter-spacing="1.5">IMAGE / VIDEO LANE</text>
+          <text x="20" y="274" font-size="10" font-weight="600" fill="#5E5E5E" letter-spacing="1.5">TEXT LANE</text>
+
+          <!-- AUDIO LANE -->
+          <g>
+            <rect x="20" y="34" width="140" height="74" fill="#FDEFE6" stroke="#C54600" stroke-width="1.2"/>
+            <text x="32" y="54" font-size="11" font-weight="600" fill="#C54600">Audio in</text>
+            <text x="32" y="72" font-size="11" fill="#202020">Resample 16 kHz</text>
+            <text x="32" y="87" font-size="11" fill="#202020">128-mel · 25 ms / 10 ms</text>
+            <text x="32" y="102" font-size="10" fill="#5E5E5E" class="mono">up to 40 min / clip</text>
+
+            <line x1="160" y1="71" x2="200" y2="71" stroke="#C54600" stroke-width="1.5" marker-end="url(#arr)"/>
+
+            <rect x="200" y="34" width="180" height="74" fill="#fff" stroke="#C54600" stroke-width="1.5"/>
+            <rect x="200" y="34" width="6" height="74" fill="#C54600"/>
+            <text x="214" y="54" font-size="11" font-weight="600" fill="#C54600">AuT encoder</text>
+            <text x="214" y="72" font-size="11" fill="#202020">conv2d ↓8 · 32-layer</text>
+            <text x="214" y="87" font-size="11" fill="#202020">d_model 1280 · 12.5 Hz</text>
+            <text x="214" y="102" font-size="10" fill="#5E5E5E" class="mono">output_dim 2048</text>
+
+            <line x1="380" y1="71" x2="420" y2="71" stroke="#C54600" stroke-width="1.5" marker-end="url(#arr)"/>
+
+            <rect x="420" y="34" width="130" height="74" fill="#E1F4F0" stroke="#1FA18D" stroke-width="1.2"/>
+            <text x="432" y="54" font-size="11" font-weight="600" fill="#006B5E">80 ms grid</text>
+            <text x="432" y="72" font-size="11" fill="#202020">Temporal IDs</text>
+            <text x="432" y="87" font-size="11" fill="#202020">12.5 tok/s</text>
+            <text x="432" y="102" font-size="10" fill="#5E5E5E" class="mono">absolute t</text>
+          </g>
+
+          <!-- IMAGE/VIDEO LANE -->
+          <g>
+            <rect x="20" y="160" width="140" height="74" fill="#E9F4FB" stroke="#0D69D4" stroke-width="1.2"/>
+            <text x="32" y="180" font-size="11" font-weight="600" fill="#0D69D4">Image / video in</text>
+            <text x="32" y="198" font-size="11" fill="#202020">image_size 768</text>
+            <text x="32" y="213" font-size="11" fill="#202020">dynamic frame sampling</text>
+            <text x="32" y="228" font-size="10" fill="#5E5E5E" class="mono">tokens_per_second 2</text>
+
+            <line x1="160" y1="197" x2="200" y2="197" stroke="#0D69D4" stroke-width="1.5" marker-end="url(#arr)"/>
+
+            <rect x="200" y="160" width="180" height="74" fill="#fff" stroke="#0D69D4" stroke-width="1.5"/>
+            <rect x="200" y="160" width="6" height="74" fill="#0D69D4"/>
+            <text x="214" y="180" font-size="11" font-weight="600" fill="#0D69D4">Qwen3-VL vision enc.</text>
+            <text x="214" y="198" font-size="11" fill="#202020">SigLIP2-So400M init</text>
+            <text x="214" y="213" font-size="11" fill="#202020">27 layers · h=1152</text>
+            <text x="214" y="228" font-size="10" fill="#5E5E5E" class="mono">patch 16 · temporal 2</text>
+
+            <line x1="380" y1="197" x2="420" y2="197" stroke="#0D69D4" stroke-width="1.5" marker-end="url(#arr)"/>
+
+            <rect x="420" y="160" width="130" height="74" fill="#E1F4F0" stroke="#1FA18D" stroke-width="1.2"/>
+            <text x="432" y="180" font-size="11" font-weight="600" fill="#006B5E">Spatial · temporal</text>
+            <text x="432" y="198" font-size="11" fill="#202020">deepstack 8/16/24</text>
+            <text x="432" y="213" font-size="11" fill="#202020">spatial_merge 2</text>
+            <text x="432" y="228" font-size="10" fill="#5E5E5E" class="mono">→ out 2048</text>
+          </g>
+
+          <!-- TEXT LANE -->
+          <g>
+            <rect x="20" y="286" width="140" height="74" fill="#F2F2F2" stroke="#5E5E5E" stroke-width="1.2"/>
+            <text x="32" y="306" font-size="11" font-weight="600" fill="#5E5E5E">Text in</text>
+            <text x="32" y="324" font-size="11" fill="#202020">Qwen BPE tokenizer</text>
+            <text x="32" y="339" font-size="11" fill="#202020">ChatML chat format</text>
+            <text x="32" y="354" font-size="10" fill="#5E5E5E" class="mono">vocab 152 064 · 151 643*</text>
+
+            <line x1="160" y1="323" x2="420" y2="323" stroke="#5E5E5E" stroke-width="1.5" marker-end="url(#arr)" stroke-dasharray="4 3"/>
+
+            <rect x="420" y="286" width="130" height="74" fill="#fff" stroke="#5E5E5E" stroke-width="1.2"/>
+            <text x="432" y="306" font-size="11" font-weight="600" fill="#5E5E5E">Token embedding</text>
+            <text x="432" y="324" font-size="11" fill="#202020">d_model 2048</text>
+            <text x="432" y="339" font-size="10" fill="#5E5E5E" class="mono">tie_word_embeddings: F</text>
+          </g>
+
+          <!-- Merge into TM-RoPE -->
+          <g>
+            <line x1="550" y1="71"  x2="600" y2="200" stroke="#1FA18D" stroke-width="1.5"/>
+            <line x1="550" y1="197" x2="600" y2="210" stroke="#1FA18D" stroke-width="1.5"/>
+            <line x1="550" y1="323" x2="600" y2="225" stroke="#5E5E5E" stroke-width="1.5"/>
+
+            <rect x="600" y="170" width="170" height="100" fill="#E1F4F0" stroke="#1FA18D" stroke-width="1.5"/>
+            <rect x="600" y="170" width="6" height="100" fill="#1FA18D"/>
+            <text x="616" y="194" font-size="13" font-weight="600" fill="#006B5E">TM-RoPE</text>
+            <text x="616" y="212" font-size="11" fill="#202020">temporal 24 · h 20 · w 20</text>
+            <text x="616" y="228" font-size="11" fill="#202020">absolute time IDs</text>
+            <text x="616" y="245" font-size="11" fill="#202020">contiguous numbering</text>
+            <text x="616" y="262" font-size="10" fill="#5E5E5E" class="mono">across modalities</text>
+
+            <line x1="770" y1="220" x2="820" y2="220" stroke="#202020" stroke-width="1.8" marker-end="url(#arr)"/>
+          </g>
+
+          <!-- THINKER -->
+          <g>
+            <rect x="820" y="120" width="200" height="200" fill="#FFF7DA" stroke="#B58A00" stroke-width="1.8"/>
+            <rect x="820" y="120" width="200" height="6" fill="#B58A00"/>
+            <text x="920" y="148" font-size="13" font-weight="600" fill="#B58A00" text-anchor="middle">Thinker (30B-A3B)</text>
+            <text x="920" y="166" font-size="11" fill="#202020" text-anchor="middle">48 × MoE Transformer block</text>
+
+            <!-- mini repeating stack -->
+            <g transform="translate(840 180)">
+              <rect x="0" y="0" width="160" height="22" fill="#fff" stroke="#B58A00"/>
+              <text x="80" y="15" font-size="10" text-anchor="middle">GQA  32Q / 4KV · QK-norm</text>
+              <rect x="0" y="26" width="160" height="22" fill="#E8F4D6" stroke="#76B900"/>
+              <text x="80" y="41" font-size="10" text-anchor="middle">MoE · 128 experts · top-8</text>
+              <rect x="0" y="52" width="160" height="22" fill="#fff" stroke="#B58A00"/>
+              <text x="80" y="67" font-size="10" text-anchor="middle">RMSNorm · SiLU · ×48</text>
+              <text x="80" y="92" font-size="10" fill="#5E5E5E" class="mono" text-anchor="middle">RoPE θ = 1 000 000</text>
+              <text x="80" y="106" font-size="10" fill="#5E5E5E" class="mono" text-anchor="middle">d_model 2048 · v 152 064</text>
+            </g>
+
+            <line x1="1020" y1="220" x2="1060" y2="220" stroke="#B58A00" stroke-width="2" marker-end="url(#arr)"/>
+
+            <rect x="1060" y="178" width="108" height="84" fill="#fff" stroke="#B58A00" stroke-width="1.5"/>
+            <text x="1114" y="200" font-size="11" font-weight="600" fill="#B58A00" text-anchor="middle">Reasoning</text>
+            <text x="1114" y="218" font-size="11" font-weight="600" fill="#B58A00" text-anchor="middle">+ answer</text>
+            <text x="1114" y="240" font-size="10" fill="#5E5E5E" text-anchor="middle">text only</text>
+            <text x="1114" y="254" font-size="10" fill="#5E5E5E" class="mono" text-anchor="middle">T=0.6 top_p=0.95</text>
+          </g>
+
+          <!-- Greyed-out Talker side note -->
+          <g opacity="0.7">
+            <rect x="820" y="356" width="348" height="74" fill="#F2F2F2" stroke="#8F8F8F" stroke-width="1" stroke-dasharray="4 3"/>
+            <text x="836" y="376" font-size="11" font-weight="600" fill="#8F8F8F">Not included in this checkpoint</text>
+            <text x="836" y="394" font-size="11" fill="#5E5E5E">Talker · MTP · Code2Wav speech path</text>
+            <text x="836" y="410" font-size="10" fill="#5E5E5E" class="mono">enable_audio_output: false</text>
+            <text x="836" y="424" font-size="10" fill="#5E5E5E" class="mono">ships only with the Instruct package</text>
+          </g>
+
+          <!-- vertical separator hint -->
+          <line x1="592" y1="20" x2="592" y2="370" stroke="#E3E3E3" stroke-dasharray="2 4"/>
+          <line x1="810" y1="20" x2="810" y2="370" stroke="#E3E3E3" stroke-dasharray="2 4"/>
+        </svg>
+
+        <div class="legend">
+          <span><i style="background: var(--c-aud)"></i> Audio (AuT)</span>
+          <span><i style="background: var(--c-vis)"></i> Image / video (Qwen3-VL)</span>
+          <span><i style="background: var(--c-txt)"></i> Text</span>
+          <span><i style="background: var(--c-pos)"></i> TM-RoPE alignment</span>
+          <span><i style="background: var(--c-think)"></i> Thinker · reasoning</span>
+          <span><i style="background: #F2F2F2; border: 1px dashed #8F8F8F"></i> Greyed out: not in checkpoint</span>
+        </div>
+      </div>
+
+      <p style="margin-top: 16px; font: var(--kui-caption); color: var(--kui-fg-muted);">* Tokenizer nuance: <code>config.json</code> sets <code>vocab_size: 152064</code>; the technical report cites 151 643 regular tokens. The extra ~421 entries are presumed reserved / special tokens.</p>
+    </section>
+
+    <!-- ─── 03 · AUDIO ENCODER ─── -->
+    <section id="audio">
+      <div class="sec-head">
+        <div class="num">03 · AuT audio encoder</div>
+        <div>
+          <h3>20 M hours, from-scratch, 12.5 Hz token rate</h3>
+          <p>The Audio Transformer (AuT) is a Qwen-trained, attention encoder-decoder pretrained from scratch on roughly 20 million hours of supervised audio. Front-end conv layers downsample the 128-mel input by 8× before 32 attention layers run with windowed attention sized 1–8 s, producing a 12.5 Hz / 80 ms-per-frame token stream that aligns 1:1 with the TM-RoPE temporal grid.</p>
+        </div>
+      </div>
+
+      <div class="twocol">
+        <div class="card aud">
+          <div class="strip"></div>
+          <div class="body">
+            <div class="eyebrow">Front-end</div>
+            <h4>Mel features → conv2d ↓8</h4>
+            <p>16 kHz audio is windowed with a 25 ms frame and 10 ms hop and projected onto a 128-channel log-mel spectrogram. A 2-D convolutional stem downsamples the feature map by 8×, dropping the effective token rate to 12.5 Hz — one token every 80 ms.</p>
+
+            <!-- mel mock -->
+            <div class="mel" id="melMock" aria-hidden="true"></div>
+
+            <div class="spec">
+              <span class="k">Sampling rate</span><span class="v">16 000 Hz</span>
+              <span class="k">Mel bins</span><span class="v">128</span>
+              <span class="k">Window / hop</span><span class="v">25 ms / 10 ms</span>
+              <span class="k">Conv downsample</span><span class="v">8 ×</span>
+              <span class="k">Output frame</span><span class="v">80 ms · 12.5 Hz</span>
+              <span class="k">Max clip per instance</span><span class="v">40 min</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card aud">
+          <div class="strip"></div>
+          <div class="body">
+            <div class="eyebrow">Encoder body · config.json</div>
+            <h4>32-layer attention encoder</h4>
+            <p>Attention layers use dynamic windows from 1 to 8 seconds, supporting real-time prefill caching for streaming. The encoder hands off a 2048-d projection that drops directly into the Thinker's residual stream.</p>
+
+            <div class="spec">
+              <span class="k">encoder_layers</span><span class="v">32</span>
+              <span class="k">d_model</span><span class="v">1280</span>
+              <span class="k">encoder_attention_heads</span><span class="v">20</span>
+              <span class="k">encoder_ffn_dim</span><span class="v">5120</span>
+              <span class="k">num_mel_bins</span><span class="v">128</span>
+              <span class="k">output_dim</span><span class="v">2048</span>
+              <span class="k">max_source_positions</span><span class="v">1500</span>
+              <span class="k">n_window</span><span class="v">50</span>
+              <span class="k">n_window_infer</span><span class="v">800</span>
+              <span class="k">conv_chunksize</span><span class="v">500</span>
+              <span class="k">Attention window range</span><span class="v">1 s – 8 s</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AuT training data composition -->
+      <div class="train" style="margin-top: 24px;">
+        <h4>AuT pretraining corpus · 20 M hours supervised audio</h4>
+        <div class="mod-bars" style="grid-template-columns: 180px 1fr 70px;">
+          <div class="lab">ZH / EN ASR</div>
+          <div class="track"><div class="fill aud" style="width: 80%; opacity: 1;"></div></div>
+          <div class="v">80 %</div>
+        </div>
+        <div class="mod-bars" style="grid-template-columns: 180px 1fr 70px;">
+          <div class="lab">Other-language ASR</div>
+          <div class="track"><div class="fill aud" style="width: 10%; opacity: 0.7;"></div></div>
+          <div class="v">10 %</div>
+        </div>
+        <div class="mod-bars" style="grid-template-columns: 180px 1fr 70px;">
+          <div class="lab">Audio understanding</div>
+          <div class="track"><div class="fill aud" style="width: 10%; opacity: 0.45;"></div></div>
+          <div class="v">10 %</div>
+        </div>
+        <p style="font: var(--kui-caption); color: var(--kui-fg-muted); margin-top: 12px;">Pseudo-labeled ASR dominates; the smaller understanding slice is what teaches the encoder to surface non-speech audio events. Source: Qwen3-Omni technical report § AuT.</p>
+      </div>
+    </section>
+
+    <!-- ─── 04 · VISION ENCODER ─── -->
+    <section id="vision">
+      <div class="sec-head">
+        <div class="num">04 · Vision encoder</div>
+        <div>
+          <h3>Qwen3-VL frontend initialized from SigLIP2-So400M</h3>
+          <p>Image and video share a single ViT-shaped encoder. Frames are tokenized with a 16-px patch grid up to <code>image_size 768</code>; video is sampled dynamically and tubelet-fused at <code>temporal_patch_size 2</code>. Deepstack visual readouts at layers 8, 16 and 24 expose multi-scale features to the projector before they enter the Thinker.</p>
+        </div>
+      </div>
+
+      <div class="twocol">
+        <div class="card vis">
+          <div class="strip"></div>
+          <div class="body">
+            <div class="eyebrow">Encoder · config.json (vision)</div>
+            <h4>27-layer ViT · h=1152 · heads=16</h4>
+            <p>The vision encoder is a 27-layer Transformer that follows the SigLIP2-So400M topology. After the merger it emits 2048-d tokens at half the spatial resolution and half the frame rate.</p>
+            <div class="spec">
+              <span class="k">depth</span><span class="v">27</span>
+              <span class="k">hidden_size</span><span class="v">1152</span>
+              <span class="k">num_heads</span><span class="v">16</span>
+              <span class="k">intermediate_size</span><span class="v">4304</span>
+              <span class="k">patch_size</span><span class="v">16</span>
+              <span class="k">image_size</span><span class="v">768</span>
+              <span class="k">temporal_patch_size</span><span class="v">2</span>
+              <span class="k">spatial_merge_size</span><span class="v">2</span>
+              <span class="k">tokens_per_second</span><span class="v">2</span>
+              <span class="k">out_hidden_size</span><span class="v">2048</span>
+              <span class="k">deepstack indexes</span><span class="v">8 · 16 · 24</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card vis">
+          <div class="strip"></div>
+          <div class="body">
+            <div class="eyebrow">Video sampling</div>
+            <h4>Dynamic frame sampling on the 80 ms grid</h4>
+            <p>Video frames are sampled adaptively (denser for short clips, sparser for long ones) and then tubelet-fused two-at-a-time. The resulting visual tokens are emitted at <code>tokens_per_second = 2</code> and stamped with TM-RoPE temporal IDs that match audio's 80 ms granularity, so audiovisual streams can be carried in a single sequence with absolute time alignment.</p>
+
+            <!-- filmstrip mock -->
+            <div style="display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; padding: 6px 0;">
+              <div style="aspect-ratio: 16/9; background: var(--c-vid-bg); border: 1px solid var(--c-vid); position: relative;"><span style="position:absolute; top:4px; left:6px; font: 600 9px/1 var(--kui-font-mono); color: var(--c-vid);">f0</span></div>
+              <div style="aspect-ratio: 16/9; background: var(--c-vid); border: 1px solid var(--c-vid); position: relative;"><span style="position:absolute; top:4px; left:6px; font: 600 9px/1 var(--kui-font-mono); color: #fff;">f1</span></div>
+              <div style="aspect-ratio: 16/9; background: var(--c-vid-bg); border: 1px solid var(--c-vid);"></div>
+              <div style="aspect-ratio: 16/9; background: var(--c-vid); border: 1px solid var(--c-vid); position: relative;"><span style="position:absolute; top:4px; left:6px; font: 600 9px/1 var(--kui-font-mono); color: #fff;">f3</span></div>
+              <div style="aspect-ratio: 16/9; background: var(--c-vid-bg); border: 1px solid var(--c-vid);"></div>
+              <div style="aspect-ratio: 16/9; background: var(--c-vid); border: 1px solid var(--c-vid); position: relative;"><span style="position:absolute; top:4px; left:6px; font: 600 9px/1 var(--kui-font-mono); color: #fff;">f5</span></div>
+              <div style="aspect-ratio: 16/9; background: var(--c-vid-bg); border: 1px solid var(--c-vid);"></div>
+              <div style="aspect-ratio: 16/9; background: var(--c-vid); border: 1px solid var(--c-vid); position: relative;"><span style="position:absolute; top:4px; left:6px; font: 600 9px/1 var(--kui-font-mono); color: #fff;">f7</span></div>
+              <div style="aspect-ratio: 16/9; background: var(--c-vid-bg); border: 1px solid var(--c-vid);"></div>
+              <div style="aspect-ratio: 16/9; background: var(--c-vid); border: 1px solid var(--c-vid); position: relative;"><span style="position:absolute; top:4px; left:6px; font: 600 9px/1 var(--kui-font-mono); color: #fff;">f9</span></div>
+              <div style="aspect-ratio: 16/9; background: var(--c-vid-bg); border: 1px solid var(--c-vid);"></div>
+              <div style="aspect-ratio: 16/9; background: var(--c-vid); border: 1px solid var(--c-vid); position: relative;"><span style="position:absolute; top:4px; left:6px; font: 600 9px/1 var(--kui-font-mono); color: #fff;">f11</span></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font: 11px/1 var(--kui-font-mono); color: var(--kui-fg-muted);">
+              <span>t = 0 s</span>
+              <span>tubelet pair · temporal_patch_size = 2</span>
+              <span>t → grows</span>
+            </div>
+
+            <div class="spec">
+              <span class="k">Frame sampling</span><span class="v">dynamic</span>
+              <span class="k">Temporal token rate</span><span class="v">2 tok/s</span>
+              <span class="k">Audio-video align</span><span class="v">80 ms TM-RoPE</span>
+              <span class="k">Use audio in video</span><span class="v">use_audio_in_video</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 05 · TM-RoPE ─── -->
+    <section id="rope">
+      <div class="sec-head">
+        <div class="num">05 · TM-RoPE</div>
+        <div>
+          <h3>Temporal · height · width rotary allocation</h3>
+          <p>TM-RoPE splits the rotary frequency budget into three named axes — time, height and width — at a 24 / 20 / 20 allocation per head. Temporal IDs are <em>absolute</em>, anchored to the same 80 ms grid used by AuT, so an audio frame and the video frame it co-occurs with share a temporal coordinate. Token numbering is contiguous across modalities, letting the Thinker reason over interleaved sequences without modality-conditional position injectors.</p>
+        </div>
+      </div>
+
+      <div class="rope-alloc">
+        <h4>Rotary head-dim allocation per token</h4>
+        <div class="rope-bar">
+          <div class="seg t"><div>Temporal<div class="l">24 dims</div></div></div>
+          <div class="seg h"><div>Height<div class="l">20 dims</div></div></div>
+          <div class="seg w"><div>Width<div class="l">20 dims</div></div></div>
+        </div>
+        <div class="rope-axis">
+          <span>0 → 23 · time (80 ms steps)</span>
+          <span>24 → 43 · spatial-y</span>
+          <span>44 → 63 · spatial-x</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 24px; border: 1px solid var(--kui-border-default);">
+          <div style="padding: 14px 18px; border-right: 1px solid var(--kui-border-default);">
+            <div style="font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 5px;">Temporal grid</div>
+            <div style="font: 500 18px/1 var(--kui-font-sans);">80 ms</div>
+            <div style="font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 4px;">= 12.5 IDs / s</div>
+          </div>
+          <div style="padding: 14px 18px; border-right: 1px solid var(--kui-border-default);">
+            <div style="font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 5px;">Audio align</div>
+            <div style="font: 500 18px/1 var(--kui-font-sans);">1 : 1</div>
+            <div style="font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 4px;">AuT frame ↔ ID</div>
+          </div>
+          <div style="padding: 14px 18px; border-right: 1px solid var(--kui-border-default);">
+            <div style="font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 5px;">Video align</div>
+            <div style="font: 500 18px/1 var(--kui-font-sans);">2 tok/s</div>
+            <div style="font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 4px;">snapped to 80 ms grid</div>
+          </div>
+          <div style="padding: 14px 18px;">
+            <div style="font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 5px;">Numbering</div>
+            <div style="font: 500 18px/1 var(--kui-font-sans);">contiguous</div>
+            <div style="font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 4px;">across modalities</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 06 · THINKER ─── -->
+    <section id="thinker">
+      <div class="sec-head">
+        <div class="num">06 · Thinker · 30B-A3B MoE</div>
+        <div>
+          <h3>48-layer GQA Transformer with 128-expert routing</h3>
+          <p>The Thinker is a Mixture-of-Experts Transformer with 48 decoder blocks, 2048-d residual stream, grouped-query attention (32 query heads, 4 KV heads, head_dim 128, QK-norm enabled), and SiLU MoE feed-forward layers. Each layer activates 8 of 128 routed experts per token, with router probabilities normalized after the top-k selection. The Thinker has no shared-expert FFN (<code>shared_expert_intermediate_size: 0</code>); active parameters land near 3 B per token.</p>
+        </div>
+      </div>
+
+      <div class="layer-stack">
+        <h4>
+          Block stack
+          <span class="tag">×48</span>
+          <span style="margin-left: auto; font: 11px/1 var(--kui-font-mono); color: var(--kui-fg-muted); font-weight: 400;">RMSNorm-Pre · residual · RoPE θ = 1 000 000</span>
+        </h4>
+
+        <div class="ribbon">
+          <!-- 48 layer cells -->
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+          <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+        </div>
+        <div class="ribbon-cap"><span>L01</span><span>every block is identical: GQA → MoE-FFN</span><span>L48</span></div>
+
+        <div class="layer-grid">
+          <div class="lg-item"><div class="k">Layers</div><div class="v">48</div></div>
+          <div class="lg-item"><div class="k">Hidden size</div><div class="v">2048</div></div>
+          <div class="lg-item"><div class="k">Attention heads (Q)</div><div class="v">32 <small>head_dim 128</small></div></div>
+          <div class="lg-item"><div class="k">KV heads (GQA)</div><div class="v">4 <small>32 : 4 grouping</small></div></div>
+          <div class="lg-item"><div class="k">QK norm</div><div class="v">enabled</div></div>
+          <div class="lg-item"><div class="k">RMSNorm ε</div><div class="v">1e-6</div></div>
+          <div class="lg-item"><div class="k">Activation</div><div class="v">SiLU</div></div>
+          <div class="lg-item"><div class="k">RoPE θ</div><div class="v">1 000 000</div></div>
+          <div class="lg-item"><div class="k">max_position_embeddings</div><div class="v">65 536</div></div>
+          <div class="lg-item"><div class="k">vocab_size</div><div class="v">152 064</div></div>
+          <div class="lg-item"><div class="k">use_sliding_window</div><div class="v">false</div></div>
+          <div class="lg-item"><div class="k">sliding_window</div><div class="v">null</div></div>
+        </div>
+      </div>
+
+      <div class="twocol" style="margin-top: 24px;">
+        <div class="moe-vis">
+          <h4>MoE routing · 8 of 128 experts per token</h4>
+          <!-- 128 expert squares (8 active) -->
+          <div class="expert-grid" id="expertGrid"></div>
+
+          <div class="moe-foot">
+            <div class="f"><div class="k">Experts / layer</div><div class="v">128</div></div>
+            <div class="f"><div class="k">Top-k</div><div class="v">8 <small>norm_topk_prob: true</small></div></div>
+            <div class="f"><div class="k">moe_intermediate_size</div><div class="v">768</div></div>
+            <div class="f"><div class="k">router_aux_loss</div><div class="v">0.001</div></div>
+          </div>
+
+          <div class="eq">
+            <span class="lbl">// top-k gated mixture</span><br>
+            g(x) = softmax( W<sub>r</sub> · x )<br>
+            top<sub>8</sub> = TopK( g, 8 );&nbsp;&nbsp; ĝ = norm( g<sub>top<sub>8</sub></sub> )<br>
+            y = Σ<sub>i∈top<sub>8</sub></sub> ĝ<sub>i</sub> · E<sub>i</sub>(x)
+          </div>
+
+          <div class="eq">
+            <span class="lbl">// grouped-query attention</span><br>
+            Q ∈ ℝ<sup>32×128</sup>,&nbsp;&nbsp; K, V ∈ ℝ<sup>4×128</sup><br>
+            head<sub>j</sub> = softmax( Q<sub>j</sub> K<sub>⌊j/8⌋</sub><sup>⊤</sup> / √d ) V<sub>⌊j/8⌋</sub>
+          </div>
+        </div>
+
+        <div class="card think">
+          <div class="strip"></div>
+          <div class="body">
+            <div class="eyebrow">Parameter budget</div>
+            <h4>30 B total · ≈3 B active per token</h4>
+            <p>Total parameter count refers to the Thinker MoE alone — the "A3B" portion of the name names the activated mass, not a separate Talker package. With <code>moe_intermediate_size 768</code> and no shared expert (<code>shared_expert_intermediate_size: 0</code>), each token activates roughly 8 / 128 of the FFN parameters per layer.</p>
+            <div class="spec">
+              <span class="k">Total parameters</span><span class="v">≈ 30 B</span>
+              <span class="k">Active per token</span><span class="v">≈ 3 B</span>
+              <span class="k">FFN style</span><span class="v">SwiGLU / SiLU MoE</span>
+              <span class="k">shared_expert_intermediate_size</span><span class="v">0</span>
+              <span class="k">Attention type</span><span class="v">GQA · full (no sliding)</span>
+              <span class="k">Positional</span><span class="v">TM-RoPE (M-RoPE)</span>
+              <span class="k">LM head</span><span class="v">linear · vocab 152 064</span>
+            </div>
+            <p style="font: var(--kui-caption); color: var(--kui-fg-muted);">Active parameter count is approximate — exact value depends on counting conventions for routed-vs-shared FFNs, attention projections and embeddings. The model card cites "30B-A3B".</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 07 · THINKING BEHAVIOR ─── -->
+    <section id="thinking">
+      <div class="sec-head">
+        <div class="num">07 · Thinking behavior</div>
+        <div>
+          <h3>Sampled thinking decode, text-only output</h3>
+          <p>The Thinking checkpoint produces an explicit reasoning trace and a final answer — both as text — and decodes with sampling parameters from <code>generation_config.json</code>. The README is explicit that Instruct models are evaluated with greedy decoding while Thinking models use the checkpoint's stochastic config, and that users should always pair the multimodal input with a written task description for best reasoning quality.</p>
+        </div>
+      </div>
+
+      <div class="thinking-compare">
+        <div class="tc this">
+          <span class="tag">This checkpoint · Thinking</span>
+          <h5>Reasoning text out</h5>
+          <ul>
+            <li><span class="k">Output</span><span class="v">Text only — reasoning trace + final answer</span></li>
+            <li><span class="k">Decode</span><span class="v">Sampled (T = 0.6, top_p = 0.95, top_k = 20)</span></li>
+            <li><span class="k">Max new tokens</span><span class="v">32 768</span></li>
+            <li><span class="k">Repetition penalty</span><span class="v">1.0</span></li>
+            <li><span class="k">Audio output</span><span class="v">disabled · enable_audio_output: false</span></li>
+            <li><span class="k">Recommended</span><span class="v">Include an explicit textual instruction with every multimodal input</span></li>
+          </ul>
+        </div>
+        <div class="tc that">
+          <span class="tag">For contrast · Instruct (not this file)</span>
+          <h5>Talker + non-thinking decode</h5>
+          <ul>
+            <li><span class="k">Output</span><span class="v">Text + speech via Talker / MTP / Code2Wav</span></li>
+            <li><span class="k">Decode</span><span class="v">Greedy (per README evaluation note)</span></li>
+            <li><span class="k">Reasoning</span><span class="v">No explicit CoT thinking block</span></li>
+            <li><span class="k">Memory</span><span class="v">Higher — Talker stack adds parameters</span></li>
+            <li><span class="k">Use this for</span><span class="v">Interactive voice / streaming speech</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="eq" style="margin-top: 24px;">
+        <span class="lbl">// generation_config.json — Thinking</span><br>
+        { "do_sample": true, "temperature": 0.6, "top_p": 0.95, "top_k": 20, "repetition_penalty": 1.0, "max_new_tokens": 32768 }
+      </div>
+    </section>
+
+    <!-- ─── 08 · DEPLOYMENT ─── -->
+    <section id="deploy">
+      <div class="sec-head">
+        <div class="num">08 · Streaming, memory &amp; deployment</div>
+        <div>
+          <h3>Qwen3OmniMoeProcessor + vLLM / FlashAttention 2</h3>
+          <p>Inputs are prepared with <code>Qwen3OmniMoeProcessor</code> and <code>process_mm_info(..., use_audio_in_video=True)</code>. The README ships vLLM and FlashAttention 2 recipes and lists minimum GPU memory at BF16 for canonical clip lengths.</p>
+        </div>
+      </div>
+
+      <div class="deploy-cards">
+        <div class="dc">
+          <div class="k">vLLM · single GPU</div>
+          <div class="v">32 768 max model length</div>
+          <p><code>--max-model-len 32768</code> is the README's single-GPU example. Below the config maximum but matches the long-context training horizon.</p>
+        </div>
+        <div class="dc">
+          <div class="k">vLLM · 4 GPU</div>
+          <div class="v">65 536 max model length</div>
+          <p>With <code>--tensor-parallel-size 4</code>, the README runs the full <code>max_position_embeddings</code>.</p>
+        </div>
+        <div class="dc">
+          <div class="k">Attention backend</div>
+          <div class="v">FlashAttention 2</div>
+          <p>Recommended via <code>attn_implementation="flash_attention_2"</code>; AuT also exposes <code>conv_chunksize 500</code> for streaming prefill.</p>
+        </div>
+      </div>
+
+      <div class="mem-table" style="margin-top: 24px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Video duration (BF16)</th>
+              <th style="width: 38%">Minimum GPU memory</th>
+              <th class="num">GB</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>15 s</td>
+              <td class="bar-cell"><div class="mbar" style="width: 52%"></div></td>
+              <td class="num">68.74</td>
+            </tr>
+            <tr>
+              <td>30 s</td>
+              <td class="bar-cell"><div class="mbar" style="width: 59%"></div></td>
+              <td class="num">77.79</td>
+            </tr>
+            <tr>
+              <td>60 s</td>
+              <td class="bar-cell"><div class="mbar" style="width: 73%"></div></td>
+              <td class="num">95.76</td>
+            </tr>
+            <tr>
+              <td>120 s</td>
+              <td class="bar-cell"><div class="mbar" style="width: 100%"></div></td>
+              <td class="num">131.65</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top: 16px; font: var(--kui-caption); color: var(--kui-fg-muted);">README minimum-memory table at BF16 for the Thinking checkpoint. The Instruct checkpoint reports higher numbers because it also loads Talker / MTP / Code2Wav for speech generation — that delta does not apply here.</p>
+    </section>
+
+    <!-- ─── 09 · TRAINING PIPELINE ─── -->
+    <section id="training">
+      <div class="sec-head">
+        <div class="num">09 · Training pipeline</div>
+        <div>
+          <h3>Three-stage pretraining + Thinker post-training</h3>
+          <p>Pretraining proceeds in three stages — encoder alignment, then a general multimodal stage on ~2 T source-reported tokens, then long-context. The Thinking branch then runs SFT and a Strong-to-Weak Distillation path followed by GSPO with rule-based and model-based rewards.</p>
+        </div>
+      </div>
+
+      <div class="train">
+        <h4>Pretraining stages</h4>
+        <div class="train-row">
+          <div class="stage s1">
+            <div class="ph">Stage S1</div>
+            <div class="nm">Encoder alignment</div>
+            <p>LLM initialised from Qwen3, vision encoder from Qwen3-VL, audio encoder from AuT. Train the vision / audio adapters and encoders while the LLM is frozen.</p>
+          </div>
+          <div class="stage s2">
+            <div class="ph">Stage S2</div>
+            <div class="nm">General multimodal</div>
+            <p>≈ 2 T source-reported tokens. Modality mix is text-light, audio + image-heavy. Listed sub-totals sum slightly above 2 T — label as source-reported approximate.</p>
+          </div>
+          <div class="stage s3">
+            <div class="ph">Stage S3</div>
+            <div class="nm">Long context</div>
+            <p>Maximum token length lifted from 8 192 → 32 768. Long-form audio and video clips are upweighted to populate the extended window.</p>
+          </div>
+        </div>
+
+        <h4 style="margin-top: 32px;">S2 modality token mix · source-reported ≈ 2 T</h4>
+        <div class="mod-bars"><div class="lab">Text</div><div class="track"><div class="fill txt" style="width: 28.5%"></div></div><div class="v">0.57 T</div></div>
+        <div class="mod-bars"><div class="lab">Audio</div><div class="track"><div class="fill aud" style="width: 38.5%"></div></div><div class="v">0.77 T</div></div>
+        <div class="mod-bars"><div class="lab">Image</div><div class="track"><div class="fill vis" style="width: 41%"></div></div><div class="v">0.82 T</div></div>
+        <div class="mod-bars"><div class="lab">Video</div><div class="track"><div class="fill vid" style="width: 2.5%"></div></div><div class="v">0.05 T</div></div>
+        <div class="mod-bars"><div class="lab">Video + audio</div><div class="track"><div class="fill va" style="width: 2.5%"></div></div><div class="v">0.05 T</div></div>
+        <p style="font: var(--kui-caption); color: var(--kui-fg-muted); margin-top: 12px;">The five listed sub-totals sum to 2.26 T, above the headline ≈ 2 T figure — Qwen labels this as approximate.</p>
+      </div>
+
+      <div class="train" style="margin-top: 24px;">
+        <h4>Thinker post-training</h4>
+        <div class="post-train">
+          <div class="ptile">
+            <div class="h"><span class="n">P1</span>Supervised fine-tuning</div>
+            <p>Instruction-following SFT on curated multimodal instruction data.</p>
+          </div>
+          <div class="ptile">
+            <div class="h"><span class="n">P2</span>Strong-to-Weak Distillation</div>
+            <p>Off-policy response distillation plus on-policy KL alignment against <code>Qwen3-32B</code> and <code>Qwen3-235B-A22B</code> teachers.</p>
+          </div>
+          <div class="ptile">
+            <div class="h"><span class="n">P3</span>GSPO RL</div>
+            <p>Group-relative policy optimization with rule-based rewards and model-based judges — <code>Qwen3</code> as the general LLM judge, <code>Qwen2.5-VL</code> as the visually-grounded judge.</p>
+          </div>
+        </div>
+        <p style="font: var(--kui-caption); color: var(--kui-fg-muted); margin-top: 14px;">A dedicated Thinking branch trains the model to reason explicitly over inputs from any modality. Additional Thinking-only training details beyond this description are <em>not separately reported</em> in the public sources.</p>
+      </div>
+    </section>
+
+    <!-- ─── 10 · BENCHMARKS ─── -->
+    <section id="benchmarks">
+      <div class="sec-head">
+        <div class="num">10 · Benchmarks · source-reported</div>
+        <div>
+          <h3>Text · Audio · Vision · Audio-Visual reasoning</h3>
+          <p>All values below are from the Qwen3-Omni-30B-A3B-Thinking model card or technical report. They are <strong>not independently verified</strong>. Zero-shot speech-generation tables from the wider Qwen3-Omni system are deliberately excluded — they belong to the Talker path that is not part of this checkpoint.</p>
+        </div>
+      </div>
+
+      <div class="twocol">
+
+        <!-- TEXT -->
+        <div class="bench">
+          <div class="bench-h">
+            <span class="dot" style="background: var(--c-think)"></span>
+            <h4>Text → Text</h4>
+            <span class="sub">Thinking column · /100</span>
+          </div>
+          <div class="bench-rows">
+            <div class="bench-row txt"><div class="nm">MMLU-Redux</div><div class="bar"><div style="width:88.8%"></div></div><div class="val">88.8</div></div>
+            <div class="bench-row txt"><div class="nm">GPQA</div><div class="bar"><div style="width:73.1%"></div></div><div class="val">73.1</div></div>
+            <div class="bench-row txt"><div class="nm">AIME25</div><div class="bar"><div style="width:73.7%"></div></div><div class="val">73.7</div></div>
+            <div class="bench-row txt"><div class="nm">LiveBench 20241125</div><div class="bar"><div style="width:71.8%"></div></div><div class="val">71.8</div></div>
+            <div class="bench-row txt"><div class="nm">MultiPL-E</div><div class="bar"><div style="width:80.6%"></div></div><div class="val">80.6</div></div>
+            <div class="bench-row txt"><div class="nm">IFEval</div><div class="bar"><div style="width:85.1%"></div></div><div class="val">85.1</div></div>
+            <div class="bench-row txt"><div class="nm">Arena-Hard v2</div><div class="bar"><div style="width:55.1%"></div></div><div class="val">55.1</div></div>
+            <div class="bench-row txt"><div class="nm">Creative Writing v3</div><div class="bar"><div style="width:82.5%"></div></div><div class="val">82.5</div></div>
+            <div class="bench-row txt"><div class="nm">WritingBench</div><div class="bar"><div style="width:85.5%"></div></div><div class="val">85.5</div></div>
+            <div class="bench-row txt"><div class="nm">BFCL-v3</div><div class="bar"><div style="width:63.2%"></div></div><div class="val">63.2</div></div>
+            <div class="bench-row txt"><div class="nm">MultiIF</div><div class="bar"><div style="width:72.9%"></div></div><div class="val">72.9</div></div>
+            <div class="bench-row txt"><div class="nm">PolyMATH</div><div class="bar"><div style="width:47.1%"></div></div><div class="val">47.1</div></div>
+          </div>
+        </div>
+
+        <!-- AUDIO -->
+        <div class="bench">
+          <div class="bench-h">
+            <span class="dot" style="background: var(--c-aud)"></span>
+            <h4>Audio reasoning · VoiceBench + audio</h4>
+            <span class="sub">Thinking column · /100</span>
+          </div>
+          <div class="bench-rows">
+            <div class="bench-row aud"><div class="nm">VoiceBench overall</div><div class="bar"><div style="width:88.8%"></div></div><div class="val">88.8</div></div>
+            <div class="bench-row aud"><div class="nm">AlpacaEval</div><div class="bar"><div style="width:96.4%"></div></div><div class="val">96.4</div></div>
+            <div class="bench-row aud"><div class="nm">CommonEval</div><div class="bar"><div style="width:90.5%"></div></div><div class="val">90.5</div></div>
+            <div class="bench-row aud"><div class="nm">WildVoice</div><div class="bar"><div style="width:90.5%"></div></div><div class="val">90.5</div></div>
+            <div class="bench-row aud"><div class="nm">SD-QA</div><div class="bar"><div style="width:78.1%"></div></div><div class="val">78.1</div></div>
+            <div class="bench-row aud"><div class="nm">MMSU (VoiceBench)</div><div class="bar"><div style="width:83.0%"></div></div><div class="val">83.0</div></div>
+            <div class="bench-row aud"><div class="nm">OpenBookQA</div><div class="bar"><div style="width:94.3%"></div></div><div class="val">94.3</div></div>
+            <div class="bench-row aud"><div class="nm">BBH</div><div class="bar"><div style="width:88.9%"></div></div><div class="val">88.9</div></div>
+            <div class="bench-row aud"><div class="nm">IFEval (voice)</div><div class="bar"><div style="width:80.6%"></div></div><div class="val">80.6</div></div>
+            <div class="bench-row aud"><div class="nm">AdvBench</div><div class="bar"><div style="width:97.2%"></div></div><div class="val">97.2</div></div>
+            <div class="bench-row aud"><div class="nm">MMAU · audio reasoning</div><div class="bar"><div style="width:75.4%"></div></div><div class="val">75.4</div></div>
+            <div class="bench-row aud"><div class="nm">MMSU · audio reasoning</div><div class="bar"><div style="width:70.2%"></div></div><div class="val">70.2</div></div>
+          </div>
+        </div>
+
+        <!-- VISION -->
+        <div class="bench">
+          <div class="bench-h">
+            <span class="dot" style="background: var(--c-vis)"></span>
+            <h4>Vision → Text</h4>
+            <span class="sub">Thinking column · /100 (MM-MT-Bench /10)</span>
+          </div>
+          <div class="bench-rows">
+            <div class="bench-row vis"><div class="nm">MMStar</div><div class="bar"><div style="width:74.9%"></div></div><div class="val">74.9</div></div>
+            <div class="bench-row vis"><div class="nm">HallusionBench</div><div class="bar"><div style="width:62.8%"></div></div><div class="val">62.8</div></div>
+            <div class="bench-row vis"><div class="nm">MM-MT-Bench</div><div class="bar"><div style="width:80%"></div></div><div class="val">8.0</div></div>
+            <div class="bench-row vis"><div class="nm">MMMU val</div><div class="bar"><div style="width:75.6%"></div></div><div class="val">75.6</div></div>
+            <div class="bench-row vis"><div class="nm">MMMU pro</div><div class="bar"><div style="width:60.5%"></div></div><div class="val">60.5</div></div>
+            <div class="bench-row vis"><div class="nm">MathVista mini</div><div class="bar"><div style="width:80.0%"></div></div><div class="val">80.0</div></div>
+            <div class="bench-row vis"><div class="nm">MathVision full</div><div class="bar"><div style="width:62.9%"></div></div><div class="val">62.9</div></div>
+            <div class="bench-row vis"><div class="nm">AI2D test</div><div class="bar"><div style="width:86.1%"></div></div><div class="val">86.1</div></div>
+            <div class="bench-row vis"><div class="nm">ChartQA test</div><div class="bar"><div style="width:89.5%"></div></div><div class="val">89.5</div></div>
+            <div class="bench-row vis"><div class="nm">CountBench</div><div class="bar"><div style="width:88.6%"></div></div><div class="val">88.6</div></div>
+            <div class="bench-row vis"><div class="nm">Video-MME</div><div class="bar"><div style="width:69.7%"></div></div><div class="val">69.7</div></div>
+            <div class="bench-row vis"><div class="nm">LVBench</div><div class="bar"><div style="width:49.0%"></div></div><div class="val">49.0</div></div>
+            <div class="bench-row vis"><div class="nm">MLVU</div><div class="bar"><div style="width:72.9%"></div></div><div class="val">72.9</div></div>
+          </div>
+        </div>
+
+        <!-- AV -->
+        <div class="bench">
+          <div class="bench-h">
+            <span class="dot" style="background: var(--c-vid)"></span>
+            <h4>Audio-Visual → Text</h4>
+            <span class="sub">Thinking column · /100</span>
+          </div>
+          <div class="bench-rows">
+            <div class="bench-row av"><div class="nm">DailyOmni</div><div class="bar"><div style="width:75.8%"></div></div><div class="val">75.8</div></div>
+            <div class="bench-row av"><div class="nm">VideoHolmes</div><div class="bar"><div style="width:57.3%"></div></div><div class="val">57.3</div></div>
+          </div>
+
+          <div style="padding: 24px; border-top: 1px solid var(--kui-border-default);">
+            <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 12px;">Zero-shot <em>speech-generation</em> tables (ASR, TTS, S2ST) reported in the Qwen3-Omni paper belong to the broader system that includes Talker, MTP and Code2Wav. They are <strong>not</strong> a result of this Thinking checkpoint and are intentionally omitted here.</p>
+            <div style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--c-mute); color: var(--c-mute); font: 11px/1 var(--kui-font-mono); text-transform: uppercase; letter-spacing: 1px;">
+              ✕ speech-gen results excluded
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ─── 11 · CAVEATS ─── -->
+    <section id="caveats">
+      <div class="sec-head">
+        <div class="num">11 · Caveats &amp; unknowns</div>
+        <div>
+          <h3>Things to be careful about when citing this page</h3>
+          <p>Public sources for this checkpoint are the Hugging Face model card, the config and generation_config JSON, the Qwen3-Omni GitHub repository, and the technical report (arXiv 2509.17765). Where those disagree we surface the disagreement instead of choosing.</p>
+        </div>
+      </div>
+
+      <div class="caveats">
+        <div class="item">
+          <div class="k">"30B-A3B" naming</div>
+          <div class="v">Refers to the <strong>Thinker MoE</strong> scale — 30 B total / ≈ 3 B active per token — and not to an added Talker package. Adding speech-generation modules would change the parameter count.</div>
+        </div>
+        <div class="item">
+          <div class="k">Audio output disabled</div>
+          <div class="v">The Thinking checkpoint sets <code>enable_audio_output: false</code>. Diagrams that draw a Talker, MTP or Code2Wav block as part of this checkpoint are wrong — those modules ship with the Instruct package only.</div>
+        </div>
+        <div class="item">
+          <div class="k">Context length nuance</div>
+          <div class="v">The config exposes <code>max_position_embeddings: 65 536</code>; long-context pretraining (S3) raises the training horizon from 8 192 to 32 768; README vLLM examples use 32 768 on a single GPU and 65 536 on 4 GPUs. All three numbers are correct, in different scopes.</div>
+        </div>
+        <div class="item">
+          <div class="k">Vocabulary mismatch</div>
+          <div class="v">The technical report cites <strong>151 643</strong> regular tokens; <code>config.json</code> sets <code>vocab_size: 152 064</code>. Treat as a source-version nuance — the LM head matrix is sized to the larger value.</div>
+        </div>
+        <div class="item">
+          <div class="k">Routing internals</div>
+          <div class="v">Beyond the exposed config fields (<code>num_experts=128</code>, <code>top_k=8</code>, <code>norm_topk_prob=true</code>, <code>router_aux_loss_coef=0.001</code>) production routing behaviour — capacity factors, dispatch heuristics, expert parallelism layout — is <em>not reported</em>.</div>
+        </div>
+        <div class="item">
+          <div class="k">Active parameter exactness</div>
+          <div class="v">"≈ 3 B active" follows the Qwen naming convention. The exact value depends on whether attention projections, embeddings and the LM head are counted as active. Cite as approximate.</div>
+        </div>
+        <div class="item">
+          <div class="k">Benchmark verification</div>
+          <div class="v">Every number in §10 is taken from Qwen's own model card and report. They are <strong>not independently verified</strong>. Reproduce before quoting against other vendors' published numbers.</div>
+        </div>
+        <div class="item">
+          <div class="k">Thinking-only training detail</div>
+          <div class="v">The public sources describe the Thinker post-training pipeline (SFT → Strong-to-Weak Distillation → GSPO) and note a Thinking branch that reasons over any modality. Additional Thinking-only data, hyperparameters and reward designs are <em>not separately reported</em>.</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <div class="row">
+    <div>
+      <h6>About this page</h6>
+      Architecture brief for <b>Qwen/Qwen3-Omni-30B-A3B-Thinking</b>, the Thinker-only checkpoint of Alibaba Qwen's Qwen3-Omni system. All values are taken from the public sources listed and are source-reported — not independently verified. This page is a technical visualization, not a marketing or branded recreation of any vendor's UI.
+    </div>
+    <div>
+      <h6>Primary sources</h6>
+      <a class="link" href="https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Thinking" target="_blank" rel="noopener">Hugging Face model card</a>
+      <a class="link" href="https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Thinking/blob/main/config.json" target="_blank" rel="noopener">config.json</a>
+      <a class="link" href="https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Thinking/blob/main/generation_config.json" target="_blank" rel="noopener">generation_config.json</a>
+    </div>
+    <div>
+      <h6>Report &amp; code</h6>
+      <a class="link" href="https://arxiv.org/abs/2509.17765" target="_blank" rel="noopener">arXiv 2509.17765 — Qwen3-Omni technical report</a>
+      <a class="link" href="https://ar5iv.labs.arxiv.org/html/2509.17765v1" target="_blank" rel="noopener">ar5iv HTML mirror</a>
+      <a class="link" href="https://github.com/QwenLM/Qwen3-Omni" target="_blank" rel="noopener">GitHub: QwenLM/Qwen3-Omni</a>
+      <a class="link" href="https://github.com/QwenLM/Qwen3-Omni/blob/main/assets/Qwen3_Omni.pdf" target="_blank" rel="noopener">Report PDF (repo mirror)</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+// ─── populate the mel mock with subtle "energy" so it reads as a spectrogram ───
+(function () {
+  var mel = document.getElementById('melMock');
+  if (!mel) return;
+  var cols = 64, rows = 24;
+  for (var r = 0; r < rows; r++) {
+    for (var c = 0; c < cols; c++) {
+      var d = document.createElement('div');
+      d.className = 'px';
+      // gentle pseudo-random energy with a bias toward lower-mid bands
+      var seed = (Math.sin((r + 1) * (c + 1) * 0.27) + 1) / 2;
+      var band = 1 - Math.abs(r - 9) / rows;
+      var v = Math.min(0.95, 0.1 + seed * 0.7 * band);
+      d.style.opacity = v.toFixed(2);
+      mel.appendChild(d);
+    }
+  }
+})();
+
+// ─── populate 128 expert cells, light 8 of them as "active" ───
+(function () {
+  var g = document.getElementById('expertGrid');
+  if (!g) return;
+  // pseudo-random but stable choice of 8 of 128
+  var active = new Set([5, 17, 28, 41, 63, 79, 100, 117]);
+  for (var i = 0; i < 128; i++) {
+    var d = document.createElement('div');
+    d.className = 'ex' + (active.has(i) ? ' active' : '');
+    d.title = 'Expert ' + i + (active.has(i) ? ' · active for this token' : '');
+    g.appendChild(d);
+  }
+})();
+
+// ─── rail active-section highlight ───
+(function () {
+  var links = document.querySelectorAll('nav.rail a');
+  if (!links.length) return;
+  var map = {};
+  links.forEach(function (a) {
+    var id = a.getAttribute('href').slice(1);
+    var sec = document.getElementById(id);
+    if (sec) map[id] = { a: a, sec: sec };
+  });
+  function update() {
+    var y = window.scrollY + 120;
+    var bestId = null, bestTop = -1;
+    Object.keys(map).forEach(function (id) {
+      var top = map[id].sec.offsetTop;
+      if (top <= y && top > bestTop) { bestTop = top; bestId = id; }
+    });
+    Object.keys(map).forEach(function (id) {
+      map[id].a.classList.toggle('active', id === bestId);
+    });
+  }
+  document.addEventListener('scroll', update, { passive: true });
+  update();
+})();
+</script>
+
+</body>
+</html>

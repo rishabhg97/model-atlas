@@ -1,0 +1,1440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wan2.2 Video Generation Suite Architecture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* =========================================================
+   Kaizen tokens (embedded for offline use)
+   Source: NVIDIA Kaizen Design System (KUI v11 Beta)
+   ========================================================= */
+:root{
+  --kui-brand-green:#76B900; --kui-brand-green-darker:#5E9600;
+  --kui-n000:#FFFFFF; --kui-n050:#F2F2F2; --kui-n100:#E3E3E3; --kui-n150:#D8D8D8;
+  --kui-n200:#C6C6C6; --kui-n300:#8F8F8F; --kui-n400:#767676; --kui-n500:#6B6B6B;
+  --kui-n600:#5E5E5E; --kui-n700:#343434; --kui-n800:#202020; --kui-n900:#0D0D0D; --kui-n950:#050505;
+  --kui-fg-strong:var(--kui-n800); --kui-fg-default:var(--kui-n700); --kui-fg-muted:var(--kui-n600);
+  --kui-fg-subtle:var(--kui-n500); --kui-fg-disabled:var(--kui-n300); --kui-fg-inverse:var(--kui-n000);
+  --kui-bg-canvas:var(--kui-n050); --kui-bg-mid:var(--kui-n000);
+  --kui-border-subtle:var(--kui-n100); --kui-border-default:var(--kui-n150); --kui-border-strong:var(--kui-n400);
+  --kui-success:#007D00; --kui-success-bg:#E8F4D6;
+  --kui-info:#0D69D4; --kui-info-bg:#E9F4FB; --kui-info-text:#2378CA;
+  --kui-warning:#C54600; --kui-warning-bg:#FDEFE6;
+  --kui-danger:#DC3528; --kui-danger-bg:#FCE9E8;
+  --kui-accent-teal:#1FA18D; --kui-accent-teal-dk:#006B5E;
+  --kui-accent-magenta:#851F41; --kui-accent-purple:#A05AB4;
+  --kui-accent-violet:#9747FF; --kui-accent-pink-bg:#FBEEFE; --kui-accent-blue-bg:#E9F4FB;
+  --kui-radius-xs:2px; --kui-radius-sm:4px; --kui-radius-md:5px; --kui-radius-lg:8px; --kui-radius-pill:999px;
+  --kui-shadow-2:0 2px 6px 0 rgba(0,0,0,.10);
+  --kui-shadow-3:0 4px 12px 0 rgba(0,0,0,.12);
+  --font-sans:"NVIDIA Sans","DM Sans","Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --font-display:"Inter","NVIDIA Sans","DM Sans",system-ui,sans-serif;
+  --font-mono:"Roboto Mono",ui-monospace,"SF Mono","JetBrains Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--kui-bg-canvas);
+  color:var(--kui-fg-strong);
+  font:400 14px/1.5 var(--font-sans);
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+}
+a{color:var(--kui-info-text); text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre,.mono{font-family:var(--font-mono)}
+
+/* =========================================================
+   LAYOUT — left nav rail + content
+   ========================================================= */
+.app{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
+@media (max-width:900px){.app{grid-template-columns:1fr}.nav{position:static !important;height:auto !important;border-right:0 !important;border-bottom:1px solid var(--kui-border-default)}}
+
+.nav{
+  position:sticky; top:0; height:100vh;
+  background:var(--kui-bg-mid);
+  border-right:1px solid var(--kui-border-default);
+  padding:24px 0 0;
+  display:flex; flex-direction:column;
+  font-size:13px;
+  overflow-y:auto;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:0 20px 20px;border-bottom:1px solid var(--kui-border-default);margin-bottom:12px}
+.brand svg{flex:none}
+.brand-tag{font:500 11px/1 var(--font-sans); letter-spacing:.08em; text-transform:uppercase; color:var(--kui-fg-muted)}
+.brand-title{font:500 14px/1.2 var(--font-sans); color:var(--kui-fg-strong); margin-top:3px}
+.nav-section{padding:8px 0}
+.nav-section h6{margin:0;padding:6px 20px;font:500 10px/1 var(--font-sans);letter-spacing:.12em;text-transform:uppercase;color:var(--kui-fg-muted)}
+.nav a{display:block;padding:7px 20px;color:var(--kui-fg-default);border-left:2px solid transparent;transition:background-color 120ms,color 120ms,border-color 120ms}
+.nav a:hover{background:var(--kui-n050);color:var(--kui-fg-strong);text-decoration:none}
+.nav a.is-active{color:var(--kui-fg-strong);background:var(--kui-n050);border-left-color:var(--kui-brand-green);font-weight:500}
+.home-link{display:block;margin:0 20px 12px;padding:8px 10px;border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm);background:var(--kui-bg-mid);color:var(--kui-fg-default);font-weight:500}
+.home-link:hover{border-color:var(--kui-brand-green);text-decoration:none}
+.nav-foot{margin-top:auto;padding:16px 20px;font-size:12px;color:var(--kui-fg-muted);border-top:1px solid var(--kui-border-default)}
+
+/* =========================================================
+   MAIN
+   ========================================================= */
+main{padding:48px 56px 96px;max-width:1240px;min-width:0;overflow:hidden}
+@media (max-width:900px){main{padding:32px 24px 64px}}
+
+section{margin-bottom:64px;scroll-margin-top:24px}
+.sec-eyebrow{font:500 11px/1 var(--font-sans);letter-spacing:.12em;text-transform:uppercase;color:var(--kui-fg-muted);margin-bottom:10px}
+section > h2{font:500 28px/1.2 var(--font-sans);letter-spacing:-.25px;margin:0 0 8px;color:var(--kui-fg-strong)}
+section > .lede{font:400 16px/1.5 var(--font-sans);color:var(--kui-fg-default);max-width:80ch;margin:0 0 24px}
+
+h3{font:500 18px/1.25 var(--font-sans);letter-spacing:-.25px;margin:0 0 12px;color:var(--kui-fg-strong)}
+h4{font:500 14px/1.2 var(--font-sans);margin:0 0 8px;color:var(--kui-fg-strong)}
+p{margin:0 0 12px}
+ul{margin:0 0 12px;padding-left:20px}
+li{margin-bottom:4px}
+
+/* =========================================================
+   CARDS / SURFACES
+   ========================================================= */
+.card{
+  background:var(--kui-bg-mid);
+  border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);
+  padding:20px;
+}
+.card-h{font:500 11px/1 var(--font-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--kui-fg-muted);margin:0 0 12px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media (max-width:900px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+
+/* =========================================================
+   HERO
+   ========================================================= */
+.hero{
+  border:1px solid var(--kui-border-default);
+  background:var(--kui-bg-mid);
+  border-radius:var(--kui-radius-sm);
+  padding:32px;
+  margin-bottom:64px;
+}
+.hero-top{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.hero h1{font:500 36px/1.1 var(--font-sans);letter-spacing:-.5px;margin:0 0 12px;color:var(--kui-fg-strong)}
+.hero h1 .v{color:var(--kui-brand-green-darker)}
+.hero h1 .sub{font-weight:400;color:var(--kui-fg-muted);font-size:.55em;letter-spacing:0}
+.hero-sub{font:400 16px/1.55 var(--font-sans);color:var(--kui-fg-default);max-width:80ch;margin:0 0 24px}
+.spec-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm);overflow:hidden}
+@media (max-width:900px){.spec-grid{grid-template-columns:1fr 1fr}}
+.spec{padding:14px 16px;border-right:1px solid var(--kui-border-default);background:var(--kui-bg-mid)}
+.spec:nth-child(4n){border-right:0}
+.spec:nth-child(n+5){border-top:1px solid var(--kui-border-default)}
+@media (max-width:900px){.spec:nth-child(4n){border-right:1px solid var(--kui-border-default)} .spec:nth-child(2n){border-right:0}.spec:nth-child(n+3){border-top:1px solid var(--kui-border-default)}.spec:nth-child(n+5){border-top:1px solid var(--kui-border-default)}}
+.spec-label{font:500 10px/1 var(--font-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--kui-fg-muted);margin-bottom:6px}
+.spec-value{font:500 15px/1.2 var(--font-sans);color:var(--kui-fg-strong)}
+.spec-value.mono{font:500 14px/1.2 var(--font-mono)}
+.spec-value.muted{color:var(--kui-fg-muted);font-weight:400;font-style:italic}
+
+/* =========================================================
+   TAGS / PILLS / BADGES
+   ========================================================= */
+.tag{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:var(--kui-radius-xs);
+  font:500 11px/1 var(--font-sans);letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--kui-border-default);
+  background:var(--kui-bg-mid);color:var(--kui-fg-default)}
+.tag-brand{background:#EEF7DA;border-color:#C6E287;color:#3D5F00}
+.tag-info{background:var(--kui-info-bg);border-color:#BFDEF5;color:var(--kui-info-text)}
+.tag-warn{background:var(--kui-warning-bg);border-color:#F5C7AA;color:var(--kui-warning)}
+.tag-magenta{background:#F8E7EE;border-color:#E9C2D2;color:var(--kui-accent-magenta)}
+.tag-teal{background:#DCF1ED;border-color:#9AD6CB;color:var(--kui-accent-teal-dk)}
+.tag-purple{background:#F2E5F7;border-color:#D9B6E6;color:#6B2A85}
+.tag-na{background:var(--kui-n050);border-color:var(--kui-border-default);color:var(--kui-fg-muted);text-transform:none;letter-spacing:0;font-style:italic}
+
+/* Source-cited number */
+.src{display:inline-flex;align-items:center;gap:3px;border:0;background:none;color:var(--kui-info-text);
+  font:500 10px/1 var(--font-mono);vertical-align:super;padding-left:2px;cursor:help}
+.src:hover{text-decoration:underline}
+
+/* =========================================================
+   END-TO-END FLOW DIAGRAM
+   ========================================================= */
+.flow{
+  border:1px solid var(--kui-border-default);
+  background:var(--kui-bg-mid);
+  border-radius:var(--kui-radius-sm);
+  padding:24px;
+  overflow-x:auto;
+}
+.flow-grid{
+  display:grid; grid-template-columns:repeat(5, minmax(180px, 1fr));
+  gap:0; align-items:stretch;
+  min-width:1080px;
+}
+.flow-col{display:flex;flex-direction:column;gap:10px;padding:0 14px;border-right:1px dashed var(--kui-border-default);position:relative}
+.flow-col:last-child{border-right:0}
+.flow-col-h{font:500 11px/1.2 var(--font-sans);letter-spacing:.08em;text-transform:uppercase;color:var(--kui-fg-muted);margin-bottom:6px;padding-bottom:8px;border-bottom:1px solid var(--kui-border-default)}
+.flow-col-h .stepnum{display:inline-block;font-family:var(--font-mono);color:var(--kui-fg-disabled);margin-right:6px}
+.node{
+  border:1px solid var(--kui-border-default);
+  background:var(--kui-bg-mid);
+  border-radius:var(--kui-radius-sm);
+  padding:10px 12px;
+}
+.node-t{font:500 13px/1.2 var(--font-sans);color:var(--kui-fg-strong);margin-bottom:4px}
+.node-s{font:400 12px/1.4 var(--font-sans);color:var(--kui-fg-muted)}
+.node-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.node-meta .mtag{font:500 10px/1 var(--font-mono);background:var(--kui-n050);border:1px solid var(--kui-border-subtle);padding:3px 5px;border-radius:var(--kui-radius-xs);color:var(--kui-fg-muted)}
+.node.input{border-left:3px solid var(--kui-info)}
+.node.enc{border-left:3px solid var(--kui-accent-teal)}
+.node.core{border-left:3px solid var(--kui-brand-green)}
+.node.expert{border-left:3px solid var(--kui-accent-violet)}
+.node.output{border-left:3px solid var(--kui-accent-magenta)}
+
+/* =========================================================
+   MOE SWITCH DIAGRAM
+   ========================================================= */
+.moe-diagram{
+  border:1px solid var(--kui-border-default);
+  background:var(--kui-bg-mid);
+  border-radius:var(--kui-radius-sm);
+  padding:24px;
+  margin-top:16px;
+}
+.snr-track{
+  position:relative;
+  height:48px;
+  border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);
+  background:linear-gradient(90deg,#F2E5F7 0%, #F2E5F7 50%, #EEF7DA 50%, #EEF7DA 100%);
+  margin:32px 0 12px;
+}
+.snr-track::before{
+  content:"t = T (pure noise)"; position:absolute; left:0; top:-22px;
+  font:500 10px/1 var(--font-mono); color:var(--kui-fg-muted);
+}
+.snr-track::after{
+  content:"t = 0 (clean video)"; position:absolute; right:0; top:-22px;
+  font:500 10px/1 var(--font-mono); color:var(--kui-fg-muted);
+}
+.snr-split{position:absolute;left:50%;top:-8px;bottom:-8px;width:0;border-left:2px dashed var(--kui-fg-strong)}
+.snr-split-label{position:absolute;left:50%;top:-30px;transform:translateX(-50%);font:500 10px/1 var(--font-mono);color:var(--kui-fg-strong);background:var(--kui-bg-mid);padding:2px 8px;border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-xs);white-space:nowrap}
+.snr-expert{position:absolute;top:50%;transform:translateY(-50%);font:500 12px/1 var(--font-sans);color:var(--kui-fg-strong);padding:6px 12px;background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-xs);white-space:nowrap}
+.snr-expert.lo{left:18%}
+.snr-expert.hi{right:18%}
+.snr-expert .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.snr-expert.lo .dot{background:var(--kui-accent-violet)}
+.snr-expert.hi .dot{background:var(--kui-brand-green)}
+.snr-caption{display:flex;justify-content:space-between;font:400 12px/1.4 var(--font-sans);color:var(--kui-fg-muted);margin-top:8px}
+.snr-caption span{flex:1;max-width:46%}
+.snr-caption span.right{text-align:right}
+
+/* MoE block tower */
+.moe-tower{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}
+.moe-tower .stack{padding:14px;border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm);background:var(--kui-n050)}
+.moe-tower .stack.hi{border-top:3px solid var(--kui-accent-violet)}
+.moe-tower .stack.lo{border-top:3px solid var(--kui-brand-green)}
+.moe-tower h4{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--kui-fg-muted);margin-bottom:10px}
+.dit-row{display:flex;gap:3px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.dit-block{width:11px;height:24px;border-radius:1px}
+.dit-block.hi{background:#D9B6E6;border:1px solid var(--kui-accent-violet)}
+.dit-block.hi.first,.dit-block.hi.last{background:var(--kui-accent-violet)}
+.dit-block.lo{background:#C6E287;border:1px solid var(--kui-brand-green-darker)}
+.dit-block.lo.first,.dit-block.lo.last{background:var(--kui-brand-green)}
+.dit-cap{font:500 10px/1 var(--font-mono);color:var(--kui-fg-muted)}
+
+/* =========================================================
+   VAE DIAGRAM
+   ========================================================= */
+.vae{
+  border:1px solid var(--kui-border-default);
+  background:var(--kui-bg-mid);
+  border-radius:var(--kui-radius-sm);
+  padding:24px;
+  margin-top:16px;
+}
+.vae-flow{
+  display:grid;
+  grid-template-columns:1fr auto 1fr auto 1fr;
+  gap:16px;
+  align-items:center;
+}
+@media (max-width:900px){.vae-flow{grid-template-columns:1fr;gap:8px}}
+.vae-box{
+  border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);
+  padding:14px;
+  background:var(--kui-bg-mid);
+  text-align:center;
+}
+.vae-box.input{border-left:3px solid var(--kui-info)}
+.vae-box.latent{border-left:3px solid var(--kui-accent-teal);background:#F5FAF9}
+.vae-box.output{border-left:3px solid var(--kui-accent-magenta)}
+.vae-box .dim{font:500 18px/1 var(--font-mono);color:var(--kui-fg-strong);margin:8px 0 4px}
+.vae-box .lbl{font:500 11px/1.1 var(--font-sans);text-transform:uppercase;letter-spacing:.08em;color:var(--kui-fg-muted)}
+.vae-box .desc{font:400 11px/1.4 var(--font-sans);color:var(--kui-fg-muted);margin-top:6px}
+.vae-arrow{font:500 11px/1 var(--font-mono);color:var(--kui-fg-muted);white-space:nowrap;text-align:center}
+.vae-arrow .arr{display:block;font-size:18px;color:var(--kui-n300);margin-top:2px}
+@media (max-width:900px){.vae-arrow .arr{transform:rotate(90deg);display:inline-block;margin-top:0}}
+
+/* =========================================================
+   WORKFLOW MATRIX
+   ========================================================= */
+table.matrix{
+  width:100%; border-collapse:collapse; background:var(--kui-bg-mid);
+  border:1px solid var(--kui-border-default); border-radius:var(--kui-radius-sm); overflow:hidden;
+  margin-top:16px;
+}
+table.matrix th, table.matrix td{
+  text-align:left; padding:12px 14px; font-size:13px;
+  border-bottom:1px solid var(--kui-border-default);
+  border-right:1px solid var(--kui-border-default);
+  vertical-align:top;
+}
+table.matrix th:last-child, table.matrix td:last-child{border-right:0}
+table.matrix th{
+  background:var(--kui-n050); color:var(--kui-fg-muted);
+  font:500 11px/1.2 var(--font-sans); letter-spacing:.08em; text-transform:uppercase;
+  vertical-align:bottom;
+}
+table.matrix th.col-head{background:var(--kui-bg-mid);color:var(--kui-fg-strong);font:500 13px/1.2 var(--font-sans);letter-spacing:0;text-transform:none;padding:14px}
+table.matrix tbody tr:last-child td{border-bottom:0}
+table.matrix td.mono{font-family:var(--font-mono);font-size:12px}
+table.matrix td .na{color:var(--kui-fg-disabled);font-style:italic;font-size:12px}
+table.matrix td.label{font:500 12px/1.3 var(--font-sans);color:var(--kui-fg-muted);text-transform:uppercase;letter-spacing:.06em;background:var(--kui-n050);width:160px}
+.check{color:var(--kui-success);font-weight:600}
+.dash{color:var(--kui-fg-disabled)}
+
+/* =========================================================
+   VARIANTS TABLE
+   ========================================================= */
+table.kt{
+  width:100%; border-collapse:collapse; background:var(--kui-bg-mid);
+  border:1px solid var(--kui-border-default); border-radius:var(--kui-radius-sm); overflow:hidden;
+}
+table.kt th, table.kt td{
+  text-align:left; padding:10px 14px; font-size:13px;
+  border-bottom:1px solid var(--kui-border-default);
+  vertical-align:top;
+}
+table.kt th{
+  background:var(--kui-n050); color:var(--kui-fg-muted);
+  font:500 11px/1 var(--font-sans); letter-spacing:.08em; text-transform:uppercase;
+  border-bottom:1px solid var(--kui-border-default);
+}
+table.kt tbody tr:last-child td{border-bottom:0}
+table.kt td.mono{font-family:var(--font-mono);font-size:12px}
+table.kt td .na{color:var(--kui-fg-disabled);font-style:italic}
+table.kt td .lic{font:500 11px/1 var(--font-mono);color:var(--kui-accent-teal-dk);background:#DCF1ED;border:1px solid #9AD6CB;padding:3px 6px;border-radius:var(--kui-radius-xs);display:inline-block}
+
+/* =========================================================
+   PIPELINE BANDS
+   ========================================================= */
+.band{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm);overflow:hidden;margin-top:8px}
+.band > div{padding:14px 16px;border-right:1px solid var(--kui-border-default);position:relative;background:var(--kui-bg-mid)}
+.band > div:last-child{border-right:0}
+.band-step{font:500 10px/1 var(--font-mono);color:var(--kui-fg-muted);margin-bottom:6px;letter-spacing:.08em}
+.band-t{font:500 14px/1.2 var(--font-sans);color:var(--kui-fg-strong);margin-bottom:4px}
+.band-s{font:400 12px/1.45 var(--font-sans);color:var(--kui-fg-muted)}
+@media (max-width:900px){.band{grid-template-columns:1fr}.band > div{border-right:0;border-bottom:1px solid var(--kui-border-default)}.band > div:last-child{border-bottom:0}}
+
+/* =========================================================
+   BENCHMARK CARDS
+   ========================================================= */
+.metrics-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:8px}
+@media (max-width:900px){.metrics-grid{grid-template-columns:1fr}}
+.metric{padding:18px;border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm);background:var(--kui-bg-mid)}
+.metric .head{font:500 11px/1 var(--font-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--kui-fg-muted);margin-bottom:10px}
+.metric .big{font:500 28px/1 var(--font-mono);color:var(--kui-fg-strong);margin-bottom:4px;letter-spacing:-.5px}
+.metric .ctx{font:400 12px/1.4 var(--font-sans);color:var(--kui-fg-muted)}
+.metric.brand .big{color:var(--kui-brand-green-darker)}
+
+/* =========================================================
+   CAVEAT / BANNER
+   ========================================================= */
+.banner{
+  display:flex; gap:12px; padding:14px 16px;
+  border:1px solid #BFDEF5; background:var(--kui-info-bg);
+  border-radius:var(--kui-radius-sm);
+}
+.banner.warn{border-color:#F5C7AA;background:var(--kui-warning-bg)}
+.banner.neutral{border-color:var(--kui-border-default);background:var(--kui-bg-mid)}
+.banner-icon{flex:none;width:18px;height:18px;border-radius:50%;display:grid;place-content:center;font:700 11px/1 var(--font-sans);color:#fff;margin-top:2px}
+.banner-icon.info{background:var(--kui-info)}
+.banner-icon.warn{background:var(--kui-warning)}
+.banner-icon.neutral{background:var(--kui-n400)}
+.banner h4{margin-bottom:4px}
+.banner p{margin:0;font-size:13px;color:var(--kui-fg-default)}
+.banner p + p{margin-top:6px}
+
+/* =========================================================
+   SOURCE FOOTER
+   ========================================================= */
+.sources{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media (max-width:900px){.sources{grid-template-columns:1fr}}
+.src-card{padding:14px;border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm);background:var(--kui-bg-mid)}
+.src-num{font:500 10px/1 var(--font-mono);color:var(--kui-fg-muted);margin-bottom:6px}
+.src-title{font:500 13px/1.3 var(--font-sans);color:var(--kui-fg-strong);margin-bottom:4px}
+.src-desc{font:400 12px/1.4 var(--font-sans);color:var(--kui-fg-muted);margin-bottom:6px}
+.src-url{font:400 11px/1.35 var(--font-mono);color:var(--kui-info-text);word-break:break-all}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ====================== NAVIGATION ====================== -->
+  <aside class="nav" aria-label="Page navigation">
+    <div class="brand">
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="2" fill="#000"></rect>
+        <path d="M11 11 C13 9.2 16 9 18 9.6 C16 10 14.6 11.2 13.8 12.2 C13 13.2 12.6 14.6 12.8 16 C13 17.6 13.8 19 15 19.6 C13.4 19.8 11.6 19 10.6 17.8 C9.6 16.4 9.6 14.4 10.4 12.8 Z" fill="#76B900"></path>
+      </svg>
+      <div>
+        <div class="brand-tag">Model Atlas</div>
+        <div class="brand-title">Wan Video Suite</div>
+      </div>
+    </div>
+
+    <a class="home-link" href="../../index.html">Atlas home</a>
+
+    <div class="nav-section">
+      <h6>Overview</h6>
+      <a href="#overview" class="is-active">Identity &amp; specs</a>
+      <a href="#map">End-to-end map</a>
+      <a href="#matrix">Workflow matrix</a>
+    </div>
+    <div class="nav-section">
+      <h6>Architecture</h6>
+      <a href="#moe">MoE expert routing</a>
+      <a href="#vae">Wan-VAE · 4×16×16</a>
+      <a href="#dit">DiT &amp; flow matching</a>
+      <a href="#vace">VACE control mux</a>
+      <a href="#flf2v">FLF2V conditioning</a>
+    </div>
+    <div class="nav-section">
+      <h6>Training &amp; runtime</h6>
+      <a href="#data">Data scale</a>
+      <a href="#variants">Variants &amp; weights</a>
+      <a href="#runtime">Runtime / VRAM</a>
+    </div>
+    <div class="nav-section">
+      <h6>Reference</h6>
+      <a href="#caveats">Unknowns &amp; caveats</a>
+      <a href="#sources">Sources</a>
+    </div>
+
+    <div class="nav-foot">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+        <span class="tag tag-brand">Apache 2.0</span>
+        <span class="tag tag-info">Open weights</span>
+      </div>
+      Compiled from public Wan-Video / Hugging Face / ali-vilab sources cited inline. Values are source-reported, not independently verified.
+    </div>
+  </aside>
+
+  <!-- ====================== MAIN ====================== -->
+  <main>
+
+    <!-- =================================================
+         OVERVIEW
+         ================================================= -->
+    <section id="overview">
+      <div class="hero">
+        <div class="hero-top">
+          <span class="tag tag-brand">Wan-Video · Alibaba</span>
+          <span class="tag">Video generation</span>
+          <span class="tag tag-info">Diffusion · Flow matching</span>
+          <span class="tag tag-purple">MoE (Wan2.2 A14B)</span>
+          <span class="tag tag-magenta">Open weights</span>
+        </div>
+        <h1>Wan<span class="v">2.2</span> Video Generation Suite <span class="sub">+ Wan2.1-VACE · FLF2V</span></h1>
+        <p class="hero-sub">
+          An open, large-scale family of video diffusion models for text-to-video, image-to-video,
+          first-and-last-frame to video, video editing, text-to-image, and audio/speech-driven video.
+          <strong>Wan2.2</strong> (Jul 28, 2025) introduces a two-expert Mixture-of-Experts diffusion
+          design that splits denoising across timesteps, expanding total capacity to <code>27B</code>
+          parameters while keeping <code>~14B</code> active per step<sup class="src">[1]</sup>.
+          <strong>Wan2.1-VACE</strong> (May 14, 2025) is the all-in-one editing variant whose unified
+          architecture handles T2V, I2V, V2V, R2V, and masked V2V tasks from a single
+          model<sup class="src">[4][6]</sup>.
+          <strong>FLF2V</strong> (Apr 17, 2025) conditions generation on a first and last
+          frame<sup class="src">[3]</sup>.
+        </p>
+
+        <div class="spec-grid">
+          <div class="spec">
+            <div class="spec-label">Generative core</div>
+            <div class="spec-value">Diffusion Transformer (DiT)<sup class="src">[7]</sup></div>
+          </div>
+          <div class="spec">
+            <div class="spec-label">Training objective</div>
+            <div class="spec-value">Flow Matching<sup class="src">[7]</sup></div>
+          </div>
+          <div class="spec">
+            <div class="spec-label">Latent encoder</div>
+            <div class="spec-value mono">Wan-VAE · 3D causal<sup class="src">[7]</sup></div>
+          </div>
+          <div class="spec">
+            <div class="spec-label">Text encoder</div>
+            <div class="spec-value mono">umT5-xxl<sup class="src">[1]</sup></div>
+          </div>
+          <div class="spec">
+            <div class="spec-label">Wan2.2 total params</div>
+            <div class="spec-value mono">27 B (A14B series)<sup class="src">[1]</sup></div>
+          </div>
+          <div class="spec">
+            <div class="spec-label">Active params / step</div>
+            <div class="spec-value mono">14 B (A14B)<sup class="src">[1]</sup></div>
+          </div>
+          <div class="spec">
+            <div class="spec-label">Wan2.2-VAE compression</div>
+            <div class="spec-value mono">T×H×W = 4×16×16<sup class="src">[1]</sup></div>
+          </div>
+          <div class="spec">
+            <div class="spec-label">License</div>
+            <div class="spec-value">Apache 2.0<sup class="src">[1]</sup></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-top:24px">
+          <div class="banner neutral">
+            <div class="banner-icon neutral">i</div>
+            <div>
+              <h4>Lineage: Wan2.1 → VACE / FLF2V → Wan2.2</h4>
+              <p>
+                <strong>Wan2.1</strong> (technical report Mar 21, 2025) established the DiT + flow-matching
+                stack with the 3D causal <em>Wan-VAE</em>, the umT5-xxl text encoder, and a multi-task scope
+                covering T2V, I2V, video editing, text-to-image, and video-to-audio<sup class="src">[7][8]</sup>.
+                <strong>FLF2V</strong> (Apr 17, 2025) and <strong>Wan2.1-VACE</strong> (May 14, 2025) added
+                first/last-frame conditioning and all-in-one editing on top of the Wan2.1
+                backbone<sup class="src">[3][4][6]</sup>. <strong>Wan2.2</strong> (Jul 28, 2025) replaces the dense
+                14B DiT with a two-expert MoE diffusion and introduces a higher-compression
+                VAE<sup class="src">[1][2]</sup>. Wan2.2-S2V (Aug 26, 2025) and Wan2.2-Animate (Sep 19, 2025) extend
+                the suite to audio-driven and character-animation tasks<sup class="src">[1]</sup>.
+              </p>
+            </div>
+          </div>
+          <div class="banner warn">
+            <div class="banner-icon warn">!</div>
+            <div>
+              <h4>What is <em>not</em> in this page</h4>
+              <p>
+                Per-checkpoint hidden dimensions, DiT depth/width, router thresholds beyond
+                <code>SNR_min / 2</code>, exact frame counts per task, training-token totals, and
+                independently-verified benchmark numbers are <strong>not reported</strong> in the listed
+                public sources. See <a href="#caveats">Unknowns &amp; caveats</a>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         END-TO-END MAP
+         ================================================= -->
+    <section id="map">
+      <div class="sec-eyebrow">§ 01 · End-to-end model map</div>
+      <h2>Tokens, latents, denoising, frames</h2>
+      <p class="lede">
+        At inference the model maps a text prompt — optionally plus an image, first+last frames, a source
+        video, masks, audio, or pose tracks — to a sequence of RGB video frames. Conditioning is encoded
+        to features, the target video is denoised in <em>latent</em> space by the DiT backbone, and the
+        Wan-VAE decoder lifts the denoised latent back to pixels.
+      </p>
+
+      <div class="flow">
+        <div class="flow-grid">
+
+          <!-- Column 1: native inputs -->
+          <div class="flow-col">
+            <div class="flow-col-h"><span class="stepnum">01</span> Native inputs</div>
+            <div class="node input">
+              <div class="node-t">Text prompt</div>
+              <div class="node-s">Free-form natural language; Chinese or English<sup class="src">[7]</sup>.</div>
+              <div class="node-meta"><span class="mtag">UTF-8</span><span class="mtag">visual-text capable</span></div>
+            </div>
+            <div class="node input">
+              <div class="node-t">Image / frames</div>
+              <div class="node-s">I2V: one reference image. FLF2V: first + last frame. VACE: reference image(s)<sup class="src">[3][4][6]</sup>.</div>
+              <div class="node-meta"><span class="mtag">RGB · variable AR</span></div>
+            </div>
+            <div class="node input">
+              <div class="node-t">Source video + mask</div>
+              <div class="node-s">VACE V2V / masked V2V<sup class="src">[4][6]</sup>.</div>
+              <div class="node-meta"><span class="mtag">RGB clip</span><span class="mtag">spatial mask</span></div>
+            </div>
+            <div class="node input">
+              <div class="node-t">Audio / pose</div>
+              <div class="node-s">Wan2.2-S2V: speech waveform; pose-video override optional<sup class="src">[1]</sup>.</div>
+              <div class="node-meta"><span class="mtag">.wav</span><span class="mtag">pose mp4</span></div>
+            </div>
+          </div>
+
+          <!-- Column 2: tokenization / encoders -->
+          <div class="flow-col">
+            <div class="flow-col-h"><span class="stepnum">02</span> Encoders</div>
+            <div class="node enc">
+              <div class="node-t">umT5-xxl text encoder</div>
+              <div class="node-s">Acknowledged dependency for prompt embeddings<sup class="src">[1]</sup>. Outputs cross-attention tokens for the DiT.</div>
+              <div class="node-meta"><span class="mtag">--t5_fsdp / --t5_cpu</span></div>
+            </div>
+            <div class="node enc">
+              <div class="node-t">Wan-VAE encoder</div>
+              <div class="node-s">3D causal VAE encodes pixel video to a spatio-temporal latent. Wan2.1: 1080P, arbitrary length<sup class="src">[7]</sup>. Wan2.2-VAE: 4×16×16 compression<sup class="src">[1]</sup>.</div>
+              <div class="node-meta"><span class="mtag">T×H×W → T/4 × H/16 × W/16</span></div>
+            </div>
+            <div class="node enc">
+              <div class="node-t">Image / audio adapters</div>
+              <div class="node-s">I2V image and S2V audio adapters per task head<sup class="src">[1]</sup>. Exact projector arch <em>not reported</em>.</div>
+              <div class="node-meta"><span class="mtag">conditioning tokens</span></div>
+            </div>
+          </div>
+
+          <!-- Column 3: backbone -->
+          <div class="flow-col">
+            <div class="flow-col-h"><span class="stepnum">03</span> DiT backbone</div>
+            <div class="node core">
+              <div class="node-t">Patchify latent</div>
+              <div class="node-s">TI2V-5B adds an extra patchification layer → total <code>4×32×32</code> compression<sup class="src">[1]</sup>.</div>
+              <div class="node-meta"><span class="mtag">patch tokens</span></div>
+            </div>
+            <div class="node core">
+              <div class="node-t">DiT (flow matching)</div>
+              <div class="node-s">Diffusion Transformer trained with the Flow Matching objective<sup class="src">[7]</sup>. Cross-attention over text/image/audio tokens.</div>
+              <div class="node-meta"><span class="mtag">depth: n/r</span><span class="mtag">dim: n/r</span></div>
+            </div>
+            <div class="node core">
+              <div class="node-t">Wan2.2 MoE router</div>
+              <div class="node-s">For A14B series only: SNR-based timestep router selects high-noise or low-noise expert<sup class="src">[1]</sup>. See §02.</div>
+              <div class="node-meta"><span class="mtag">2 experts</span><span class="mtag">14B active</span></div>
+            </div>
+          </div>
+
+          <!-- Column 4: experts / decoder -->
+          <div class="flow-col">
+            <div class="flow-col-h"><span class="stepnum">04</span> Iterative denoising</div>
+            <div class="node expert">
+              <div class="node-t">High-noise expert</div>
+              <div class="node-s">Active when <code>t &gt; t_moe</code>. Focus: overall layout, scene structure<sup class="src">[1]</sup>.</div>
+              <div class="node-meta"><span class="mtag">~14B params</span></div>
+            </div>
+            <div class="node expert">
+              <div class="node-t">Low-noise expert</div>
+              <div class="node-s">Active when <code>t ≤ t_moe</code>. Focus: detail refinement, texture<sup class="src">[1]</sup>.</div>
+              <div class="node-meta"><span class="mtag">~14B params</span></div>
+            </div>
+            <div class="node expert">
+              <div class="node-t">Default 20-step sampler</div>
+              <div class="node-s">Wan-Animate diffusers pipeline ships <code>num_inference_steps=20</code><sup class="src">[1]</sup>; other tasks <em>not reported</em>.</div>
+              <div class="node-meta"><span class="mtag">guidance: 1.0 (Animate)</span></div>
+            </div>
+          </div>
+
+          <!-- Column 5: outputs -->
+          <div class="flow-col">
+            <div class="flow-col-h"><span class="stepnum">05</span> Outputs</div>
+            <div class="node output">
+              <div class="node-t">Wan-VAE decoder</div>
+              <div class="node-s">Decodes denoised latent to RGB frames. Preserves temporal causality<sup class="src">[7]</sup>.</div>
+            </div>
+            <div class="node output">
+              <div class="node-t">Video — 480P or 720P</div>
+              <div class="node-s">A14B: 480P &amp; 720P. TI2V-5B: 1280×704 at 24 fps. S2V: 1024×704<sup class="src">[1]</sup>.</div>
+              <div class="node-meta"><span class="mtag">RGB mp4</span><span class="mtag">24 fps (TI2V)</span></div>
+            </div>
+            <div class="node output">
+              <div class="node-t">Optional — V2A track</div>
+              <div class="node-s">Wan2.1 lists video-to-audio as a capability; runtime path <em>not reported</em><sup class="src">[7]</sup>.</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         WORKFLOW MATRIX
+         ================================================= -->
+    <section id="matrix">
+      <div class="sec-eyebrow">§ 02 · Workflow matrix</div>
+      <h2>What each model accepts and produces</h2>
+      <p class="lede">
+        Wan2.2, Wan2.1-VACE, and FLF2V share the DiT + Wan-VAE skeleton but differ in conditioning paths,
+        task heads, and which checkpoints implement them.
+      </p>
+
+      <table class="matrix" aria-label="Workflow matrix by model and task">
+        <thead>
+          <tr>
+            <th></th>
+            <th class="col-head">Wan2.2 T2V-A14B<sup class="src">[1]</sup></th>
+            <th class="col-head">Wan2.2 I2V-A14B<sup class="src">[1]</sup></th>
+            <th class="col-head">Wan2.2 TI2V-5B<sup class="src">[1]</sup></th>
+            <th class="col-head">Wan2.1-VACE<sup class="src">[4][6]</sup></th>
+            <th class="col-head">Wan2.1 FLF2V<sup class="src">[3]</sup></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label">Native inputs</td>
+            <td>Text</td>
+            <td>Text + image</td>
+            <td>Text and/or image</td>
+            <td>Text + opt. video + mask + ref images</td>
+            <td>Text + first frame + last frame</td>
+          </tr>
+          <tr>
+            <td class="label">Output</td>
+            <td colspan="5">Video clip (RGB, mp4). Wan2.1 additionally lists text-to-image and video-to-audio as supported tasks<sup class="src">[7]</sup>.</td>
+          </tr>
+          <tr>
+            <td class="label">Resolutions</td>
+            <td class="mono">480P · 720P</td>
+            <td class="mono">480P · 720P</td>
+            <td class="mono">1280×704 (720P)</td>
+            <td class="mono">1.3B: 480P · 14B: 720P</td>
+            <td><span class="na">not reported (uses Wan2.1 14B base)</span></td>
+          </tr>
+          <tr>
+            <td class="label">Frame rate</td>
+            <td><span class="na">n/r</span></td>
+            <td><span class="na">n/r</span></td>
+            <td class="mono">24 fps<sup class="src">[1]</sup></td>
+            <td><span class="na">n/r</span></td>
+            <td><span class="na">n/r</span></td>
+          </tr>
+          <tr>
+            <td class="label">Duration</td>
+            <td><span class="na">n/r</span></td>
+            <td><span class="na">n/r</span></td>
+            <td class="mono">5 s reported<sup class="src">[1]</sup></td>
+            <td class="mono">5 s reported (Wan2.1-T2V-1.3B)<sup class="src">[7]</sup></td>
+            <td><span class="na">n/r</span></td>
+          </tr>
+          <tr>
+            <td class="label">Backbone</td>
+            <td class="mono">MoE · 27B / 14B active</td>
+            <td class="mono">MoE · 27B / 14B active</td>
+            <td class="mono">Dense · 5B</td>
+            <td class="mono">Dense · 1.3B and 14B</td>
+            <td class="mono">Dense · 14B (Wan2.1)</td>
+          </tr>
+          <tr>
+            <td class="label">Task tasks tag (CLI)</td>
+            <td class="mono">t2v-A14B</td>
+            <td class="mono">i2v-A14B</td>
+            <td class="mono">ti2v-5B</td>
+            <td class="mono">vace_wan_inference</td>
+            <td class="mono">flf2v-14B (Wan2.1)</td>
+          </tr>
+          <tr>
+            <td class="label">VACE editing modes</td>
+            <td class="dash">—</td>
+            <td class="dash">—</td>
+            <td class="dash">—</td>
+            <td>R2V · V2V · MV2V (move / swap / reference / expand / animate)<sup class="src">[6]</sup></td>
+            <td class="dash">—</td>
+          </tr>
+          <tr>
+            <td class="label">Prompt extension</td>
+            <td>Qwen2.5-{14B,7B,3B}-Instruct or Dashscope <code>qwen-plus</code><sup class="src">[1]</sup></td>
+            <td>Qwen2.5-VL-{7B,3B}-Instruct or <code>qwen-vl-max</code><sup class="src">[1]</sup></td>
+            <td>Same as T2V / I2V<sup class="src">[1]</sup></td>
+            <td><span class="na">n/r</span></td>
+            <td><span class="na">n/r</span></td>
+          </tr>
+          <tr>
+            <td class="label">Visual text</td>
+            <td colspan="3">Inherits Wan2.1 visual-text generation (first video model to generate both Chinese &amp; English text)<sup class="src">[7]</sup></td>
+            <td colspan="2">Inherits Wan2.1 visual-text generation<sup class="src">[7]</sup></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- =================================================
+         MoE EXPERT ROUTING
+         ================================================= -->
+    <section id="moe">
+      <div class="sec-eyebrow">§ 03 · Mixture-of-Experts diffusion</div>
+      <h2>Two experts, one denoising trajectory</h2>
+      <p class="lede">
+        Wan2.2's A14B series splits the denoising trajectory across two specialised experts. A high-noise
+        expert handles the early, layout-defining timesteps; a low-noise expert handles the later,
+        detail-refining timesteps. Routing is timestep-driven by the signal-to-noise ratio (SNR), not by
+        a learned gate over tokens — so per-step compute is the same as a dense 14B DiT<sup class="src">[1]</sup>.
+      </p>
+
+      <div class="moe-diagram">
+        <h3>SNR-thresholded expert switch</h3>
+        <p style="color:var(--kui-fg-muted);max-width:80ch">
+          Wan2.2 defines <code>t_moe</code> as the diffusion step at which SNR equals half of
+          <code>SNR_min</code> (the minimum SNR observed across the trajectory, reached at maximum noise).
+          For <code>t &gt; t_moe</code> the high-noise expert is active. For <code>t ≤ t_moe</code> the
+          low-noise expert is active<sup class="src">[1]</sup>.
+        </p>
+
+        <div class="snr-track" aria-label="SNR trajectory split between two experts">
+          <div class="snr-split"></div>
+          <div class="snr-split-label">t<sub>moe</sub> · SNR = SNR<sub>min</sub> / 2</div>
+          <div class="snr-expert hi"><span class="dot"></span>High-noise expert · layout</div>
+          <div class="snr-expert lo"><span class="dot"></span>Low-noise expert · detail</div>
+        </div>
+        <div class="snr-caption">
+          <span>Early steps. High noise, low SNR. Coarse structure emerges from pure Gaussian.</span>
+          <span class="right">Late steps. Low noise, high SNR. Textures, edges, fine motion refined.</span>
+        </div>
+
+        <div class="moe-tower">
+          <div class="stack hi">
+            <h4>High-noise expert · ~14B params</h4>
+            <div class="dit-row" aria-hidden="true">
+              <span class="dit-block hi first"></span>
+              <span class="dit-block hi"></span><span class="dit-block hi"></span><span class="dit-block hi"></span>
+              <span class="dit-block hi"></span><span class="dit-block hi"></span><span class="dit-block hi"></span>
+              <span class="dit-block hi"></span><span class="dit-block hi"></span><span class="dit-block hi"></span>
+              <span class="dit-block hi"></span><span class="dit-block hi"></span><span class="dit-block hi"></span>
+              <span class="dit-block hi"></span><span class="dit-block hi"></span><span class="dit-block hi last"></span>
+            </div>
+            <div class="dit-cap">DiT blocks — depth not reported. Specialised on noisy-input regime.</div>
+          </div>
+          <div class="stack lo">
+            <h4>Low-noise expert · ~14B params</h4>
+            <div class="dit-row" aria-hidden="true">
+              <span class="dit-block lo first"></span>
+              <span class="dit-block lo"></span><span class="dit-block lo"></span><span class="dit-block lo"></span>
+              <span class="dit-block lo"></span><span class="dit-block lo"></span><span class="dit-block lo"></span>
+              <span class="dit-block lo"></span><span class="dit-block lo"></span><span class="dit-block lo"></span>
+              <span class="dit-block lo"></span><span class="dit-block lo"></span><span class="dit-block lo"></span>
+              <span class="dit-block lo"></span><span class="dit-block lo"></span><span class="dit-block lo last"></span>
+            </div>
+            <div class="dit-cap">DiT blocks — depth not reported. Specialised on near-clean regime.</div>
+          </div>
+        </div>
+
+        <div class="grid-3" style="margin-top:18px">
+          <div class="card">
+            <div class="card-h">Total params</div>
+            <div style="font:500 22px/1 var(--font-mono);color:var(--kui-fg-strong)">27 B</div>
+            <p style="font-size:12px;color:var(--kui-fg-muted);margin-top:6px">Two experts × ~14 B each<sup class="src">[1]</sup>.</p>
+          </div>
+          <div class="card">
+            <div class="card-h">Active per step</div>
+            <div style="font:500 22px/1 var(--font-mono);color:var(--kui-fg-strong)">14 B</div>
+            <p style="font-size:12px;color:var(--kui-fg-muted);margin-top:6px">One expert active at a time. Per-step compute and VRAM match a dense 14B DiT<sup class="src">[1]</sup>.</p>
+          </div>
+          <div class="card">
+            <div class="card-h">Switch metric</div>
+            <div style="font:500 18px/1 var(--font-mono);color:var(--kui-fg-strong)">SNR<sub>min</sub> / 2</div>
+            <p style="font-size:12px;color:var(--kui-fg-muted);margin-top:6px">Monotone in <code>t</code>; deterministic by timestep, not by token<sup class="src">[1]</sup>.</p>
+          </div>
+        </div>
+
+        <div class="banner" style="margin-top:18px">
+          <div class="banner-icon info">i</div>
+          <div>
+            <h4>Ablation reported by Wan-Video</h4>
+            <p>
+              Wan-Video compares four configurations by validation loss: <em>baseline Wan2.1 (no MoE)</em>,
+              <em>Wan2.1 + high-noise expert</em>, <em>Wan2.1 + low-noise expert</em>, and the full
+              <em>Wan2.2 (MoE)</em>. The final Wan2.2 setting achieves the lowest validation loss<sup class="src">[1]</sup>.
+              Quantitative loss values, axes, and SOTA bar chart are <em>image-only</em> in the official
+              README — not reproduced here.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         WAN-VAE
+         ================================================= -->
+    <section id="vae">
+      <div class="sec-eyebrow">§ 04 · Latent encoder · Wan-VAE</div>
+      <h2>3D causal VAE for variable-length video</h2>
+      <p class="lede">
+        The Wan family operates entirely in the latent space of a custom 3D causal VAE. Wan2.1's
+        Wan-VAE encodes/decodes 1080P video of arbitrary length while preserving temporal information<sup class="src">[7][8]</sup>.
+        Wan2.2 ships an upgraded Wan2.2-VAE at higher compression to support the TI2V-5B 720P@24fps
+        consumer-GPU path<sup class="src">[1]</sup>.
+      </p>
+
+      <div class="vae">
+        <div class="vae-flow">
+          <div class="vae-box input">
+            <div class="lbl">Pixel video</div>
+            <div class="dim">T × H × W × 3</div>
+            <div class="desc">RGB frames. Arbitrary length (Wan2.1 reports unbounded length, lossless temporal carry)<sup class="src">[7]</sup>.</div>
+          </div>
+          <div class="vae-arrow">
+            Wan2.2-VAE encoder<sup class="src">[1]</sup>
+            <span class="arr">→</span>
+          </div>
+          <div class="vae-box latent">
+            <div class="lbl">Spatio-temporal latent</div>
+            <div class="dim">T/4 × H/16 × W/16</div>
+            <div class="desc">Compression 4×16×16 = 64× volume reduction. Channel count <em>not reported</em>.</div>
+          </div>
+          <div class="vae-arrow">
+            DiT denoising +<br>Wan2.2-VAE decoder
+            <span class="arr">→</span>
+          </div>
+          <div class="vae-box output">
+            <div class="lbl">Reconstructed video</div>
+            <div class="dim">T × H × W × 3</div>
+            <div class="desc">High-quality reconstruction reported by Wan-Video; metric values not disclosed<sup class="src">[1]</sup>.</div>
+          </div>
+        </div>
+
+        <div class="grid-3" style="margin-top:20px">
+          <div class="card">
+            <div class="card-h">Compression — Wan2.2-VAE</div>
+            <p>Temporal ×4, spatial ×16. Volume compression 64×<sup class="src">[1]</sup>.</p>
+          </div>
+          <div class="card">
+            <div class="card-h">Patchify (TI2V-5B only)</div>
+            <p>Extra patchification layer doubles spatial compression → effective <code>4×32×32</code> for the DiT<sup class="src">[1]</sup>.</p>
+          </div>
+          <div class="card">
+            <div class="card-h">Wan-VAE properties (Wan2.1)</div>
+            <p>3D causal architecture; unbounded length; preserves historical temporal information; trained jointly with the rest of the stack<sup class="src">[7]</sup>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         DiT BACKBONE
+         ================================================= -->
+    <section id="dit">
+      <div class="sec-eyebrow">§ 05 · DiT backbone &amp; objective</div>
+      <h2>Flow Matching over latent video tokens</h2>
+      <p class="lede">
+        Wan is built on the mainstream Diffusion Transformer paradigm with the Flow Matching training
+        objective<sup class="src">[7][8]</sup>. The DiT consumes patched video latents plus conditioning tokens
+        (text from umT5-xxl, plus task-specific image/audio adapters) and predicts the velocity field
+        used to denoise the latent toward the target.
+      </p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 style="margin-bottom:8px">Backbone shape</h3>
+          <ul style="color:var(--kui-fg-default)">
+            <li><strong>Type:</strong> Diffusion Transformer (DiT)<sup class="src">[7]</sup>.</li>
+            <li><strong>Objective:</strong> Flow matching<sup class="src">[7]</sup>.</li>
+            <li><strong>Depth / hidden dim / heads:</strong> <span class="tag tag-na">not reported in listed sources</span></li>
+            <li><strong>Conditioning:</strong> cross-attention over text tokens (umT5-xxl) and task-adapter tokens (image / audio / pose / mask)<sup class="src">[1]</sup>.</li>
+            <li><strong>Wan2.2 split:</strong> two-expert MoE at the diffusion-trajectory level (see §03).</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:8px">Inference scaffold (from the repo)</h3>
+          <ul style="color:var(--kui-fg-default)">
+            <li><strong>Sharding:</strong> PyTorch FSDP for the DiT and the T5 (<code>--dit_fsdp --t5_fsdp</code>)<sup class="src">[1]</sup>.</li>
+            <li><strong>Sequence parallel:</strong> DeepSpeed Ulysses (<code>--ulysses_size 8</code>)<sup class="src">[1]</sup>.</li>
+            <li><strong>Attention:</strong> FlashAttention 3 on Hopper-class GPUs<sup class="src">[1]</sup>; flash_attn dependency in <code>requirements.txt</code><sup class="src">[1]</sup>.</li>
+            <li><strong>Offload:</strong> <code>--offload_model True</code>, <code>--convert_model_dtype</code>, <code>--t5_cpu</code> for low-VRAM machines<sup class="src">[1]</sup>.</li>
+            <li><strong>Wan-Animate default sampler:</strong> 20 inference steps, guidance scale 1.0<sup class="src">[1]</sup>.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         VACE CONTROL MUX
+         ================================================= -->
+    <section id="vace">
+      <div class="sec-eyebrow">§ 06 · Wan2.1-VACE control multiplexer</div>
+      <h2>One model, five edit modes</h2>
+      <p class="lede">
+        <strong>VACE</strong> (Video-Aware Composable Editing) is the unified all-in-one editing variant on top of
+        Wan2.1. The same network ingests text plus any combination of source video, spatial mask, and
+        reference image(s), and exposes five editing capabilities through different combinations of
+        those conditioning inputs<sup class="src">[6][10]</sup>. VACE was accepted to ICCV 2025<sup class="src">[10]</sup>.
+      </p>
+
+      <div class="flow">
+        <div class="flow-grid" style="min-width:960px;grid-template-columns:280px 1fr 280px">
+          <div class="flow-col">
+            <div class="flow-col-h"><span class="stepnum">A</span> Conditioning channels</div>
+            <div class="node input">
+              <div class="node-t">Text prompt</div>
+              <div class="node-s">Required for every mode<sup class="src">[6]</sup>.</div>
+            </div>
+            <div class="node input" style="border-left-color:var(--kui-accent-teal)">
+              <div class="node-t">Source video</div>
+              <div class="node-s">Optional — provides motion / scene to edit<sup class="src">[6]</sup>.</div>
+            </div>
+            <div class="node input" style="border-left-color:var(--kui-warning)">
+              <div class="node-t">Spatial mask</div>
+              <div class="node-s">Optional — defines per-frame regions to keep / replace<sup class="src">[6]</sup>.</div>
+            </div>
+            <div class="node input" style="border-left-color:var(--kui-accent-magenta)">
+              <div class="node-t">Reference image(s)</div>
+              <div class="node-s">Optional — supplies identity / style anchor<sup class="src">[6]</sup>.</div>
+            </div>
+          </div>
+          <div class="flow-col">
+            <div class="flow-col-h"><span class="stepnum">B</span> Unified VACE network</div>
+            <div class="node core" style="flex:1;display:flex;flex-direction:column;justify-content:center">
+              <div class="node-t">Wan2.1-VACE-1.3B · 480P · or · 14B · 720P<sup class="src">[5][6][10]</sup></div>
+              <div class="node-s" style="margin-top:6px">
+                Shared DiT + Wan-VAE backbone. The CLI <code>vace_wan_inference.py</code> passes
+                <code>--src_video</code>, <code>--src_mask</code>, and
+                <code>--src_ref_images</code> into a single forward pass<sup class="src">[10]</sup>.
+              </div>
+              <div class="node-meta">
+                <span class="mtag">multi-task head</span>
+                <span class="mtag">ICCV 2025</span>
+                <span class="mtag">Apache 2.0</span>
+              </div>
+            </div>
+          </div>
+          <div class="flow-col">
+            <div class="flow-col-h"><span class="stepnum">C</span> Editing modes</div>
+            <div class="node output">
+              <div class="node-t">T2V · I2V</div>
+              <div class="node-s">Generation from text only, or text + image<sup class="src">[6]</sup>.</div>
+            </div>
+            <div class="node output">
+              <div class="node-t">R2V — reference-to-video</div>
+              <div class="node-s">Identity / style transferred from reference image(s)<sup class="src">[6]</sup>.</div>
+            </div>
+            <div class="node output">
+              <div class="node-t">V2V — video-to-video</div>
+              <div class="node-s">Source video is restyled / re-rendered<sup class="src">[6]</sup>.</div>
+            </div>
+            <div class="node output">
+              <div class="node-t">MV2V — masked V2V</div>
+              <div class="node-s">Mask-localised edits: <em>Move / Swap / Reference / Expand / Animate</em> Anything<sup class="src">[6]</sup>.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="banner neutral" style="margin-top:18px">
+        <div class="banner-icon neutral">i</div>
+        <div>
+          <h4>VACE-Wan2.1-1.3B-Preview lineage</h4>
+          <p>
+            The first VACE preview (Mar 31, 2025) was built on Wan2.1-T2V-1.3B plus ACE Plus<sup class="src">[6][10]</sup>.
+            The shipped Wan2.1-VACE-1.3B and Wan2.1-VACE-14B weights followed on May 14, 2025<sup class="src">[5][10]</sup>.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         FLF2V
+         ================================================= -->
+    <section id="flf2v">
+      <div class="sec-eyebrow">§ 07 · FLF2V conditioning</div>
+      <h2>First-and-last-frame to video</h2>
+      <p class="lede">
+        <strong>Wan2.1 FLF2V</strong> (Apr 17, 2025) is the keyframe-conditioned variant that interpolates a
+        plausible video given a starting frame and an ending frame<sup class="src">[3][5][8]</sup>. The release
+        included inference code and weights; benchmarks and a separate technical report are
+        <em>not reported</em> in the listed sources.
+      </p>
+
+      <div class="flow" style="overflow-x:auto">
+        <div style="display:grid;grid-template-columns:120px 60px 1fr 60px 120px;gap:16px;align-items:center;min-width:760px">
+          <div class="vae-box input">
+            <div class="lbl">First frame</div>
+            <div class="dim" style="font-size:14px">f<sub>0</sub></div>
+            <div class="desc">RGB image input.</div>
+          </div>
+          <div class="vae-arrow"><span class="arr">→</span></div>
+          <div class="vae-box latent" style="background:#F5FAF9;text-align:left;padding:18px">
+            <div class="lbl" style="text-align:center;margin-bottom:8px">FLF2V conditioned DiT</div>
+            <div style="font:400 12px/1.5 var(--font-sans);color:var(--kui-fg-default)">
+              Wan2.1 14B base. Conditions denoising on encoded first- and last-frame latents (concatenation /
+              cross-attention mechanism <em>not reported</em>). Generates intermediate frames that move from
+              <code>f<sub>0</sub></code> to <code>f<sub>N-1</sub></code><sup class="src">[3]</sup>.
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;justify-content:center">
+              <span class="tag tag-na">depth: not reported</span>
+              <span class="tag tag-na">interp mode: not reported</span>
+              <span class="tag tag-na">duration: not reported</span>
+            </div>
+          </div>
+          <div class="vae-arrow"><span class="arr">→</span></div>
+          <div class="vae-box input">
+            <div class="lbl">Last frame</div>
+            <div class="dim" style="font-size:14px">f<sub>N-1</sub></div>
+            <div class="desc">RGB image input.</div>
+          </div>
+        </div>
+        <div style="margin-top:14px;text-align:center;font:400 12px/1.4 var(--font-sans);color:var(--kui-fg-muted)">
+          ↓ &nbsp;<strong style="color:var(--kui-fg-strong)">Output:</strong> a continuous video bridging the two keyframes (resolution / frame count <em>not reported</em>)
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         DATA SCALE
+         ================================================= -->
+    <section id="data">
+      <div class="sec-eyebrow">§ 08 · Training data &amp; objective</div>
+      <h2>Larger corpus, no exact tokens</h2>
+      <p class="lede">
+        Wan-Video reports <strong>relative</strong> growth from Wan2.1 to Wan2.2 but does not publish absolute
+        dataset sizes, frame counts, or token totals in the public README.
+      </p>
+
+      <div class="metrics-grid">
+        <div class="metric brand">
+          <div class="head">Images vs Wan2.1</div>
+          <div class="big">+65.6 %</div>
+          <div class="ctx">Wan-Video, Wan2.2 README<sup class="src">[1]</sup>.</div>
+        </div>
+        <div class="metric brand">
+          <div class="head">Videos vs Wan2.1</div>
+          <div class="big">+83.2 %</div>
+          <div class="ctx">Wan-Video, Wan2.2 README<sup class="src">[1]</sup>.</div>
+        </div>
+        <div class="metric">
+          <div class="head">Aesthetic labels</div>
+          <div class="big" style="font-size:18px">lighting · composition · contrast · color tone</div>
+          <div class="ctx">Curated tags supplied with training data for cinematic-style controllability<sup class="src">[1]</sup>.</div>
+        </div>
+      </div>
+
+      <div class="band" style="margin-top:20px">
+        <div>
+          <div class="band-step">stage · 01</div>
+          <div class="band-t">Pretraining</div>
+          <div class="band-s">DiT trained on the expanded image + video corpus with the Flow Matching objective<sup class="src">[1][7]</sup>. Token counts &amp; epoch budget <em>not reported</em>.</div>
+        </div>
+        <div>
+          <div class="band-step">stage · 02</div>
+          <div class="band-t">MoE specialisation</div>
+          <div class="band-s">High-noise and low-noise experts trained over disjoint timestep regimes split at <code>SNR_min/2</code><sup class="src">[1]</sup>.</div>
+        </div>
+        <div>
+          <div class="band-step">stage · 03</div>
+          <div class="band-t">Task-specific heads</div>
+          <div class="band-s">I2V, TI2V, S2V, Animate, FLF2V, and VACE variants fine-tuned on the same backbone with their respective adapters<sup class="src">[1][3][4]</sup>. Recipes <em>not reported</em>.</div>
+        </div>
+        <div>
+          <div class="band-step">stage · 04</div>
+          <div class="band-t">Post-training</div>
+          <div class="band-s">RLHF / preference tuning / distillation: <span class="tag tag-na">not reported in listed sources</span>. Community step-distillation exists (LightX2V) outside the official release<sup class="src">[1]</sup>.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         VARIANTS
+         ================================================= -->
+    <section id="variants">
+      <div class="sec-eyebrow">§ 09 · Variants &amp; weights</div>
+      <h2>Six shipped checkpoints (and counting)</h2>
+      <p class="lede">All weights live under <code>huggingface.co/Wan-AI</code> and ModelScope <code>Wan-AI</code> organisations<sup class="src">[1][5]</sup>.</p>
+
+      <table class="kt" aria-label="Variants and weights table">
+        <thead>
+          <tr>
+            <th>Checkpoint</th>
+            <th>Generation</th>
+            <th>Modality</th>
+            <th>Resolutions</th>
+            <th>Params</th>
+            <th>Release</th>
+            <th>License</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">Wan2.2-T2V-A14B</td>
+            <td>Wan2.2 MoE</td>
+            <td>Text → Video</td>
+            <td>480P · 720P</td>
+            <td class="mono">27B total / 14B active</td>
+            <td class="mono">2025-07-28<sup class="src">[1]</sup></td>
+            <td><span class="lic">Apache 2.0</span></td>
+          </tr>
+          <tr>
+            <td class="mono">Wan2.2-I2V-A14B</td>
+            <td>Wan2.2 MoE</td>
+            <td>Text + Image → Video</td>
+            <td>480P · 720P</td>
+            <td class="mono">27B total / 14B active</td>
+            <td class="mono">2025-07-28<sup class="src">[1]</sup></td>
+            <td><span class="lic">Apache 2.0</span></td>
+          </tr>
+          <tr>
+            <td class="mono">Wan2.2-TI2V-5B</td>
+            <td>Wan2.2 dense</td>
+            <td>Text and/or Image → Video</td>
+            <td class="mono">720P (1280×704) @ 24 fps</td>
+            <td class="mono">5B</td>
+            <td class="mono">2025-07-28<sup class="src">[1]</sup></td>
+            <td><span class="lic">Apache 2.0</span></td>
+          </tr>
+          <tr>
+            <td class="mono">Wan2.2-S2V-14B</td>
+            <td>Wan2.2 dense</td>
+            <td>Speech + Image (+ Text) → Video</td>
+            <td>480P · 720P (incl. 1024×704)</td>
+            <td class="mono">14B</td>
+            <td class="mono">2025-08-26<sup class="src">[1]</sup></td>
+            <td><span class="lic">Apache 2.0</span></td>
+          </tr>
+          <tr>
+            <td class="mono">Wan2.2-Animate-14B</td>
+            <td>Wan2.2 dense</td>
+            <td>Character image + Pose video → Video</td>
+            <td class="mono">1280×720 (reported example)</td>
+            <td class="mono">14B</td>
+            <td class="mono">2025-09-19<sup class="src">[1]</sup></td>
+            <td><span class="lic">Apache 2.0</span></td>
+          </tr>
+          <tr>
+            <td class="mono">Wan2.1-VACE-1.3B</td>
+            <td>Wan2.1 dense</td>
+            <td>Multi-task editing</td>
+            <td>480P</td>
+            <td class="mono">1.3B</td>
+            <td class="mono">2025-05-14<sup class="src">[4][5]</sup></td>
+            <td><span class="lic">Apache 2.0</span></td>
+          </tr>
+          <tr>
+            <td class="mono">Wan2.1-VACE-14B</td>
+            <td>Wan2.1 dense</td>
+            <td>Multi-task editing</td>
+            <td>720P</td>
+            <td class="mono">14B</td>
+            <td class="mono">2025-05-14<sup class="src">[5][10]</sup></td>
+            <td><span class="lic">Apache 2.0</span></td>
+          </tr>
+          <tr>
+            <td class="mono">Wan2.1 FLF2V</td>
+            <td>Wan2.1 dense</td>
+            <td>First + Last frame → Video</td>
+            <td><span class="na">not reported</span></td>
+            <td class="mono">14B (Wan2.1 base)</td>
+            <td class="mono">2025-04-17<sup class="src">[3][5]</sup></td>
+            <td><span class="lic">Apache 2.0</span></td>
+          </tr>
+          <tr>
+            <td class="mono">Wan2.1-T2V-1.3B</td>
+            <td>Wan2.1 dense</td>
+            <td>Text → Video</td>
+            <td>480P</td>
+            <td class="mono">1.3B</td>
+            <td class="mono">2025 (Wan2.1)<sup class="src">[7][8]</sup></td>
+            <td><span class="lic">Apache 2.0</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- =================================================
+         RUNTIME
+         ================================================= -->
+    <section id="runtime">
+      <div class="sec-eyebrow">§ 10 · Runtime / VRAM envelope</div>
+      <h2>What it costs to run</h2>
+      <p class="lede">
+        Hardware footprint and timing reported by Wan-Video in the public README, and by the Wan2.1
+        report. All numbers are <strong>source-reported</strong> averages on the indicated configurations,
+        not independently verified.
+      </p>
+
+      <div class="grid-3">
+        <div class="metric brand">
+          <div class="head">Wan2.2 A14B · 720P</div>
+          <div class="big">≥ 80 GB</div>
+          <div class="ctx">Single-GPU VRAM minimum for T2V-A14B / I2V-A14B at 1280×720<sup class="src">[1]</sup>. Use <code>--offload_model</code>, <code>--convert_model_dtype</code>, and <code>--t5_cpu</code> below that.</div>
+        </div>
+        <div class="metric brand">
+          <div class="head">Wan2.2 TI2V-5B · 720P</div>
+          <div class="big">≥ 24 GB</div>
+          <div class="ctx">Single-GPU VRAM (e.g. RTX 4090) for the 5B dense model at 1280×704. 5 s of 720P@24fps generated in &lt; 9 min without specialised optimisation<sup class="src">[1]</sup>.</div>
+        </div>
+        <div class="metric">
+          <div class="head">Wan2.1-T2V-1.3B · 480P</div>
+          <div class="big">≈ 8.19 GB</div>
+          <div class="ctx">5 s of 480P generated in ~4 min on RTX 4090 (Wan2.1, no quantisation)<sup class="src">[3][7]</sup>.</div>
+        </div>
+      </div>
+
+      <div class="band" style="margin-top:20px;grid-template-columns:repeat(3,1fr)">
+        <div>
+          <div class="band-step">parallelism · 01</div>
+          <div class="band-t">PyTorch FSDP</div>
+          <div class="band-s">DiT and umT5 sharded with <code>--dit_fsdp --t5_fsdp</code><sup class="src">[1]</sup>.</div>
+        </div>
+        <div>
+          <div class="band-step">parallelism · 02</div>
+          <div class="band-t">DeepSpeed Ulysses</div>
+          <div class="band-s">Sequence parallelism with <code>--ulysses_size 8</code> for 8-GPU inference<sup class="src">[1]</sup>.</div>
+        </div>
+        <div>
+          <div class="band-step">parallelism · 03</div>
+          <div class="band-t">FlashAttention 3</div>
+          <div class="band-s">Deployed on Hopper-class GPUs in the distributed test setup<sup class="src">[1]</sup>.</div>
+        </div>
+      </div>
+
+      <div class="banner" style="margin-top:18px">
+        <div class="banner-icon info">i</div>
+        <div>
+          <h4>Computational-efficiency table</h4>
+          <p>
+            The Wan2.2 README publishes a "Total time (s) / peak GPU memory (GB)" matrix across
+            different GPU classes and parallelism settings, but only as an image (<code>assets/comp_effic.png</code>)<sup class="src">[1]</sup>.
+            Per-cell numerical values are therefore not reproduced here — see the asset directly.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         CAVEATS
+         ================================================= -->
+    <section id="caveats">
+      <div class="sec-eyebrow">§ 11 · Unknowns &amp; caveats</div>
+      <h2>What is <em>not</em> in the listed sources</h2>
+      <p class="lede">
+        The following details would be needed for a fully reproducible architecture spec but are not
+        published in the README, model cards, or VACE repository as of the snapshot used here.
+      </p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>Architecture</h3>
+          <ul>
+            <li>DiT layer count, hidden dim, attention heads, head dim for any checkpoint.</li>
+            <li>Wan-VAE latent channel count and decoder architecture details.</li>
+            <li>Exact form of the MoE router beyond the SNR-threshold rule.</li>
+            <li>Frame-count / temporal window per task at each resolution.</li>
+            <li>Whether the two MoE experts share early layers or are fully separate networks.</li>
+            <li>Cross-attention vs concatenation choice for image / audio / mask conditioning.</li>
+            <li>FLF2V conditioning mechanism (token concatenation, dual cross-attention, ...).</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Training, data, benchmarks</h3>
+          <ul>
+            <li>Absolute training-set size (image and video counts, total frames, total tokens).</li>
+            <li>Compute budget, training duration, optimiser, learning-rate schedule.</li>
+            <li>Safety filtering / data-cleaning policy.</li>
+            <li>Per-task numerical benchmark scores (Wan-Bench 2.0 chart published as image only)<sup class="src">[1]</sup>.</li>
+            <li>FID / VBench / IS / motion-coherence / aesthetic-score values per checkpoint.</li>
+            <li>RLHF / DPO / step-distillation in the official release path (community distillations exist<sup class="src">[1]</sup>).</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="banner warn" style="margin-top:18px">
+        <div class="banner-icon warn">!</div>
+        <div>
+          <h4>Source-disagreement notes</h4>
+          <p>
+            <strong>Wan2.1-T2V-1.3B VRAM</strong>: 8.19 GB is cited by third-party guides (DigiAlps,
+            PromptAA) attributed to the Wan2.1 README<sup class="src">[3]</sup>. The official Wan2.1 README itself is
+            not re-quoted here from a primary fetch in this snapshot, so the 8.19 GB figure should be
+            re-verified against the upstream README before publishing it as primary.
+          </p>
+          <p>
+            <strong>Wan2.2-Animate diffusers note</strong>: the official README cautions that LoRAs trained
+            on Wan2.2 are not recommended with Wan-Animate due to "weight changes during training"<sup class="src">[1]</sup>.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         SOURCES
+         ================================================= -->
+    <section id="sources">
+      <div class="sec-eyebrow">§ 12 · Sources</div>
+      <h2>Cited references</h2>
+      <p class="lede">All numerical claims on this page are sourced from the following public Wan-Video / Alibaba / ali-vilab materials.</p>
+
+      <div class="sources">
+        <div class="src-card">
+          <div class="src-num">[1]</div>
+          <div class="src-title">Wan-Video / Wan2.2 — official README</div>
+          <div class="src-desc">MoE architecture, +65.6 % / +83.2 % data growth, Wan2.2-VAE 4×16×16, TI2V-5B 24 fps / &lt; 9 min on consumer GPU, A14B 80 GB single-GPU floor, FSDP + Ulysses, FA3, Animate sampler defaults, Wan-Bench 2.0 image only, Apache 2.0.</div>
+          <div class="src-url">github.com/Wan-Video/Wan2.2</div>
+        </div>
+        <div class="src-card">
+          <div class="src-num">[2]</div>
+          <div class="src-title">Wan-Video — GitHub organisation</div>
+          <div class="src-desc">Index of the Wan-Video repositories.</div>
+          <div class="src-url">github.com/Wan-Video</div>
+        </div>
+        <div class="src-card">
+          <div class="src-num">[3]</div>
+          <div class="src-title">Wan2.1 FLF2V announcement (Apr 17, 2025)</div>
+          <div class="src-desc">"We introduce Wan2.1 FLF2V with its inference code and weights" — replicated across Wan2.1 README and the Hugging Face model cards.</div>
+          <div class="src-url">huggingface.co/Wan-AI/Wan2.1-VACE-1.3B · Wan2.1 README mirror</div>
+        </div>
+        <div class="src-card">
+          <div class="src-num">[4]</div>
+          <div class="src-title">Wan2.1 VACE announcement (May 14, 2025)</div>
+          <div class="src-desc">"All-in-one model for video creation and editing, along with its inference code, weights, and technical report".</div>
+          <div class="src-url">huggingface.co/Wan-AI/Wan2.1-VACE-1.3B</div>
+        </div>
+        <div class="src-card">
+          <div class="src-num">[5]</div>
+          <div class="src-title">Wan-AI on Hugging Face — model cards</div>
+          <div class="src-desc">Checkpoint metadata: Wan2.1-VACE-1.3B / 14B, Wan2.2-T2V-A14B, Wan2.2-I2V-A14B, Wan2.2-TI2V-5B, Wan2.2-S2V-14B, Wan2.2-Animate-14B.</div>
+          <div class="src-url">huggingface.co/Wan-AI</div>
+        </div>
+        <div class="src-card">
+          <div class="src-num">[6]</div>
+          <div class="src-title">VACE — "All-in-one Video Creation and Editing"</div>
+          <div class="src-desc">Five edit-mode taxonomy (Move / Swap / Reference / Expand / Animate Anything); R2V, V2V, MV2V tasks; ACE Plus + Wan2.1-T2V-1.3B lineage.</div>
+          <div class="src-url">wan2.video/wan2.1-vace · aimodels.fyi summary</div>
+        </div>
+        <div class="src-card">
+          <div class="src-num">[7]</div>
+          <div class="src-title">Wan2.1 technical report (Mar 21, 2025)</div>
+          <div class="src-desc">DiT + flow-matching paradigm, 3D causal Wan-VAE, multi-task scope (T2V / I2V / video editing / text-to-image / video-to-audio), visual-text generation, 1080P arbitrary-length encode/decode.</div>
+          <div class="src-url">arxiv.org/abs/2503.20314</div>
+        </div>
+        <div class="src-card">
+          <div class="src-num">[8]</div>
+          <div class="src-title">Wan-Video / Wan2.1 — official README</div>
+          <div class="src-desc">Confirms Wan2.1 release dates, capability list, and visual-text claim.</div>
+          <div class="src-url">github.com/Wan-Video/Wan2.1</div>
+        </div>
+        <div class="src-card">
+          <div class="src-num">[9]</div>
+          <div class="src-title">Third-party Wan2.1-VACE writeups</div>
+          <div class="src-desc">DigiAlps, PromptAA — corroborate the 8.19 GB VRAM and RTX 4090 timing figures for Wan2.1-T2V-1.3B (480P, 5 s, ~4 min). Treated as secondary; numbers re-verify against the upstream README.</div>
+          <div class="src-url">digialps.com · promptaa.com</div>
+        </div>
+        <div class="src-card">
+          <div class="src-num">[10]</div>
+          <div class="src-title">ali-vilab / VACE — ICCV 2025</div>
+          <div class="src-desc">Official VACE repository with the <code>vace_wan_inference.py</code> CLI; flags <code>--src_video</code>, <code>--src_mask</code>, <code>--src_ref_images</code>; ICCV 2025 acceptance date Jun 26, 2025.</div>
+          <div class="src-url">github.com/ali-vilab/VACE</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+// Scroll-spy for the left rail
+(function(){
+  var links = document.querySelectorAll('.nav a[href^="#"]');
+  var map = {};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+  var sections = Array.from(document.querySelectorAll('main section'));
+  function onScroll(){
+    var y = window.scrollY + 80;
+    var current = sections[0];
+    for (var i=0;i<sections.length;i++){ if (sections[i].offsetTop <= y) current = sections[i]; }
+    if (!current) return;
+    var id = current.id;
+    Object.keys(map).forEach(function(k){ map[k].classList.toggle('is-active', k === id); });
+  }
+  window.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+})();
+</script>
+
+</body>
+</html>

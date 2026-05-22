@@ -18,6 +18,34 @@ Notes:
 - The link column is a lookup link, usually a Hugging Face model search seeded with the model name. Use it as a starting point for primary-source verification before adding a model page to the atlas.
 - `Source strength` distinguishes rows that came from a structured report table from rows that were only mentioned as follow-up/offhand candidates.
 
+## Already Added To The Atlas
+
+These models already have downloaded atlas pages under `models/`. Keep them out
+of the prompt backlog unless a replacement page is needed.
+
+| Model | Atlas page | Prompt folder |
+|---|---|---|
+| Cosmos World Foundation Models | [`models/cosmos-world-foundation-models/index.html`](models/cosmos-world-foundation-models/index.html) | `claude-design-prompts/cosmos-world-foundation-models/` |
+| DeepSeek-V4 | [`models/deepseek-v4/index.html`](models/deepseek-v4/index.html) | none; atlas page covers a downloaded DeepSeek-V4 artifact |
+| Gemma 4 26B-A4B | [`models/gemma-4-26b-a4b/index.html`](models/gemma-4-26b-a4b/index.html) | `claude-design-prompts/gemma-4-26b-a4b/` |
+| Gemma 4 31B | [`models/gemma-4-31b/index.html`](models/gemma-4-31b/index.html) | `claude-design-prompts/gemma-4-31b/` |
+| Gemma 4 E4B | [`models/gemma-4-e4b/index.html`](models/gemma-4-e4b/index.html) | `claude-design-prompts/gemma-4-e4b/` |
+| GLM-5.1 744B-A69B | [`models/glm-5-1-744b-a69b/index.html`](models/glm-5-1-744b-a69b/index.html) | `claude-design-prompts/glm-5-1-744b-a69b/` |
+| GPT-OSS 120B | [`models/gpt-oss-120b/index.html`](models/gpt-oss-120b/index.html) | `claude-design-prompts/gpt-oss-120b/` |
+| Kimi K2.6 1T | [`models/kimi-k2-6-1t/index.html`](models/kimi-k2-6-1t/index.html) | `claude-design-prompts/kimi-k2-6-1t/` |
+| Ling 2.6 1T | [`models/ling-2-6-1t/index.html`](models/ling-2-6-1t/index.html) | `claude-design-prompts/ling-2-6-1t/` |
+| LLaDA2.0-flash | [`models/llada2-0-flash/index.html`](models/llada2-0-flash/index.html) | `claude-design-prompts/llada2-0-flash/` |
+| MiMo-V2.5-Pro | [`models/xiaomi-mimo-v2-5-pro/index.html`](models/xiaomi-mimo-v2-5-pro/index.html) | `claude-design-prompts/xiaomi-mimo-v2-5-pro-1-02t-a43b/` |
+| Nemotron 3 Nano 30B-A3B | [`models/nemotron-3-nano/index.html`](models/nemotron-3-nano/index.html) | `claude-design-prompts/nemotron-3-nano-30b-a3b/` |
+| Nemotron 3 Super 120B-A12B | [`models/nemotron-3-super-120b/index.html`](models/nemotron-3-super-120b/index.html) | `claude-design-prompts/nemotron-3-super-120b-a12b/` |
+| Nemotron 3 Ultra | [`models/nemotron-3-ultra/index.html`](models/nemotron-3-ultra/index.html) | `claude-design-prompts/nemotron-3-ultra/` |
+| Nemotron-Labs-Diffusion | [`models/nemotron-labs-diffusion/index.html`](models/nemotron-labs-diffusion/index.html) | `claude-design-prompts/nemotron-labs-diffusion/` |
+| Qwen2 7B | [`models/qwen2-7b/index.html`](models/qwen2-7b/index.html) | none; pre-2025 model page |
+| Qwen3.6 35B-A3B | [`models/qwen3-6-35b-a3b/index.html`](models/qwen3-6-35b-a3b/index.html) | `claude-design-prompts/qwen3-6-35b-a3b/` |
+| Qwen3-Omni-30B-A3B-Thinking | [`models/qwen3-omni-30b-a3b-thinking/index.html`](models/qwen3-omni-30b-a3b-thinking/index.html) | `claude-design-prompts/qwen3-omni-30b-a3b-thinking/` |
+| Sarvam 105B-A13B | [`models/sarvam-105b-a13b/index.html`](models/sarvam-105b-a13b/index.html) | `claude-design-prompts/sarvam-105b-a13b/` |
+| ZAYA1-8B | [`models/zaya1-8b/index.html`](models/zaya1-8b/index.html) | `claude-design-prompts/zaya1-8b/` |
+
 ## North America / Cross-Atlantic Labs
 
 | Model | Year | Release date | Size / active size | Lab | License / openness from reports | Architecture / modality note | Source strength | Link |
@@ -142,6 +170,40 @@ Notes:
 | [Falcon-H1 34B](https://huggingface.co/models?search=Falcon-H1+34B) | 2025 | 2025-05 | 34B | Technology Innovation Institute | Falcon License | Largest size explicitly mentioned in Falcon-H1 range; up to 262K context. | Deep table | HF lookup |
 | [K2-Think](https://huggingface.co/models?search=K2-Think) | 2025 | 2025-09 | 32B | MBZUAI IFM / G42 | Apache-2.0 | Reasoning system built on Qwen2.5-32B with long-CoT SFT and verifiable-reward RL. | Deep table | HF lookup |
 | [K2-V2](https://huggingface.co/models?search=K2-V2+70B) | 2025 | 2025-12 | 70B | MBZUAI IFM / LLM360 | Apache-2.0 | Dense Transformer; "360-open" reasoning-enhanced LLM with checkpoints/data/code noted. | Deep table | HF lookup |
+
+## Diffusion / Flow Prompt Backlog
+
+The prompt folder now has 24 diffusion, denoising, or flow-model prompt folders
+covering 27 named targets. `Atlas status` marks pages that are already present
+in `models/`; the remaining rows still need downloaded HTML artifacts before
+they can be added to the atlas.
+
+| Model target | Year | Lab / origin | Modality / architecture note | Prompt folder | Atlas status |
+|---|---:|---|---|---|---|
+| DiffDock | 2022 | MIT researchers | Diffusion over ligand translation, rotation, and torsion for molecular docking. | `claude-design-prompts/diffdock/` | Not added |
+| Diffusion Policy | 2023 | Columbia / MIT / Toyota Research Institute collaborators | Conditional denoising diffusion over robot action trajectories. | `claude-design-prompts/diffusion-policy/` | Not added |
+| Diffusion-VLA / DiVLA lead | 2024 | paper authors; verify official project | Robot foundation model combining autoregressive reasoning with diffusion action generation. | `claude-design-prompts/diffusion-vla/` | Not added |
+| Discrete Diffusion VLA | 2025 | paper authors | Single-transformer VLA policy using discrete diffusion for action chunks. | `claude-design-prompts/discrete-diffusion-vla/` | Not added |
+| Dream 7B | 2025 | HKU NLP / Huawei Noah's Ark Lab | Open diffusion LLM for reasoning and flexible iterative inference. | `claude-design-prompts/dream-7b/` | Not added |
+| Dream-Coder 7B | 2025 | DreamLM / HKU NLP collaborators | Discrete diffusion language model for code with any-order generation. | `claude-design-prompts/dream-coder-7b/` | Not added |
+| Dream-VL / Dream-VLA | 2025 | HKU NLP collaborators | Diffusion-language-model backbone for vision-language and vision-language-action. | `claude-design-prompts/dream-vl-dream-vla/` | Not added |
+| GenCast | 2023-2024 | Google DeepMind | Diffusion-based ensemble weather forecasting in the GraphCast ecosystem. | `claude-design-prompts/gencast/` | Not added |
+| LLaDA 8B | 2025 | ML-GSAI and collaborators | Masked discrete diffusion language model trained from scratch. | `claude-design-prompts/llada-8b/` | Not added |
+| LLaDA2.0-flash | 2025 | inclusionAI / Ant Group | 100B-class MoE discrete diffusion language model converted from autoregressive models. | `claude-design-prompts/llada2-0-flash/` | Added: `models/llada2-0-flash/` |
+| MatterGen | 2023-2025 | Microsoft Research AI for Science | Diffusion model for inorganic crystal and materials generation with property conditioning. | `claude-design-prompts/mattergen/` | Not added |
+| MedSegDiff / MedSegDiff-V2 | 2023 | ImprintLab and collaborators | Diffusion probabilistic medical image segmentation; V2 adds transformer-based diffusion design. | `claude-design-prompts/medsegdiff/` | Not added |
+| Mercury / Mercury Coder | 2025 | Inception Labs | Commercial-scale diffusion LLM for coding with parallel token prediction. | `claude-design-prompts/mercury-coder/` | Not added |
+| Mochi 1 | 2024 | Genmo | Open text-to-video diffusion model with Asymmetric Diffusion Transformer. | `claude-design-prompts/mochi-1/` | Not added |
+| Movie Gen | 2024 | Meta | Media foundation model family for video, audio, editing, and personalization. | `claude-design-prompts/movie-gen/` | Not added |
+| Nemotron-Labs-Diffusion | 2026 | NVIDIA | Tri-mode language model unifying autoregressive, diffusion, and self-speculation decoding. | `claude-design-prompts/nemotron-labs-diffusion/` | Added: `models/nemotron-labs-diffusion/` |
+| NVIDIA Cosmos Diffusion | 2025 | NVIDIA | Cosmos Text2World and Video2World diffusion models for physical AI world generation. | `claude-design-prompts/nvidia-cosmos-diffusion/` | Not added; separate Cosmos WFM overview exists |
+| Octo | 2024 | Octo Model Team / UC Berkeley collaborators | Open transformer robot policy; included with the robotics generative-control prompt batch. | `claude-design-prompts/octo/` | Not added |
+| pi0 / pi0.5 / OpenPI | 2024-2025 | Physical Intelligence | Vision-language-action flow model family for robot control. | `claude-design-prompts/pi0-openpi/` | Not added |
+| RDT-1B | 2024 | Robotics Diffusion Transformer authors | 1.2B diffusion foundation model for bimanual robotic manipulation. | `claude-design-prompts/rdt-1b/` | Not added |
+| RFdiffusion / RFdiffusion3 | 2023 / 2025-2026 leads | Institute for Protein Design / Baker Lab collaborators | RoseTTAFold-based diffusion for protein backbone and all-atom biomolecular design. | `claude-design-prompts/rfdiffusion-rfdiffusion3/` | Not added |
+| Score-Based Diffusion for Accelerated MRI | 2022 | medical-imaging research literature | Score-based generative prior for MRI reconstruction with data consistency. | `claude-design-prompts/score-based-diffusion-accelerated-mri/` | Not added |
+| Stable Audio Open 1.0 | 2024 | Stability AI | Open-weights text-to-audio latent diffusion model based on a transformer architecture. | `claude-design-prompts/stable-audio-open/` | Not added |
+| Stable Diffusion 3 / SDXL | 2023-2024 | Stability AI | SDXL latent diffusion; SD3 rectified-flow MMDiT image generation. | `claude-design-prompts/stable-diffusion-3-sdxl/` | Not added |
 
 ## Quick Follow-Up Checks Before Atlas Inclusion
 

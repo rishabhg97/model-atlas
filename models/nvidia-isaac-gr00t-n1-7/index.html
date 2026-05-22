@@ -1,0 +1,1094 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NVIDIA Isaac GR00T N1.7 Reasoning VLA Architecture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* =========================================================
+   Kaizen tokens (excerpt, embedded for offline use)
+   Source: NVIDIA Kaizen Design System (KUI v11 Beta) ·
+   /projects/b84c2d07-b48f-47c6-9cd1-f3844d902748/colors_and_type.css
+   ========================================================= */
+:root{
+  --kui-brand-green:#76B900; --kui-brand-green-darker:#5E9600;
+  --kui-n000:#FFFFFF; --kui-n050:#F2F2F2; --kui-n100:#E3E3E3; --kui-n150:#D8D8D8;
+  --kui-n200:#C6C6C6; --kui-n300:#8F8F8F; --kui-n400:#767676; --kui-n500:#6B6B6B;
+  --kui-n600:#5E5E5E; --kui-n700:#343434; --kui-n800:#202020; --kui-n900:#0D0D0D; --kui-n950:#050505;
+  --kui-fg-strong:var(--kui-n800); --kui-fg-default:var(--kui-n700); --kui-fg-muted:var(--kui-n600);
+  --kui-fg-subtle:var(--kui-n500); --kui-fg-disabled:var(--kui-n300); --kui-fg-inverse:var(--kui-n000);
+  --kui-bg-canvas:var(--kui-n050); --kui-bg-mid:var(--kui-n000);
+  --kui-border-subtle:var(--kui-n100); --kui-border-default:var(--kui-n150); --kui-border-strong:var(--kui-n400);
+  --kui-success:#007D00; --kui-success-bg:#E8F4D6;
+  --kui-info:#0D69D4; --kui-info-bg:#E9F4FB; --kui-info-text:#2378CA;
+  --kui-warning:#C54600; --kui-warning-bg:#FDEFE6;
+  --kui-danger:#DC3528; --kui-danger-bg:#FCE9E8;
+  --kui-accent-teal:#1FA18D; --kui-accent-magenta:#851F41; --kui-accent-purple:#A05AB4;
+  --kui-accent-violet:#9747FF; --kui-accent-pink-bg:#FBEEFE; --kui-accent-blue-bg:#E9F4FB;
+  --kui-radius-xs:2px; --kui-radius-sm:4px; --kui-radius-md:5px; --kui-radius-lg:8px; --kui-radius-pill:999px;
+  --kui-shadow-3:0 4px 12px 0 rgba(0,0,0,.12);
+  --font-sans:"NVIDIA Sans","DM Sans",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --font-display:"Inter","NVIDIA Sans","DM Sans",system-ui,sans-serif;
+  --font-mono:"Roboto Mono",ui-monospace,"SF Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--kui-bg-canvas);
+  color:var(--kui-fg-strong);
+  font:400 14px/1.5 var(--font-sans);
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+}
+a{color:var(--kui-info-text); text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre,.mono{font-family:var(--font-mono)}
+hr{border:0;border-top:1px solid var(--kui-border-default);margin:0}
+
+/* =========================================================
+   LAYOUT — left nav rail + content
+   ========================================================= */
+.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+@media (max-width:900px){.app{grid-template-columns:1fr}.nav{position:static !important;height:auto !important;border-right:0 !important;border-bottom:1px solid var(--kui-border-default)}}
+
+.nav{
+  position:sticky; top:0; height:100vh;
+  background:var(--kui-bg-mid);
+  border-right:1px solid var(--kui-border-default);
+  padding:24px 0;
+  display:flex; flex-direction:column;
+  font-size:13px;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:0 20px 20px;border-bottom:1px solid var(--kui-border-default);margin-bottom:12px}
+.brand svg{flex:none}
+.brand-tag{font:500 11px/1 var(--font-sans); letter-spacing:.08em; text-transform:uppercase; color:var(--kui-fg-muted)}
+.brand-title{font:500 14px/1.2 var(--font-sans); color:var(--kui-fg-strong); margin-top:3px}
+.nav-section{padding:8px 0}
+.nav-section h6{margin:0;padding:6px 20px;font:500 10px/1 var(--font-sans);letter-spacing:.12em;text-transform:uppercase;color:var(--kui-fg-muted)}
+.nav a{display:block;padding:7px 20px;color:var(--kui-fg-default);border-left:2px solid transparent;transition:background-color 120ms,color 120ms,border-color 120ms}
+.nav a:hover{background:var(--kui-n050);color:var(--kui-fg-strong);text-decoration:none}
+.nav a.is-active{color:var(--kui-fg-strong);background:var(--kui-n050);border-left-color:var(--kui-brand-green);font-weight:500}
+.home-link{display:block;margin:0 20px 12px;padding:8px 10px;border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm);background:var(--kui-bg-mid);color:var(--kui-fg-default);font-weight:500}
+.home-link:hover{border-color:var(--kui-brand-green);text-decoration:none}
+.nav-foot{margin-top:auto;padding:16px 20px;font-size:12px;color:var(--kui-fg-muted);border-top:1px solid var(--kui-border-default)}
+
+/* =========================================================
+   MAIN
+   ========================================================= */
+main{padding:48px 56px 96px;max-width:1180px}
+@media (max-width:900px){main{padding:32px 24px 64px}}
+
+section{margin-bottom:64px;scroll-margin-top:24px}
+section > .sec-eyebrow{font:500 11px/1 var(--font-sans);letter-spacing:.12em;text-transform:uppercase;color:var(--kui-fg-muted);margin-bottom:10px}
+section > h2{font:500 28px/1.2 var(--font-sans);letter-spacing:-.25px;margin:0 0 8px;color:var(--kui-fg-strong)}
+section > .lede{font:400 16px/1.5 var(--font-sans);color:var(--kui-fg-default);max-width:72ch;margin:0 0 24px}
+
+h3{font:500 18px/1.25 var(--font-sans);letter-spacing:-.25px;margin:0 0 12px;color:var(--kui-fg-strong)}
+h4{font:500 14px/1.2 var(--font-sans);margin:0 0 8px;color:var(--kui-fg-strong)}
+p{margin:0 0 12px}
+ul{margin:0 0 12px;padding-left:20px}
+li{margin-bottom:4px}
+
+/* =========================================================
+   CARDS / SURFACES
+   ========================================================= */
+.card{
+  background:var(--kui-bg-mid);
+  border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);
+  padding:20px;
+}
+.card-h{font:500 13px/1.2 var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--kui-fg-muted);margin:0 0 12px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media (max-width:800px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+
+/* =========================================================
+   HERO
+   ========================================================= */
+.hero{
+  border:1px solid var(--kui-border-default);
+  background:var(--kui-bg-mid);
+  border-radius:var(--kui-radius-sm);
+  padding:32px;
+  margin-bottom:64px;
+}
+.hero-top{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.hero h1{font:500 36px/1.1 var(--font-sans);letter-spacing:-.5px;margin:0 0 12px;color:var(--kui-fg-strong)}
+.hero h1 .v{color:var(--kui-brand-green-darker)}
+.hero-sub{font:400 16px/1.5 var(--font-sans);color:var(--kui-fg-default);max-width:78ch;margin:0 0 24px}
+.spec-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm);overflow:hidden}
+@media (max-width:800px){.spec-grid{grid-template-columns:1fr 1fr}}
+.spec{padding:14px 16px;border-right:1px solid var(--kui-border-default);background:var(--kui-bg-mid)}
+.spec:nth-child(4n){border-right:0}
+@media (max-width:800px){.spec:nth-child(4n){border-right:1px solid var(--kui-border-default)} .spec:nth-child(2n){border-right:0}}
+.spec-label{font:500 10px/1 var(--font-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--kui-fg-muted);margin-bottom:6px}
+.spec-value{font:500 15px/1.2 var(--font-sans);color:var(--kui-fg-strong)}
+.spec-value.mono{font:500 14px/1.2 var(--font-mono)}
+.spec-value.muted{color:var(--kui-fg-muted);font-weight:400}
+
+/* =========================================================
+   TAGS / PILLS / BADGES
+   ========================================================= */
+.tag{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:var(--kui-radius-xs);
+  font:500 11px/1 var(--font-sans);letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--kui-border-default);
+  background:var(--kui-bg-mid);color:var(--kui-fg-default)}
+.tag-brand{background:#EEF7DA;border-color:#C6E287;color:#3D5F00}
+.tag-info{background:var(--kui-info-bg);border-color:#BFDEF5;color:var(--kui-info-text)}
+.tag-warn{background:var(--kui-warning-bg);border-color:#F5C7AA;color:var(--kui-warning)}
+.tag-magenta{background:#F8E7EE;border-color:#E9C2D2;color:var(--kui-accent-magenta)}
+.tag-teal{background:#DCF1ED;border-color:#9AD6CB;color:var(--kui-accent-teal-dk,#006B5E)}
+.tag-purple{background:#F2E5F7;border-color:#D9B6E6;color:#6B2A85}
+.tag-na{background:var(--kui-n050);border-color:var(--kui-border-default);color:var(--kui-fg-muted)}
+
+/* Source-cited number */
+.src{display:inline-flex;align-items:center;gap:3px;border:0;background:none;color:var(--kui-info-text);
+  font:500 10px/1 var(--font-mono);vertical-align:super;padding-left:2px;cursor:help}
+.src:hover{text-decoration:underline}
+
+/* =========================================================
+   END-TO-END FLOW DIAGRAM
+   ========================================================= */
+.flow{
+  border:1px solid var(--kui-border-default);
+  background:var(--kui-bg-mid);
+  border-radius:var(--kui-radius-sm);
+  padding:24px;
+  overflow-x:auto;
+}
+.flow-grid{
+  display:grid; grid-template-columns:200px 1fr 1fr 240px;
+  gap:0; align-items:stretch;
+  min-width:920px;
+}
+.flow-col{display:flex;flex-direction:column;gap:10px;padding:0 16px;border-right:1px dashed var(--kui-border-default);position:relative}
+.flow-col:last-child{border-right:0}
+.flow-col-h{font:500 11px/1 var(--font-sans);letter-spacing:.1em;text-transform:uppercase;color:var(--kui-fg-muted);margin-bottom:6px;padding-bottom:8px;border-bottom:1px solid var(--kui-border-default)}
+.node{
+  border:1px solid var(--kui-border-default);
+  background:var(--kui-bg-mid);
+  border-radius:var(--kui-radius-sm);
+  padding:10px 12px;
+}
+.node-t{font:500 13px/1.2 var(--font-sans);color:var(--kui-fg-strong);margin-bottom:3px}
+.node-s{font:400 12px/1.4 var(--font-sans);color:var(--kui-fg-muted)}
+.node-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.node-meta .mtag{font:500 10px/1 var(--font-mono);background:var(--kui-n050);border:1px solid var(--kui-border-subtle);padding:3px 5px;border-radius:var(--kui-radius-xs);color:var(--kui-fg-muted)}
+.node.s2{border-left:3px solid var(--kui-accent-violet)}
+.node.s1{border-left:3px solid var(--kui-brand-green)}
+.node.input{border-left:3px solid var(--kui-info)}
+.node.output{border-left:3px solid var(--kui-accent-magenta)}
+
+/* =========================================================
+   ACTION CASCADE — split view
+   ========================================================= */
+.cascade{
+  display:grid; grid-template-columns:1fr 1fr; gap:16px;
+}
+@media (max-width:800px){.cascade{grid-template-columns:1fr}}
+.cascade .card{position:relative;padding:24px}
+.cascade .card.s2{border-top:3px solid var(--kui-accent-violet)}
+.cascade .card.s1{border-top:3px solid var(--kui-brand-green)}
+.cascade .sys-label{
+  position:absolute;top:-1px;right:-1px;
+  font:500 10px/1 var(--font-mono);letter-spacing:.1em;padding:6px 10px;
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);border-top:0;border-right:0;
+  border-radius:0 var(--kui-radius-sm) 0 var(--kui-radius-sm);
+  color:var(--kui-fg-muted);
+}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:13px;margin-top:12px}
+.kv dt{color:var(--kui-fg-muted);font-weight:400}
+.kv dd{margin:0;color:var(--kui-fg-strong);font-family:var(--font-mono);font-size:12px}
+.kv dd .na{color:var(--kui-fg-disabled);font-family:var(--font-sans);font-style:italic}
+
+/* DiT block diagram */
+.dit{margin-top:14px;border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm);padding:12px;background:var(--kui-n050)}
+.dit-row{display:flex;gap:3px;align-items:center;flex-wrap:wrap}
+.dit-block{
+  width:14px;height:26px;background:#C6E287;border:1px solid #93C04A;border-radius:1px;
+}
+.dit-block.first,.dit-block.last{background:var(--kui-brand-green);border-color:var(--kui-brand-green-darker)}
+.dit-cap{font:500 10px/1 var(--font-mono);color:var(--kui-fg-muted);margin-top:6px}
+
+/* =========================================================
+   PIPELINE BANDS (training / inference)
+   ========================================================= */
+.band{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm);overflow:hidden;margin-top:8px}
+.band > div{padding:14px 16px;border-right:1px solid var(--kui-border-default);position:relative;background:var(--kui-bg-mid)}
+.band > div:last-child{border-right:0}
+.band-step{font:500 10px/1 var(--font-mono);color:var(--kui-fg-muted);margin-bottom:4px;letter-spacing:.08em}
+.band-t{font:500 14px/1.2 var(--font-sans);color:var(--kui-fg-strong);margin-bottom:4px}
+.band-s{font:400 12px/1.45 var(--font-sans);color:var(--kui-fg-muted)}
+@media (max-width:800px){.band{grid-template-columns:1fr}.band > div{border-right:0;border-bottom:1px solid var(--kui-border-default)}.band > div:last-child{border-bottom:0}}
+
+/* =========================================================
+   TABLE (embodiments, benchmarks)
+   ========================================================= */
+table.kt{
+  width:100%; border-collapse:collapse; background:var(--kui-bg-mid);
+  border:1px solid var(--kui-border-default); border-radius:var(--kui-radius-sm); overflow:hidden;
+}
+table.kt th, table.kt td{
+  text-align:left; padding:10px 14px; font-size:13px;
+  border-bottom:1px solid var(--kui-border-default);
+  vertical-align:top;
+}
+table.kt th{
+  background:var(--kui-n050); color:var(--kui-fg-muted);
+  font:500 11px/1 var(--font-sans); letter-spacing:.08em; text-transform:uppercase;
+  border-bottom:1px solid var(--kui-border-default);
+}
+table.kt tbody tr:last-child td{border-bottom:0}
+table.kt td.mono{font-family:var(--font-mono);font-size:12px}
+table.kt td .na{color:var(--kui-fg-disabled);font-style:italic}
+
+/* =========================================================
+   SCALING-LAW CHART (CSS bars)
+   ========================================================= */
+.chart{padding:24px;border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm);background:var(--kui-bg-mid)}
+.chart-axis{display:grid;grid-template-columns:80px 1fr;gap:12px;align-items:end;height:200px;border-bottom:1px solid var(--kui-border-default);position:relative;padding-bottom:0}
+.chart-y{display:flex;flex-direction:column;justify-content:space-between;color:var(--kui-fg-muted);font:500 10px/1 var(--font-mono);text-align:right}
+.chart-bars{display:flex;align-items:flex-end;gap:16px;height:100%;padding-top:8px}
+.chart-bar{flex:1;background:linear-gradient(180deg,var(--kui-brand-green) 0%,#5E9600 100%);border-radius:1px 1px 0 0;position:relative;min-width:24px}
+.chart-bar .val{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font:500 11px/1 var(--font-mono);color:var(--kui-fg-strong);white-space:nowrap}
+.chart-x{display:grid;grid-template-columns:80px 1fr;gap:12px;margin-top:8px}
+.chart-x-labels{display:flex;gap:16px}
+.chart-x-labels span{flex:1;text-align:center;font:500 11px/1.2 var(--font-mono);color:var(--kui-fg-muted)}
+.chart-caption{margin-top:14px;font:400 12px/1.45 var(--font-sans);color:var(--kui-fg-muted);text-align:center}
+
+/* =========================================================
+   CODE BLOCK
+   ========================================================= */
+pre.code{
+  background:var(--kui-n900); color:#E3E3E3;
+  border-radius:var(--kui-radius-sm); padding:16px 18px;
+  font:400 12.5px/1.55 var(--font-mono);
+  overflow-x:auto; margin:0;
+}
+pre.code .c{color:#8F8F8F}
+pre.code .k{color:#C6E287}
+pre.code .s{color:#9ACCF2}
+pre.code .a{color:#FBB45C}
+
+/* =========================================================
+   CAVEAT / BANNER
+   ========================================================= */
+.banner{
+  display:flex; gap:12px; padding:14px 16px;
+  border:1px solid #BFDEF5; background:var(--kui-info-bg);
+  border-radius:var(--kui-radius-sm);
+}
+.banner.warn{border-color:#F5C7AA;background:var(--kui-warning-bg)}
+.banner.neutral{border-color:var(--kui-border-default);background:var(--kui-bg-mid)}
+.banner-icon{flex:none;width:18px;height:18px;border-radius:50%;display:grid;place-content:center;font:700 11px/1 var(--font-sans);color:#fff;margin-top:2px}
+.banner-icon.info{background:var(--kui-info)}
+.banner-icon.warn{background:var(--kui-warning)}
+.banner-icon.neutral{background:var(--kui-n400)}
+.banner h4{margin-bottom:4px}
+.banner p{margin:0;font-size:13px;color:var(--kui-fg-default)}
+
+/* =========================================================
+   SOURCE FOOTER
+   ========================================================= */
+.sources{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media (max-width:800px){.sources{grid-template-columns:1fr}}
+.src-card{padding:14px;border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm);background:var(--kui-bg-mid)}
+.src-num{font:500 10px/1 var(--font-mono);color:var(--kui-fg-muted);margin-bottom:6px}
+.src-title{font:500 13px/1.3 var(--font-sans);color:var(--kui-fg-strong);margin-bottom:4px}
+.src-url{font:400 11px/1.35 var(--font-mono);color:var(--kui-info-text);word-break:break-all}
+
+/* SVG arrow helpers */
+.arr{fill:none;stroke:var(--kui-n400);stroke-width:1.5}
+.arrhead{fill:var(--kui-n400)}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ====================== NAVIGATION ====================== -->
+  <aside class="nav" aria-label="Page navigation">
+    <div class="brand">
+      <!-- NVIDIA eye-mark, reconstructed -->
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="2" fill="#000"/>
+        <path d="M11 11 C13 9.2 16 9 18 9.6 C16 10 14.6 11.2 13.8 12.2 C13 13.2 12.6 14.6 12.8 16 C13 17.6 13.8 19 15 19.6 C13.4 19.8 11.6 19 10.6 17.8 C9.6 16.4 9.6 14.4 10.4 12.8 Z" fill="#76B900"/>
+      </svg>
+      <div>
+        <div class="brand-tag">Model Atlas</div>
+        <div class="brand-title">Isaac GR00T N1.7</div>
+      </div>
+    </div>
+
+    <a class="home-link" href="../../index.html">Atlas home</a>
+
+    <div class="nav-section">
+      <h6>Overview</h6>
+      <a href="#overview" class="is-active">Identity &amp; specs</a>
+      <a href="#map">End-to-end map</a>
+    </div>
+    <div class="nav-section">
+      <h6>Architecture</h6>
+      <a href="#cascade">Action Cascade</a>
+      <a href="#vlm">System 2 · Cosmos-Reason2-2B</a>
+      <a href="#dit">System 1 · 32-layer DiT</a>
+      <a href="#embodiments">Embodiments &amp; adapters</a>
+    </div>
+    <div class="nav-section">
+      <h6>Training &amp; deployment</h6>
+      <a href="#egoscale">EgoScale pre-training</a>
+      <a href="#finetune">Fine-tuning</a>
+      <a href="#deploy">Inference &amp; runtime</a>
+    </div>
+    <div class="nav-section">
+      <h6>Reference</h6>
+      <a href="#caveats">Unknowns &amp; caveats</a>
+      <a href="#sources">Sources</a>
+    </div>
+
+    <div class="nav-foot">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+        <span class="tag tag-brand">Open weights</span>
+      </div>
+      Compiled from public NVIDIA / Hugging Face sources cited inline.
+      All numbers source-reported, not independently verified.
+    </div>
+  </aside>
+
+  <!-- ====================== MAIN ====================== -->
+  <main>
+
+    <!-- =================================================
+         OVERVIEW
+         ================================================= -->
+    <section id="overview">
+      <div class="hero">
+        <div class="hero-top">
+          <span class="tag tag-brand">NVIDIA</span>
+          <span class="tag">Robotics · VLA</span>
+          <span class="tag tag-info">Reasoning</span>
+          <span class="tag tag-magenta">Humanoid</span>
+          <span class="tag">Early access</span>
+        </div>
+        <h1>NVIDIA Isaac GR00T <span class="v">N1.7</span> <span style="font-weight:400;color:var(--kui-fg-muted);font-size:.6em">Reasoning VLA Architecture</span></h1>
+        <p class="hero-sub">
+          An open, commercially-licensed Vision-Language-Action foundation model for humanoid robots that
+          maps RGB observations and natural-language instructions to continuous motor commands via a
+          dual-system <em>Action Cascade</em>: a Cosmos-Reason2-2B VLM for high-level reasoning, and a 32-layer
+          Diffusion Transformer for real-time motor control.
+          Released by NVIDIA on April 17, 2026.
+          <a href="#sources">[sources]</a>
+        </p>
+
+        <div class="spec-grid">
+          <div class="spec">
+            <div class="spec-label">Total parameters</div>
+            <div class="spec-value mono">3 B<sup class="src">[1]</sup></div>
+          </div>
+          <div class="spec">
+            <div class="spec-label">Active params / step</div>
+            <div class="spec-value muted">not reported</div>
+          </div>
+          <div class="spec">
+            <div class="spec-label">Modality</div>
+            <div class="spec-value">Vision + Language → Action</div>
+          </div>
+          <div class="spec">
+            <div class="spec-label">Release</div>
+            <div class="spec-value mono">2026-04-17<sup class="src">[1]</sup></div>
+          </div>
+          <div class="spec">
+            <div class="spec-label">License</div>
+            <div class="spec-value">NVIDIA Open Model License <span style="color:var(--kui-fg-muted);font-weight:400">· commercial</span><sup class="src">[1]</sup></div>
+          </div>
+          <div class="spec">
+            <div class="spec-label">Backbone (System 2)</div>
+            <div class="spec-value mono">Cosmos-Reason2-2B<sup class="src">[1]</sup></div>
+          </div>
+          <div class="spec">
+            <div class="spec-label">Policy (System 1)</div>
+            <div class="spec-value mono">32-layer DiT<sup class="src">[1]</sup></div>
+          </div>
+          <div class="spec">
+            <div class="spec-label">Pre-training data</div>
+            <div class="spec-value mono">20,854 h egocentric video<sup class="src">[1]</sup></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-top:24px">
+          <div class="banner neutral">
+            <div class="banner-icon neutral">i</div>
+            <div>
+              <h4>Lineage from N1 → N1.6 → N1.7</h4>
+              <p>
+                GR00T <strong>N1</strong> (Mar 2025) introduced the dual-system VLA trained on egocentric human video,
+                real and simulated robot trajectories, and synthetic data, validated on Fourier GR-1 and 1X humanoids<sup class="src">[3]</sup>.
+                <strong>N1.7</strong> retains the dual-system design and upgrades the VLM backbone to Cosmos-Reason2-2B,
+                adds task-level and subtask-level reasoning, expands dexterous manipulation to finger-level 22 DoF
+                control, and replaces teleoperation-scale pre-training with the <em>EgoScale</em> human-video corpus<sup class="src">[1]</sup>.
+              </p>
+            </div>
+          </div>
+          <div class="banner warn">
+            <div class="banner-icon warn">!</div>
+            <div>
+              <h4>What is not in this page</h4>
+              <p>
+                Architecture deltas vs. N1, exact VLM/DiT hidden dimensions, context length, and benchmark scores
+                are <strong>not reported</strong> in the listed sources. See <a href="#caveats">Unknowns &amp; caveats</a>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         END-TO-END MAP
+         ================================================= -->
+    <section id="map">
+      <div class="sec-eyebrow">§ 01 · End-to-end model map</div>
+      <h2>Observation to action, one step</h2>
+      <p class="lede">
+        At inference, GR00T N1.7 consumes a snapshot of the robot's world — one or more RGB frames, a language
+        instruction, and the current proprioceptive state — and emits a continuous-value action vector mapped
+        to the robot's degrees of freedom. The two systems run in cascade: System 2 thinks in tokens; System 1
+        denoises into joint targets.
+      </p>
+
+      <div class="flow">
+        <div class="flow-grid">
+
+          <!-- Column 1: native inputs -->
+          <div class="flow-col">
+            <div class="flow-col-h">01 · Native inputs</div>
+            <div class="node input">
+              <div class="node-t">RGB image frames</div>
+              <div class="node-s">Single or multi-view, any resolution<sup class="src">[1]</sup>.</div>
+              <div class="node-meta"><span class="mtag">3×H×W</span><span class="mtag">ego + wrist cams</span></div>
+            </div>
+            <div class="node input">
+              <div class="node-t">Language instruction</div>
+              <div class="node-s">Free-form natural language, task-level.</div>
+              <div class="node-meta"><span class="mtag">UTF-8 string</span><span class="mtag">ctx: n/r</span></div>
+            </div>
+            <div class="node input">
+              <div class="node-t">Proprioceptive state</div>
+              <div class="node-s">Joint positions, joint velocities, end-effector poses<sup class="src">[1]</sup>.</div>
+              <div class="node-meta"><span class="mtag">q, q̇, T_EEF</span></div>
+            </div>
+          </div>
+
+          <!-- Column 2: System 2 -->
+          <div class="flow-col">
+            <div class="flow-col-h">02 · System 2 — reasoning</div>
+            <div class="node s2">
+              <div class="node-t">Image tokenization</div>
+              <div class="node-s">Frames → image tokens consumed by the VLM<sup class="src">[1]</sup>.</div>
+              <div class="node-meta"><span class="mtag">patch tokenizer</span></div>
+            </div>
+            <div class="node s2">
+              <div class="node-t">Cosmos-Reason2-2B VLM</div>
+              <div class="node-s">Joint reasoning over image &amp; text. Decomposes the task into subtasks; emits high-level <em>action tokens</em><sup class="src">[1]</sup>.</div>
+              <div class="node-meta"><span class="mtag">~2 B params</span><span class="mtag">task + subtask reasoning</span></div>
+            </div>
+            <div class="node s2">
+              <div class="node-t">Action-token bridge</div>
+              <div class="node-s">High-level action tokens are passed to System 1 alongside live robot state.</div>
+              <div class="node-meta"><span class="mtag">latent action plan</span></div>
+            </div>
+          </div>
+
+          <!-- Column 3: System 1 -->
+          <div class="flow-col">
+            <div class="flow-col-h">03 · System 1 — motor</div>
+            <div class="node s1">
+              <div class="node-t">State encoder</div>
+              <div class="node-s">Proprioceptive vector encoded and fused with action tokens.</div>
+              <div class="node-meta"><span class="mtag">dim: not reported</span></div>
+            </div>
+            <div class="node s1">
+              <div class="node-t">32-layer Diffusion Transformer</div>
+              <div class="node-s">DiT denoiser turns the action-token + state context into precise motor commands in real time<sup class="src">[1]</sup>.</div>
+              <div class="node-meta"><span class="mtag">32 layers</span><span class="mtag">4 denoising steps</span></div>
+            </div>
+            <div class="node s1">
+              <div class="node-t">Embodiment adapter</div>
+              <div class="node-s">Per-robot input &amp; action heads; selected by <code>--embodiment-tag</code> at deploy time<sup class="src">[1]</sup>.</div>
+              <div class="node-meta"><span class="mtag">UNITREE_G1</span><span class="mtag">LIBERO_PANDA</span><span class="mtag">OXE_WIDOWX</span><span class="mtag">…</span></div>
+            </div>
+          </div>
+
+          <!-- Column 4: outputs -->
+          <div class="flow-col">
+            <div class="flow-col-h">04 · Outputs</div>
+            <div class="node output">
+              <div class="node-t">Continuous action vector</div>
+              <div class="node-s">Real-valued targets, mapped to the robot's degrees of freedom<sup class="src">[1]</sup>.</div>
+              <div class="node-meta"><span class="mtag">ℝ^DoF</span></div>
+            </div>
+            <div class="node output">
+              <div class="node-t">Robot loop</div>
+              <div class="node-s">Action returned via <code>PolicyClient.get_action()</code>; world steps; new obs returned<sup class="src">[1]</sup>.</div>
+              <div class="node-meta"><span class="mtag">policy server</span><span class="mtag">port :5555</span></div>
+            </div>
+            <div class="node output">
+              <div class="node-t">Capable embodiments</div>
+              <div class="node-s">Validated on humanoids and bimanual arms with 22 DoF dexterous hands<sup class="src">[1]</sup>.</div>
+              <div class="node-meta"><span class="mtag">22-DoF hands</span></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Bottom legend / data-flow note -->
+        <div style="display:flex;gap:16px;margin-top:18px;padding-top:14px;border-top:1px dashed var(--kui-border-default);flex-wrap:wrap;font-size:12px;color:var(--kui-fg-muted)">
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--kui-info);vertical-align:middle;margin-right:6px"></span>Native input</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--kui-accent-violet);vertical-align:middle;margin-right:6px"></span>System 2 (reasoning)</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--kui-brand-green);vertical-align:middle;margin-right:6px"></span>System 1 (motor)</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--kui-accent-magenta);vertical-align:middle;margin-right:6px"></span>Output</span>
+          <span style="margin-left:auto"><strong>n/r</strong> = not reported in listed sources</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         ACTION CASCADE
+         ================================================= -->
+    <section id="cascade">
+      <div class="sec-eyebrow">§ 02 · Action Cascade</div>
+      <h2>Dual-system VLA, in detail</h2>
+      <p class="lede">
+        Action Cascade separates <em>what to do</em> from <em>how to move</em>. The reasoning system runs at a
+        thinking cadence over images and language; the motor system runs at a control cadence over state and
+        action tokens. The split is the same one introduced in GR00T N1 — N1.7 upgrades the VLM and the data,
+        not the topology.
+      </p>
+
+      <div class="cascade" id="vlm">
+        <!-- System 2 -->
+        <div class="card s2">
+          <div class="sys-label">SYSTEM 2 · REASONING</div>
+          <h3 style="margin-top:4px">Cosmos-Reason2-2B VLM</h3>
+          <p style="font-size:13px;color:var(--kui-fg-muted)">
+            A vision-language model that processes image tokens and language instructions to produce high-level
+            action tokens. The site of task decomposition and multi-step reasoning<sup class="src">[1]</sup>.
+          </p>
+
+          <dl class="kv">
+            <dt>Role</dt><dd>plan, reason, decompose</dd>
+            <dt>Cadence</dt><dd>thinking / per-task</dd>
+            <dt>Backbone</dt><dd>Cosmos-Reason2-2B<sup class="src">[1]</sup></dd>
+            <dt>Approx. params</dt><dd>~2 B</dd>
+            <dt>Inputs</dt><dd>image tokens + language</dd>
+            <dt>Output</dt><dd>high-level action tokens</dd>
+            <dt>Reasoning levels</dt><dd>task &amp; subtask<sup class="src">[1]</sup></dd>
+            <dt>Hidden dim</dt><dd><span class="na">not reported</span></dd>
+            <dt>Context length</dt><dd><span class="na">not reported</span></dd>
+            <dt>Tokenizer</dt><dd><span class="na">not reported</span></dd>
+          </dl>
+
+          <div style="margin-top:12px;padding:12px;border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm);background:var(--kui-bg-canvas)">
+            <div style="font:500 10px/1 var(--font-mono);color:var(--kui-fg-muted);letter-spacing:.08em;margin-bottom:8px">RESPONSIBILITIES</div>
+            <ul style="margin:0;font-size:12.5px">
+              <li>Grounded scene understanding from RGB observations.</li>
+              <li>Natural-language instruction parsing.</li>
+              <li>Multi-step task decomposition for complex workflows<sup class="src">[1]</sup>.</li>
+              <li>Subtask sequencing handed off to System 1 as latent action tokens.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- System 1 -->
+        <div class="card s1" id="dit">
+          <div class="sys-label">SYSTEM 1 · MOTOR</div>
+          <h3 style="margin-top:4px">32-layer Diffusion Transformer</h3>
+          <p style="font-size:13px;color:var(--kui-fg-muted)">
+            A DiT that takes the VLM's output and live robot state, then denoises them into precise motor
+            commands in real time<sup class="src">[1]</sup>. Inference performance is reported at 4 denoising
+            steps with a single camera view<sup class="src">[1]</sup>.
+          </p>
+
+          <dl class="kv">
+            <dt>Role</dt><dd>execute, denoise, control</dd>
+            <dt>Cadence</dt><dd>real-time / per-step</dd>
+            <dt>Topology</dt><dd>Diffusion Transformer (DiT)</dd>
+            <dt>Depth</dt><dd>32 layers<sup class="src">[1]</sup></dd>
+            <dt>Inputs</dt><dd>action tokens + state</dd>
+            <dt>Output</dt><dd>continuous action vector</dd>
+            <dt>Denoising steps</dt><dd>4 (inference)<sup class="src">[1]</sup></dd>
+            <dt>Hidden dim</dt><dd><span class="na">not reported</span></dd>
+            <dt>Heads</dt><dd><span class="na">not reported</span></dd>
+            <dt>Action horizon</dt><dd><span class="na">not reported</span></dd>
+          </dl>
+
+          <!-- Visual: 32 stacked transformer blocks -->
+          <div class="dit">
+            <div class="dit-row" id="dit-blocks" aria-hidden="true"></div>
+            <div class="dit-cap">L₁ … L₃₂ — DiT denoiser. 4 denoising steps per action at inference.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Coupling diagram between the two systems -->
+      <div class="card" style="margin-top:16px">
+        <div class="card-h">Coupling — how the two systems exchange information</div>
+        <svg viewBox="0 0 1100 200" width="100%" height="200" role="img" aria-label="Action Cascade coupling diagram">
+          <!-- Top lane: System 2 -->
+          <rect x="20" y="20" width="500" height="60" rx="3" fill="#F6EFFB" stroke="#D9B6E6"/>
+          <text x="36" y="44" font-family="DM Sans,system-ui" font-size="12" font-weight="500" fill="#6B2A85">SYSTEM 2 — COSMOS-REASON2-2B</text>
+          <text x="36" y="64" font-family="Roboto Mono,monospace" font-size="11" fill="#5E5E5E">images · instruction  →  high-level action tokens</text>
+
+          <!-- Bottom lane: System 1 -->
+          <rect x="20" y="120" width="500" height="60" rx="3" fill="#EEF7DA" stroke="#C6E287"/>
+          <text x="36" y="144" font-family="DM Sans,system-ui" font-size="12" font-weight="500" fill="#3D5F00">SYSTEM 1 — 32-LAYER DIT</text>
+          <text x="36" y="164" font-family="Roboto Mono,monospace" font-size="11" fill="#5E5E5E">tokens · robot state  →  motor commands (×4 denoise)</text>
+
+          <!-- Vertical arrow -->
+          <path d="M 270 80 L 270 120" class="arr" marker-end="url(#ah)"/>
+          <text x="280" y="105" font-family="Roboto Mono,monospace" font-size="11" fill="#5E5E5E">latent action plan</text>
+
+          <!-- Right side: world loop -->
+          <rect x="600" y="70" width="180" height="60" rx="3" fill="#FCE9E8" stroke="#F2B6B0"/>
+          <text x="612" y="95" font-family="DM Sans,system-ui" font-size="12" font-weight="500" fill="#851F41">EMBODIMENT</text>
+          <text x="612" y="114" font-family="Roboto Mono,monospace" font-size="11" fill="#5E5E5E">joints · DoF · sensors</text>
+
+          <rect x="840" y="70" width="220" height="60" rx="3" fill="#E9F4FB" stroke="#BFDEF5"/>
+          <text x="854" y="95" font-family="DM Sans,system-ui" font-size="12" font-weight="500" fill="#2378CA">POLICY SERVER · :5555</text>
+          <text x="854" y="114" font-family="Roboto Mono,monospace" font-size="11" fill="#5E5E5E">PolicyClient.get_action(obs)</text>
+
+          <!-- arrows -->
+          <path d="M 520 150 C 560 150 560 100 600 100" class="arr" marker-end="url(#ah)"/>
+          <path d="M 780 100 L 840 100" class="arr" marker-end="url(#ah)"/>
+          <path d="M 950 130 C 950 175 460 175 460 80" class="arr" marker-end="url(#ah)" stroke-dasharray="3 3"/>
+          <text x="690" y="186" font-family="Roboto Mono,monospace" font-size="10" fill="#8F8F8F">new observation back to System 2 every step</text>
+
+          <defs>
+            <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" class="arrhead"/>
+            </marker>
+          </defs>
+        </svg>
+        <p style="font-size:12px;color:var(--kui-fg-muted);margin:0">
+          Source-backed elements only: dual-system Action Cascade, 32-layer DiT, 4-step denoise, policy-server
+          deployment surface<sup class="src">[1]</sup>. Internal latencies, batch sizes, and frame rates are
+          not reported in the listed sources.
+        </p>
+      </div>
+    </section>
+
+    <!-- =================================================
+         EMBODIMENTS
+         ================================================= -->
+    <section id="embodiments">
+      <div class="sec-eyebrow">§ 03 · Embodiment adapters</div>
+      <h2>Robots N1.7 has been validated on</h2>
+      <p class="lede">
+        Each embodiment is a head on the same underlying cascade: System 2 and the DiT stay shared; an
+        adapter remaps proprioceptive inputs and action outputs to the specific joint topology. The HF blog
+        names three validation platforms and three pre-registered embodiment tags for fine-tuning<sup class="src">[1]</sup>.
+      </p>
+
+      <table class="kt">
+        <thead>
+          <tr>
+            <th style="width:24%">Embodiment</th>
+            <th style="width:16%">Form factor</th>
+            <th style="width:14%">DoF / hand</th>
+            <th style="width:18%">Embodiment tag</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Unitree G1</strong></td>
+            <td>Humanoid</td>
+            <td class="mono">up to 22<sup class="src">[1]</sup></td>
+            <td class="mono">UNITREE_G1<sup class="src">[1]</sup></td>
+            <td>Validated for loco-manipulation, tabletop manipulation, and dexterous bimanual tasks<sup class="src">[1]</sup>.</td>
+          </tr>
+          <tr>
+            <td><strong>Bimanual Manipulator YAM</strong></td>
+            <td>Bimanual arms</td>
+            <td class="mono"><span class="na">not reported</span></td>
+            <td class="mono"><span class="na">not reported</span></td>
+            <td>Validation platform for bimanual / tabletop tasks<sup class="src">[1]</sup>.</td>
+          </tr>
+          <tr>
+            <td><strong>AGIBot Genie 1</strong></td>
+            <td>Humanoid</td>
+            <td class="mono"><span class="na">not reported</span></td>
+            <td class="mono"><span class="na">not reported</span></td>
+            <td>Validation platform listed in the GR00T N1.7 announcement<sup class="src">[1]</sup>.</td>
+          </tr>
+          <tr>
+            <td colspan="5" style="background:var(--kui-n050);font-weight:500;color:var(--kui-fg-muted);text-transform:uppercase;font-size:11px;letter-spacing:.08em">Pre-registered for fine-tuning</td>
+          </tr>
+          <tr>
+            <td><strong>LIBERO Panda</strong></td>
+            <td>Sim-arm</td>
+            <td class="mono"><span class="na">n/a</span></td>
+            <td class="mono">LIBERO_PANDA<sup class="src">[1]</sup></td>
+            <td>Pre-registered embodiment tag.</td>
+          </tr>
+          <tr>
+            <td><strong>OXE WidowX</strong></td>
+            <td>Tabletop arm</td>
+            <td class="mono"><span class="na">n/a</span></td>
+            <td class="mono">OXE_WIDOWX<sup class="src">[1]</sup></td>
+            <td>Pre-registered embodiment tag.</td>
+          </tr>
+          <tr>
+            <td><strong>Custom</strong></td>
+            <td>User-defined</td>
+            <td class="mono"><span class="na">n/a</span></td>
+            <td class="mono">&lt;YOUR_TAG&gt;</td>
+            <td>Register your own embodiment + modality config and fine-tune on LeRobot-format data<sup class="src">[1]</sup>.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="banner neutral" style="margin-top:16px">
+        <div class="banner-icon neutral">↳</div>
+        <div>
+          <h4>N1 lineage validation</h4>
+          <p>
+            The GR00T <strong>N1</strong> research paper additionally reports validation on the Fourier GR-1 and 1X
+            humanoids for language-conditioned bimanual household manipulation<sup class="src">[3]</sup>. The
+            HF N1.7 announcement does not re-affirm those platforms — they are noted here as lineage context only.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         EGOSCALE TRAINING
+         ================================================= -->
+    <section id="egoscale">
+      <div class="sec-eyebrow">§ 04 · Training</div>
+      <h2>EgoScale — pre-training on human egocentric video</h2>
+      <p class="lede">
+        The headline data shift between N1.6 and N1.7 is what the team calls EgoScale: pre-training on
+        20,854 hours of human egocentric video spanning 20+ task categories, from manufacturing and retail
+        to healthcare and home environments<sup class="src">[1]</sup>. This is a deliberate move past the
+        few-thousand-hour scale of robot teleoperation that trained N1.6<sup class="src">[1]</sup>.
+      </p>
+
+      <div class="grid-3" style="margin-bottom:20px">
+        <div class="card">
+          <div class="card-h">Corpus scale</div>
+          <div style="font:500 32px/1 var(--font-mono);color:var(--kui-fg-strong);margin-bottom:6px">20,854 h<sup class="src">[1]</sup></div>
+          <div style="font-size:13px;color:var(--kui-fg-muted)">Sensorized human egocentric video used for pre-training. More than ten-fold larger than the N1.6 teleoperation corpus<sup class="src">[1]</sup>.</div>
+        </div>
+        <div class="card">
+          <div class="card-h">Task categories</div>
+          <div style="font:500 32px/1 var(--font-mono);color:var(--kui-fg-strong);margin-bottom:6px">20+<sup class="src">[1]</sup></div>
+          <div style="font-size:13px;color:var(--kui-fg-muted)">Manufacturing, retail, healthcare, home — coverage span reported by the HF announcement<sup class="src">[1]</sup>.</div>
+        </div>
+        <div class="card">
+          <div class="card-h">Sensor modalities</div>
+          <div style="font:500 18px/1.2 var(--font-sans);color:var(--kui-fg-strong);margin-bottom:6px">Ego + wrist cams · hand tracking<sup class="src">[1]</sup></div>
+          <div style="font-size:13px;color:var(--kui-fg-muted)">Sensorized recordings — not raw web video — provide manipulation priors that transfer to humanoid embodiments.</div>
+        </div>
+      </div>
+
+      <!-- Pipeline band -->
+      <h3>Training stages reported in the sources</h3>
+      <div class="band">
+        <div>
+          <div class="band-step">STAGE 01</div>
+          <div class="band-t">EgoScale pre-training</div>
+          <div class="band-s">20,854 h of human egocentric video, 20+ task categories. Source of N1.7's out-of-the-box dexterity gains over N1.6<sup class="src">[1]</sup>.</div>
+        </div>
+        <div>
+          <div class="band-step">STAGE 02</div>
+          <div class="band-t">Robot data <span style="color:var(--kui-fg-disabled)">(N1 lineage)</span></div>
+          <div class="band-s">N1 was trained on a mix of real and simulated robot trajectories alongside synthetic data<sup class="src">[3]</sup>. Exact N1.7 mix and quantities not reported<sup class="src">[1,3]</sup>.</div>
+        </div>
+        <div>
+          <div class="band-step">STAGE 03</div>
+          <div class="band-t">Embodiment fine-tuning</div>
+          <div class="band-s">Per-robot fine-tuning on LeRobot-format datasets, registered via an embodiment tag and a modality config<sup class="src">[1]</sup>.</div>
+        </div>
+      </div>
+
+      <!-- Scaling-law chart -->
+      <h3 style="margin-top:32px">First-reported dexterity scaling law</h3>
+      <p style="max-width:72ch;color:var(--kui-fg-default)">
+        Per the announcement: scaling EgoScale data from 1k to 20k hours <strong>more than doubles average task
+        completion</strong> on dexterous manipulation<sup class="src">[1]</sup>. The bars below are an
+        illustrative rendering of that source-reported direction; exact intermediate values are not given.
+      </p>
+
+      <div class="chart">
+        <div class="chart-axis">
+          <div class="chart-y">
+            <span>2.0×</span><span>1.5×</span><span>1.0×</span><span>0.5×</span><span>0</span>
+          </div>
+          <div class="chart-bars">
+            <div class="chart-bar" style="height:25%"><span class="val">1.0× (baseline)</span></div>
+            <div class="chart-bar" style="height:38%"><span class="val">↑</span></div>
+            <div class="chart-bar" style="height:55%"><span class="val">↑</span></div>
+            <div class="chart-bar" style="height:75%"><span class="val">↑</span></div>
+            <div class="chart-bar" style="height:95%"><span class="val">&gt; 2.0×<sup class="src" style="color:#fff">[1]</sup></span></div>
+          </div>
+        </div>
+        <div class="chart-x">
+          <div></div>
+          <div class="chart-x-labels">
+            <span>1 k h</span><span>~3 k h</span><span>~7 k h</span><span>~12 k h</span><span>20 k h</span>
+          </div>
+        </div>
+        <div class="chart-caption">
+          Source-reported direction: more EgoScale hours → predictable, consistent gains in dexterous manipulation.
+          Endpoints (1 k h, &gt;2.0× at 20 k h) are from the HF announcement<sup class="src">[1]</sup>; intermediate ticks are
+          illustrative, not source-reported.
+        </div>
+      </div>
+
+      <div class="banner warn" style="margin-top:20px">
+        <div class="banner-icon warn">!</div>
+        <div>
+          <h4>Not reported in listed sources</h4>
+          <p>
+            Compute budget, GPU-hours, optimizer, learning-rate schedule, batch size, data filtering / safety
+            review process, license terms of the underlying video corpora, retrieval or distillation
+            objectives, and RL-from-human-feedback stages.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         FINE-TUNING
+         ================================================= -->
+    <section id="finetune">
+      <div class="sec-eyebrow">§ 05 · Fine-tuning</div>
+      <h2>Adapt to a custom embodiment</h2>
+      <p class="lede">
+        N1.7 supports fine-tuning on custom embodiments using the LeRobot dataset format. The HF
+        announcement gives a launch command and notes the upgrade from N1.6 is a drop-in swap of
+        <code>--model-path</code><sup class="src">[1]</sup>.
+      </p>
+
+      <div class="grid-2">
+        <div>
+          <h4 style="margin-bottom:10px;color:var(--kui-fg-muted);font:500 11px/1 var(--font-sans);letter-spacing:.1em;text-transform:uppercase">Launch command</h4>
+<pre class="code"><span class="c"># Source: HF blog · NVIDIA Isaac GR00T N1.7 [1]</span>
+<span class="k">CUDA_VISIBLE_DEVICES</span>=0 uv run python \
+  gr00t/experiment/launch_finetune.py \
+  <span class="a">--base-model-path</span>      <span class="s">nvidia/GR00T-N1.7</span> \
+  <span class="a">--dataset-path</span>         &lt;YOUR_DATASET_PATH&gt; \
+  <span class="a">--embodiment-tag</span>       &lt;YOUR_EMBODIMENT&gt; \
+  <span class="a">--modality-config-path</span> &lt;YOUR_MODALITY_CONFIG&gt; \
+  <span class="a">--num-gpus</span>             1 \
+  <span class="a">--output-dir</span>           &lt;OUTPUT_PATH&gt; \
+  <span class="a">--max-steps</span>            2000 \
+  <span class="a">--global-batch-size</span>    32</pre>
+        </div>
+
+        <div>
+          <h4 style="margin-bottom:10px;color:var(--kui-fg-muted);font:500 11px/1 var(--font-sans);letter-spacing:.1em;text-transform:uppercase">What you bring</h4>
+          <table class="kt">
+            <tbody>
+              <tr><td style="width:42%"><strong>Dataset format</strong></td><td>LeRobot<sup class="src">[1]</sup></td></tr>
+              <tr><td><strong>Embodiment tag</strong></td><td>Pre-registered or user-defined<sup class="src">[1]</sup></td></tr>
+              <tr><td><strong>Modality config</strong></td><td>Maps observations and actions to the policy<sup class="src">[1]</sup></td></tr>
+              <tr><td><strong>Reference batch size</strong></td><td class="mono">global 32 · 2 000 steps<sup class="src">[1]</sup></td></tr>
+              <tr><td><strong>Reference GPUs</strong></td><td class="mono">1 (example command)<sup class="src">[1]</sup></td></tr>
+              <tr><td><strong>Drop-in from N1.6</strong></td><td>Existing embodiment configs &amp; workflows carry over<sup class="src">[1]</sup></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         DEPLOYMENT
+         ================================================= -->
+    <section id="deploy">
+      <div class="sec-eyebrow">§ 06 · Inference &amp; runtime</div>
+      <h2>From checkpoint to robot loop</h2>
+      <p class="lede">
+        Deployment goes through a policy server: load <code>nvidia/GR00T-N1.7</code> against an embodiment
+        tag, run a control loop against the server with <code>PolicyClient.get_action()</code><sup class="src">[1]</sup>.
+        Performance numbers are reported by NVIDIA at 4 denoising steps with a single camera view<sup class="src">[1]</sup>.
+      </p>
+
+      <div class="grid-2">
+        <div>
+          <h4 style="margin-bottom:10px;color:var(--kui-fg-muted);font:500 11px/1 var(--font-sans);letter-spacing:.1em;text-transform:uppercase">Server launch</h4>
+<pre class="code"><span class="c"># 1 — install</span>
+git clone --recurse-submodules \
+  https://github.com/NVIDIA/Isaac-GR00T
+cd Isaac-GR00T
+bash scripts/deployment/dgpu/install_deps.sh
+source .venv/bin/activate
+
+<span class="c"># 2 — launch policy server</span>
+uv run python gr00t/eval/run_gr00t_server.py \
+  <span class="a">--embodiment-tag</span> <span class="s">GR1</span> \
+  <span class="a">--model-path</span>     <span class="s">nvidia/GR00T-N1.7</span></pre>
+        </div>
+
+        <div>
+          <h4 style="margin-bottom:10px;color:var(--kui-fg-muted);font:500 11px/1 var(--font-sans);letter-spacing:.1em;text-transform:uppercase">Control loop</h4>
+<pre class="code"><span class="k">from</span> gr00t.policy.server_client <span class="k">import</span> PolicyClient
+
+policy = PolicyClient(host=<span class="s">"localhost"</span>, port=<span class="s">5555</span>)
+
+obs, info = env.reset()
+action, info = policy.get_action(obs)
+obs, reward, done, truncated, info = env.step(action)</pre>
+        </div>
+      </div>
+
+      <h3 style="margin-top:24px">Supported NVIDIA platforms</h3>
+      <div class="grid-4">
+        <div class="card" style="padding:14px"><div class="card-h" style="margin-bottom:6px">Datacenter</div><div style="font:500 14px/1.3 var(--font-sans)">Ampere · Hopper · Blackwell<sup class="src">[1]</sup></div></div>
+        <div class="card" style="padding:14px"><div class="card-h" style="margin-bottom:6px">Workstation</div><div style="font:500 14px/1.3 var(--font-sans)">Ada Lovelace<sup class="src">[1]</sup></div></div>
+        <div class="card" style="padding:14px"><div class="card-h" style="margin-bottom:6px">On-device</div><div style="font:500 14px/1.3 var(--font-sans)">Jetson<sup class="src">[1]</sup></div></div>
+        <div class="card" style="padding:14px"><div class="card-h" style="margin-bottom:6px">Denoising config</div><div style="font:500 14px/1.3 var(--font-sans)">4 steps · single cam<sup class="src">[1]</sup></div></div>
+      </div>
+
+      <div class="banner neutral" style="margin-top:18px">
+        <div class="banner-icon neutral">→</div>
+        <div>
+          <h4>Performance</h4>
+          <p>
+            Concrete inference throughput / latency tables are linked from the HF announcement and live in
+            the <code>Isaac-GR00T-EA</code> repository deployment README<sup class="src">[1]</sup>; they are
+            not reproduced here and are not independently verified.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         CAVEATS
+         ================================================= -->
+    <section id="caveats">
+      <div class="sec-eyebrow">§ 07 · Unknowns &amp; caveats</div>
+      <h2>What the listed sources do not report</h2>
+      <p class="lede">
+        Per the prompt: anything not explicitly grounded in the listed URLs is marked as unknown rather than
+        guessed.
+      </p>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-h">Architecture unknowns</div>
+          <ul>
+            <li>VLM hidden dimension, head count, exact Cosmos-Reason2-2B layer count.</li>
+            <li>DiT hidden dimension, head count, action-chunk horizon.</li>
+            <li>Image tokenizer / patch size and total image-token budget per observation.</li>
+            <li>Language context length.</li>
+            <li>Architecture <em>deltas</em> between N1, N1.6, and N1.7 beyond the VLM-backbone swap and EgoScale data.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-h">Training unknowns</div>
+          <ul>
+            <li>GPU-hours / compute budget; optimizer, schedule, batch size for pre-training.</li>
+            <li>Robot-trajectory and synthetic-data quantities used in N1.7 (N1 lineage only<sup class="src">[3]</sup>).</li>
+            <li>Safety filtering and licensing of the underlying egocentric-video corpora.</li>
+            <li>Use (or absence) of RL, distillation, retrieval, or RLHF stages.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-h">Evaluation unknowns</div>
+          <ul>
+            <li>Quantitative benchmark scores — no task-success-rate table is given on the HF announcement.</li>
+            <li>Comparison numbers vs. prior generalist robot policies on standard benchmarks.</li>
+            <li>Sim-to-real transfer ablations specific to N1.7.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-h">Source agreement</div>
+          <ul>
+            <li>HF blog<sup class="src">[1]</sup> and N1 research page<sup class="src">[3]</sup> agree on the dual-system VLA framing and on the role of egocentric human video.</li>
+            <li>Parameter scale: <strong>3 B total</strong> is the only count given on the HF announcement<sup class="src">[1]</sup>; the local backlog row records the model size as <em>"not reported in backlog row"</em>, which is consistent (the backlog simply does not carry the figure).</li>
+            <li>No conflicts between listed sources were identified.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================
+         SOURCES
+         ================================================= -->
+    <section id="sources">
+      <div class="sec-eyebrow">§ 08 · Sources</div>
+      <h2>Primary sources used on this page</h2>
+      <p class="lede">
+        Every numbered citation <sup class="src">[n]</sup> on this page refers back to one of the entries below.
+        All numbers are labelled as source-reported and have not been independently verified.
+      </p>
+
+      <div class="sources">
+        <div class="src-card">
+          <div class="src-num">[1]</div>
+          <div class="src-title">NVIDIA Isaac GR00T N1.7: Open Reasoning VLA Model for Humanoid Robots</div>
+          <div style="font-size:11px;color:var(--kui-fg-muted);margin-bottom:6px">Hugging Face blog · NVIDIA · 2026-04-17</div>
+          <a class="src-url" href="https://huggingface.co/blog/nvidia/gr00t-n1-7" target="_blank" rel="noopener noreferrer">huggingface.co/blog/nvidia/gr00t-n1-7</a>
+        </div>
+        <div class="src-card">
+          <div class="src-num">[2]</div>
+          <div class="src-title">NVIDIA on Hugging Face — model collection &amp; weights</div>
+          <div style="font-size:11px;color:var(--kui-fg-muted);margin-bottom:6px">Hugging Face organization · model card lookup</div>
+          <a class="src-url" href="https://huggingface.co/nvidia" target="_blank" rel="noopener noreferrer">huggingface.co/nvidia</a>
+          <div style="margin-top:6px"><a class="src-url" href="https://huggingface.co/collections/nvidia/gr00t-n17" target="_blank" rel="noopener noreferrer">collections/nvidia/gr00t-n17</a></div>
+        </div>
+        <div class="src-card">
+          <div class="src-num">[3]</div>
+          <div class="src-title">NVIDIA Isaac GR00T N1: An Open Foundation Model for Humanoid Robots</div>
+          <div style="font-size:11px;color:var(--kui-fg-muted);margin-bottom:6px">NVIDIA Research publication · Mar 17, 2025 · whitepaper PDF</div>
+          <a class="src-url" href="https://research.nvidia.com/publication/2025-03_nvidia-isaac-gr00t-n1-open-foundation-model-humanoid-robots" target="_blank" rel="noopener noreferrer">research.nvidia.com/publication/2025-03_nvidia-isaac-gr00t-n1-open-foundation-model-humanoid-robots</a>
+        </div>
+      </div>
+
+      <p style="margin-top:24px;font-size:12px;color:var(--kui-fg-muted);max-width:72ch">
+        Local backlog provenance: <code>/Users/rigarg/Desktop/agents/model-atlas/oss-model-releases-2025-plus.md</code>
+        — the backlog row was used as a lead and verified against sources [1] and [3]. Where the backlog
+        records a field as <em>not reported</em>, this page preserves that label rather than substituting an
+        inferred value.
+      </p>
+    </section>
+
+  </main>
+</div>
+
+<script>
+/* ---------- DiT block visualization: 32 stacked transformer layers ---------- */
+(function(){
+  var host = document.getElementById('dit-blocks');
+  if(!host) return;
+  for(var i=0;i<32;i++){
+    var d = document.createElement('div');
+    d.className = 'dit-block' + (i===0?' first':'') + (i===31?' last':'');
+    d.title = 'DiT layer L' + (i+1);
+    host.appendChild(d);
+  }
+})();
+
+/* ---------- Active-section highlighting in left nav ---------- */
+(function(){
+  var links = Array.from(document.querySelectorAll('.nav a[href^="#"]'));
+  var map = {};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+  var sections = links.map(function(a){ return document.getElementById(a.getAttribute('href').slice(1)); }).filter(Boolean);
+
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        links.forEach(function(l){ l.classList.remove('is-active'); });
+        var link = map[e.target.id];
+        if(link) link.classList.add('is-active');
+      }
+    });
+  }, { rootMargin: '-30% 0px -60% 0px', threshold: 0 });
+  sections.forEach(function(s){ io.observe(s); });
+})();
+</script>
+</body>
+</html>

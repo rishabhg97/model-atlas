@@ -1,0 +1,2324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chronos-2 Forecasting Architecture</title>
+<link rel="stylesheet" href="colors_and_type.css">
+<style>
+  /* ============================================================
+     Chronos-2 architecture atlas — single page research briefing.
+     Kaizen / KUI v11 tokens only. Flat surfaces, sharp radii,
+     thin borders, NVIDIA green = brand accent; teal accent =
+     "library / research" rail per Kaizen library-type usage.
+     ============================================================ */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font: var(--kui-body);
+    color: var(--kui-fg-strong);
+    background: var(--kui-bg-canvas);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  a { color: var(--kui-info); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, .mono { font: var(--kui-code); color: var(--kui-fg-strong); }
+  .mono-sm { font-family: var(--kui-font-mono); font-size: 11px; line-height: 1.2; color: var(--kui-fg-strong); }
+  hr.divider { border: 0; border-top: 1px solid var(--kui-border-default); margin: 0; }
+
+  /* ---------- App bar ---------- */
+  .appbar {
+    display: flex; align-items: center; gap: var(--kui-space-md);
+    height: 56px; padding: 0 var(--kui-space-ml);
+    background: var(--kui-bg-mid);
+    border-bottom: 1px solid var(--kui-border-default);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .appbar .brand { display: flex; align-items: center; gap: var(--kui-space-sm); font-weight: var(--kui-fw-bold); letter-spacing: -0.25px; }
+  .appbar .brand-eye { width: 22px; height: 22px; }
+  .appbar .brand-wordmark { font: 700 14px/1 var(--kui-font-sans); letter-spacing: 1.5px; text-transform: uppercase; }
+  .appbar .sep { width: 1px; height: 22px; background: var(--kui-border-default); }
+  .appbar .crumb { font: var(--kui-text); color: var(--kui-fg-muted); }
+  .appbar .crumb strong { color: var(--kui-fg-strong); font-weight: var(--kui-fw-medium); }
+  .appbar .spacer { flex: 1; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 22px; padding: 0 8px;
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-xs);
+    font: var(--kui-text-sm); color: var(--kui-fg-muted);
+    background: var(--kui-bg-mid);
+  }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--kui-brand-green); }
+  .pill .dot.teal { background: var(--kui-accent-teal); }
+  .pill .dot.info { background: var(--kui-info); }
+  .pill .dot.warn { background: var(--kui-warning); }
+  .atlas-home { color: var(--kui-fg-strong); }
+  .atlas-home:hover { text-decoration: none; border-color: var(--kui-border-strong); }
+
+  /* ---------- Layout ---------- */
+  .layout { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: calc(100vh - 56px); }
+  .rail {
+    border-right: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    padding: var(--kui-space-ml) 0;
+    position: sticky; top: 56px; align-self: start;
+    height: calc(100vh - 56px); overflow: auto;
+  }
+  .rail .accent { width: 4px; height: 32px; background: var(--kui-accent-teal); margin: 0 0 var(--kui-space-md) var(--kui-space-ml); }
+  .rail h4 {
+    font: var(--kui-overline);
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--kui-fg-muted);
+    padding: 0 var(--kui-space-ml);
+    margin: var(--kui-space-ml) 0 var(--kui-space-sm) 0;
+  }
+  .rail h4:first-of-type { margin-top: 0; }
+  .rail nav { display: flex; flex-direction: column; }
+  .rail nav a {
+    display: flex; align-items: center; gap: var(--kui-space-sm);
+    padding: 8px var(--kui-space-ml);
+    color: var(--kui-fg-default);
+    font: var(--kui-text);
+    border-left: 2px solid transparent;
+    transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+  }
+  .rail nav a:hover { background: var(--kui-n050); text-decoration: none; }
+  .rail nav a.active { color: var(--kui-fg-strong); border-left-color: var(--kui-brand-green); background: var(--kui-n050); font-weight: var(--kui-fw-medium); }
+  .rail nav a .num { font: var(--kui-text-sm); color: var(--kui-fg-muted); font-family: var(--kui-font-mono); width: 22px; text-align: right; }
+  .rail .meta { padding: var(--kui-space-md) var(--kui-space-ml); margin-top: var(--kui-space-md); border-top: 1px solid var(--kui-border-default); }
+  .rail .meta dt { font: var(--kui-text-sm); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+  .rail .meta dd { font: var(--kui-text); color: var(--kui-fg-strong); margin: 0 0 var(--kui-space-sm) 0; }
+
+  /* ---------- Main ---------- */
+  main { padding: var(--kui-space-xl) var(--kui-space-xl) 96px; max-width: 1320px; }
+  section { scroll-margin-top: 72px; }
+  section + section { margin-top: var(--kui-space-xxl); }
+  .section-head { display: flex; align-items: baseline; gap: var(--kui-space-md); margin-bottom: var(--kui-space-md); flex-wrap: wrap; }
+  .section-head .marker { font: var(--kui-text-sm); color: var(--kui-accent-teal-dk); text-transform: uppercase; letter-spacing: 1px; font-weight: var(--kui-fw-medium); }
+  .section-head h2 { font: var(--kui-h2); letter-spacing: var(--kui-tracking-heading); margin: 0; }
+  .section-head .sub { font: var(--kui-body); color: var(--kui-fg-muted); margin-left: auto; max-width: 520px; text-align: right; }
+  p.lede { font: var(--kui-body-md); color: var(--kui-fg-default); max-width: 78ch; margin: 0 0 var(--kui-space-md) 0; }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    border: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    border-radius: var(--kui-radius-sm);
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    overflow: hidden;
+  }
+  .hero-l { padding: var(--kui-space-xl); position: relative; }
+  .hero-l .accent { position: absolute; top: 0; left: 0; width: 4px; height: 64px; background: var(--kui-accent-teal); }
+  .hero-l .eyebrow { font: var(--kui-overline); color: var(--kui-accent-teal-dk); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: var(--kui-space-ms); }
+  .hero-l h1 { font: var(--kui-display-2); letter-spacing: -0.5px; margin: 0 0 var(--kui-space-sm) 0; color: var(--kui-fg-strong); }
+  .hero-l h1 .green { color: var(--kui-brand-green); }
+  .hero-l .tag { font: var(--kui-h4); color: var(--kui-fg-muted); margin-bottom: var(--kui-space-ml); max-width: 56ch; }
+  .hero-l p { font: var(--kui-body-md); color: var(--kui-fg-default); max-width: 60ch; margin: 0; }
+  .hero-meta {
+    display: grid; grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: var(--kui-space-md) var(--kui-space-xl);
+    margin-top: var(--kui-space-ml);
+  }
+  .hero-meta dt { font: var(--kui-text-sm); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .hero-meta dd { margin: 0; font: var(--kui-h4); color: var(--kui-fg-strong); }
+  .hero-meta dd small { display: block; font: var(--kui-text); color: var(--kui-fg-muted); margin-top: 2px; font-weight: var(--kui-fw-regular); }
+
+  .hero-r {
+    background: var(--kui-n950);
+    color: var(--kui-fg-inverse);
+    padding: var(--kui-space-xl);
+    display: flex; flex-direction: column; gap: var(--kui-space-md);
+    border-left: 1px solid var(--kui-border-default);
+    position: relative; overflow: hidden;
+  }
+  .hero-r .label { font: var(--kui-overline); color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 1.5px; }
+  .hero-r .chart { flex: 1; min-height: 220px; }
+  .hero-r .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--kui-space-md); border-top: 1px solid rgba(255,255,255,0.12); padding-top: var(--kui-space-md); }
+  .hero-r .stat-row .v { font: 500 22px/1 var(--kui-font-sans); color: var(--kui-fg-inverse); }
+  .hero-r .stat-row .v .green { color: var(--kui-brand-green); }
+  .hero-r .stat-row .k { font: var(--kui-text-sm); color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; display: block; }
+
+  /* ---------- Spec strip ---------- */
+  .specstrip {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0;
+    margin-top: var(--kui-space-md);
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-sm);
+    background: var(--kui-bg-mid);
+    overflow: hidden;
+  }
+  .specstrip .cell {
+    padding: 12px 14px;
+    border-right: 1px solid var(--kui-border-default);
+    border-bottom: 1px solid var(--kui-border-default);
+  }
+  .specstrip .cell:nth-child(6n) { border-right: 0; }
+  .specstrip .cell:nth-last-child(-n+6) { border-bottom: 0; }
+  .specstrip dt { font: var(--kui-text-sm); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; font-family: var(--kui-font-mono); font-size: 10px; }
+  .specstrip dd { margin: 0; font: 500 16px/1.2 var(--kui-font-sans); color: var(--kui-fg-strong); letter-spacing: -0.25px; }
+  .specstrip dd small { display: block; font: var(--kui-text-sm); color: var(--kui-fg-muted); margin-top: 2px; font-weight: var(--kui-fw-regular); letter-spacing: 0; }
+
+  /* ---------- Cards & grids ---------- */
+  .card {
+    background: var(--kui-bg-mid);
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-sm);
+    padding: var(--kui-space-ml);
+  }
+  .card.dense { padding: var(--kui-space-md); }
+  .card-title { font: var(--kui-h4); letter-spacing: var(--kui-tracking-heading); margin: 0 0 var(--kui-space-sm) 0; }
+  .card-sub { font: var(--kui-text-sm); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 var(--kui-space-sm) 0; font-family: var(--kui-font-mono); }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: var(--kui-space-md); }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: var(--kui-space-md); }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: var(--kui-space-md); }
+
+  /* ---------- Big architecture diagram ---------- */
+  .pipeline-card { padding: 0; overflow: hidden; }
+  .pipeline-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: var(--kui-space-md) var(--kui-space-ml);
+    border-bottom: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    flex-wrap: wrap; gap: var(--kui-space-md);
+  }
+  .pipeline-head .t { font: var(--kui-h4); letter-spacing: var(--kui-tracking-heading); }
+  .pipeline-head .legend { display: flex; gap: var(--kui-space-md); font: var(--kui-text-sm); color: var(--kui-fg-muted); flex-wrap: wrap; }
+  .pipeline-head .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: -1px; border-radius: 1px; border: 1px solid rgba(0,0,0,0.06); }
+  .pipeline-svg-wrap { background: var(--kui-n050); padding: var(--kui-space-md); }
+  svg.pipeline { display: block; width: 100%; height: auto; }
+
+  /* ---------- Table ---------- */
+  table.spec {
+    width: 100%; border-collapse: collapse;
+    background: var(--kui-bg-mid);
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-sm);
+    overflow: hidden;
+    font: var(--kui-body);
+  }
+  table.spec th, table.spec td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--kui-border-default);
+    vertical-align: top;
+  }
+  table.spec thead th {
+    font: var(--kui-text-sm); color: var(--kui-fg-muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--kui-n050);
+    border-bottom: 1px solid var(--kui-border-default);
+  }
+  table.spec tbody tr:last-child td { border-bottom: 0; }
+  table.spec tbody td.name { font-weight: var(--kui-fw-medium); }
+  table.spec td .mono { font: var(--kui-code); }
+  table.spec .yes { color: var(--kui-success); font-weight: var(--kui-fw-medium); }
+  table.spec .no { color: var(--kui-n300); }
+  table.spec .partial { color: var(--kui-warning); font-weight: var(--kui-fw-medium); }
+  table.spec .num { font-family: var(--kui-font-mono); font-variant-numeric: tabular-nums; }
+
+  /* ---------- Benchmark bars ---------- */
+  .bench-row { display: grid; grid-template-columns: 200px minmax(0,1fr) 92px; align-items: center; gap: var(--kui-space-md); padding: 10px 0; border-bottom: 1px dashed var(--kui-border-subtle); }
+  .bench-row:last-child { border-bottom: 0; }
+  .bench-row .lbl { font: var(--kui-text); color: var(--kui-fg-default); }
+  .bench-row .lbl small { display: block; color: var(--kui-fg-muted); font-size: 11px; margin-top: 2px; }
+  .bench-row .lbl.lead { font-weight: var(--kui-fw-medium); color: var(--kui-fg-strong); }
+  .bench-row .bar-track { position: relative; height: 14px; background: var(--kui-n050); border: 1px solid var(--kui-border-default); border-radius: 2px; }
+  .bench-row .bar-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--kui-n300); }
+  .bench-row .bar-fill.lead { background: var(--kui-brand-green); }
+  .bench-row .bar-fill.teal { background: var(--kui-accent-teal); }
+  .bench-row .val { font: var(--kui-h4); color: var(--kui-fg-strong); text-align: right; letter-spacing: -0.25px; font-variant-numeric: tabular-nums; }
+  .bench-row .val small { display: block; font: var(--kui-text-sm); color: var(--kui-fg-muted); font-weight: var(--kui-fw-regular); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+  /* ---------- Caveat / banner ---------- */
+  .caveat {
+    border: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    border-radius: var(--kui-radius-sm);
+    padding: var(--kui-space-md);
+    display: flex; gap: var(--kui-space-md);
+  }
+  .caveat .badge {
+    flex: 0 0 auto; width: 28px; height: 28px;
+    border-radius: var(--kui-radius-xs);
+    display: flex; align-items: center; justify-content: center;
+    background: var(--kui-warning-bg); color: var(--kui-warning);
+    font: 500 14px/1 var(--kui-font-sans); line-height: 1;
+  }
+  .caveat .badge.info { background: var(--kui-info-bg); color: var(--kui-info-text); }
+  .caveat .badge.danger { background: var(--kui-danger-bg); color: var(--kui-danger); }
+  .caveat .badge.success { background: var(--kui-success-bg); color: var(--kui-success); }
+  .caveat-title { font: var(--kui-h4); margin: 0 0 4px 0; letter-spacing: var(--kui-tracking-heading); }
+  .caveat-body { font: var(--kui-body); color: var(--kui-fg-default); margin: 0; }
+
+  /* ---------- Chips ---------- */
+  .chip {
+    display: inline-flex; align-items: center;
+    padding: 4px 8px;
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-xs);
+    background: var(--kui-n050);
+    font: var(--kui-text-sm); color: var(--kui-fg-default);
+  }
+  .chip code { font: 11px/1 var(--kui-font-mono); color: var(--kui-fg-strong); margin-right: 6px; padding: 1px 4px; background: var(--kui-bg-mid); border-radius: 1px; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  /* ---------- Source tag ---------- */
+  .src-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    height: 18px; padding: 0 6px;
+    background: var(--kui-info-bg); color: var(--kui-info-text);
+    border-radius: 1px; font: 10px/1 var(--kui-font-mono);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    vertical-align: 1px;
+  }
+  .src-tag.unk { background: var(--kui-n050); color: var(--kui-fg-muted); }
+  .src-tag.warn { background: var(--kui-warning-bg); color: var(--kui-warning); }
+  .src-tag.ok { background: var(--kui-success-bg); color: var(--kui-success); }
+
+  ul.flat { list-style: none; padding: 0; margin: 0; }
+  ul.flat li { padding: 8px 0; border-bottom: 1px dashed var(--kui-border-subtle); font: var(--kui-body); display: flex; gap: var(--kui-space-sm); align-items: baseline; }
+  ul.flat li:last-child { border-bottom: 0; }
+  ul.flat li .k { flex: 0 0 160px; color: var(--kui-fg-muted); font: var(--kui-text); }
+  ul.flat li .v { color: var(--kui-fg-strong); }
+
+  /* ---------- Tabs ---------- */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--kui-border-default); margin-bottom: var(--kui-space-md); }
+  .tabs button {
+    appearance: none; background: transparent; border: 0;
+    padding: 10px 16px; font: var(--kui-button); color: var(--kui-fg-muted);
+    border-bottom: 2px solid transparent; cursor: pointer;
+    transition: color 120ms ease-out, border-color 120ms ease-out;
+  }
+  .tabs button:hover { color: var(--kui-fg-strong); }
+  .tabs button.active { color: var(--kui-fg-strong); border-bottom-color: var(--kui-brand-green); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ---------- Quantile head viz ---------- */
+  .qband { background: var(--kui-bg-mid); border: 1px solid var(--kui-border-default); border-radius: var(--kui-radius-sm); padding: var(--kui-space-md); }
+
+  /* ---------- Code block ---------- */
+  pre.code {
+    margin: 0; padding: 12px 14px;
+    background: var(--kui-n950); color: #E3E3E3;
+    border-radius: var(--kui-radius-sm);
+    font: 12px/1.55 var(--kui-font-mono);
+    overflow-x: auto;
+  }
+  pre.code .k { color: #C586C0; }     /* keyword */
+  pre.code .s { color: #B5CEA8; }     /* string / num */
+  pre.code .c { color: #6A9955; }     /* comment */
+  pre.code .f { color: #DCDCAA; }     /* fn */
+  pre.code .v { color: #9CDCFE; }     /* var / attr */
+
+  /* ---------- Source row ---------- */
+  .src-list { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: var(--kui-space-sm) var(--kui-space-md); }
+  .src-list .src { display: flex; gap: var(--kui-space-sm); padding: 10px 12px; border: 1px solid var(--kui-border-default); border-radius: var(--kui-radius-xs); background: var(--kui-bg-mid); }
+  .src-list .src .idx { font: var(--kui-text-sm); color: var(--kui-fg-muted); font-family: var(--kui-font-mono); flex: 0 0 32px; }
+  .src-list .src .body { font: var(--kui-text); color: var(--kui-fg-strong); line-height: 1.4; }
+  .src-list .src .body small { display: block; color: var(--kui-fg-muted); font-weight: var(--kui-fw-regular); margin-top: 2px; }
+  .src-list .src .body a { word-break: break-all; }
+
+  /* ---------- Footer ---------- */
+  footer.page-footer {
+    border-top: 1px solid var(--kui-border-default);
+    margin-top: var(--kui-space-xxl);
+    padding: var(--kui-space-ml) var(--kui-space-xl);
+    background: var(--kui-bg-mid);
+    color: var(--kui-fg-muted); font: var(--kui-body);
+    display: flex; justify-content: space-between; gap: var(--kui-space-md); flex-wrap: wrap;
+  }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 1100px) {
+    .layout { grid-template-columns: 1fr; }
+    .rail { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--kui-border-default); }
+    .rail nav { flex-direction: row; overflow-x: auto; padding: 0 var(--kui-space-md) var(--kui-space-sm); }
+    .rail nav a { border-left: 0; border-bottom: 2px solid transparent; padding: 8px 10px; white-space: nowrap; }
+    .rail nav a.active { border-left: 0; border-bottom-color: var(--kui-brand-green); background: transparent; }
+    .rail h4, .rail .meta, .rail .accent { display: none; }
+    .hero { grid-template-columns: 1fr; }
+    .hero-r { border-left: 0; border-top: 1px solid var(--kui-border-default); }
+    main { padding: var(--kui-space-ml); }
+    .grid-3, .grid-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .specstrip { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .specstrip .cell:nth-child(6n) { border-right: 1px solid var(--kui-border-default); }
+    .specstrip .cell:nth-child(3n) { border-right: 0; }
+  }
+  @media (max-width: 640px) {
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    .hero-meta { grid-template-columns: 1fr; }
+    .bench-row { grid-template-columns: 1fr; }
+    .bench-row .val { text-align: left; }
+    .specstrip { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .specstrip .cell:nth-child(3n) { border-right: 1px solid var(--kui-border-default); }
+    .specstrip .cell:nth-child(2n) { border-right: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     APP BAR
+     ============================================================ -->
+<header class="appbar">
+  <div class="brand">
+    <svg class="brand-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M3 18 L8 12 L12 15 L16 9 L21 14"></path>
+      <circle cx="3" cy="18" r="1.2" fill="currentColor"></circle>
+      <circle cx="8" cy="12" r="1.2" fill="currentColor"></circle>
+      <circle cx="12" cy="15" r="1.2" fill="currentColor"></circle>
+      <circle cx="16" cy="9" r="1.2" fill="currentColor"></circle>
+      <circle cx="21" cy="14" r="1.2" fill="currentColor"></circle>
+    </svg>
+    <span class="brand-wordmark">Model&nbsp;Atlas</span>
+  </div>
+  <span class="sep"></span>
+  <span class="crumb">Time-series foundation models · <strong>Chronos-2</strong></span>
+  <span class="spacer"></span>
+  <a class="pill atlas-home" href="../../index.html"><span class="dot info"></span>Atlas home</a>
+  <span class="pill"><span class="dot teal"></span>Source-reported · not independently verified</span>
+  <span class="pill"><span class="dot"></span>Apache-2.0 · weights + code</span>
+</header>
+
+<div class="layout">
+
+  <!-- ============================================================
+       LEFT RAIL
+       ============================================================ -->
+  <aside class="rail">
+    <div class="accent"></div>
+    <h4>On this page</h4>
+    <nav id="rail-nav">
+      <a href="#identity" data-target="identity"><span class="num">01</span>Identity &amp; specs</a>
+      <a href="#pipeline" data-target="pipeline"><span class="num">02</span>End-to-end pipeline</a>
+      <a href="#attention" data-target="attention"><span class="num">03</span>Two attention axes</a>
+      <a href="#block"    data-target="block"><span class="num">04</span>Encoder block internals</a>
+      <a href="#inputs"   data-target="inputs"><span class="num">05</span>Inputs &amp; covariates</a>
+      <a href="#patch"    data-target="patch"><span class="num">06</span>Patches &amp; REG token</a>
+      <a href="#quantile" data-target="quantile"><span class="num">07</span>Quantile forecast head</a>
+      <a href="#training" data-target="training"><span class="num">08</span>Training &amp; data</a>
+      <a href="#capabilities" data-target="capabilities"><span class="num">09</span>Capability comparison</a>
+      <a href="#bench"    data-target="bench"><span class="num">10</span>Reported benchmarks</a>
+      <a href="#ablations" data-target="ablations"><span class="num">11</span>Ablations</a>
+      <a href="#usage"    data-target="usage"><span class="num">12</span>Usage &amp; deployment</a>
+      <a href="#caveats"  data-target="caveats"><span class="num">13</span>Unknowns &amp; caveats</a>
+      <a href="#sources"  data-target="sources"><span class="num">14</span>Sources</a>
+    </nav>
+    <dl class="meta">
+      <dt>Model</dt><dd>Chronos-2</dd>
+      <dt>Vendor / lab</dt><dd>Amazon Science / AWS AI Labs</dd>
+      <dt>Family</dt><dd>Chronos · Chronos-Bolt · Chronos-2</dd>
+      <dt>Report</dt><dd>arXiv 2510.15821 (v1, 2025-10-17)</dd>
+      <dt>HF model</dt><dd>amazon/chronos-2</dd>
+      <dt>License</dt><dd>Apache-2.0</dd>
+    </dl>
+  </aside>
+
+  <!-- ============================================================
+       MAIN
+       ============================================================ -->
+  <main>
+
+    <!-- ===== 01. IDENTITY =================================== -->
+    <section id="identity">
+      <div class="hero">
+        <div class="hero-l">
+          <span class="accent"></span>
+          <div class="eyebrow">Time-series foundation model · Universal forecasting</div>
+          <h1>Chronos-2 <span class="green">·</span> Forecasting Architecture</h1>
+          <div class="tag">Amazon's 120 M-parameter encoder-only foundation model for univariate, multivariate, and covariate-informed probabilistic forecasting.</div>
+          <p>Chronos-2 takes grouped time-series &mdash; targets, past covariates, and known future covariates &mdash; robustly scales them, slices them into 16-step patches, and passes them through 12 encoder blocks that alternate <strong>time</strong> self-attention along the temporal axis and <strong>group</strong> self-attention across related series. A direct multi-step quantile head emits 21-quantile forecasts up to 1024 steps ahead in a single forward pass &mdash; no autoregressive token sampling.</p>
+          <dl class="hero-meta">
+            <div><dt>Parameters</dt><dd>120&nbsp;M<small>dense, encoder-only &middot; not MoE</small></dd></div>
+            <div><dt>Backbone</dt><dd>T5-inspired encoder<small>12 layers &middot; d_model 768 &middot; 12 heads</small></dd></div>
+            <div><dt>Context · horizon</dt><dd>8192 &rarr; 1024 steps<small>up to 512 input patches, 64 output patches of size 16</small></dd></div>
+            <div><dt>Output</dt><dd>21-quantile direct multi-step<small>0.01 &hellip; 0.99 in one forward pass</small></dd></div>
+            <div><dt>Release</dt><dd>arXiv v1 &middot; 17 Oct 2025<small>GitHub 20 Oct 2025 &middot; SageMaker 30 Dec 2025</small></dd></div>
+            <div><dt>License</dt><dd>Apache-2.0<small>amazon/chronos-2 on Hugging Face</small></dd></div>
+          </dl>
+        </div>
+
+        <div class="hero-r" aria-hidden="true">
+          <div class="label">Illustrative · 21-quantile forecast band</div>
+          <svg class="chart" viewBox="0 0 480 240" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <linearGradient id="bandGrad" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%"  stop-color="#76B900" stop-opacity="0.45"/>
+                <stop offset="100%" stop-color="#76B900" stop-opacity="0.05"/>
+              </linearGradient>
+            </defs>
+            <!-- grid -->
+            <g stroke="rgba(255,255,255,0.06)" stroke-width="1">
+              <line x1="0" y1="60"  x2="480" y2="60"/>
+              <line x1="0" y1="120" x2="480" y2="120"/>
+              <line x1="0" y1="180" x2="480" y2="180"/>
+            </g>
+            <!-- context / future split -->
+            <line x1="280" y1="0" x2="280" y2="220" stroke="#76B900" stroke-width="1" stroke-dasharray="3 3"/>
+            <text x="20"  y="20" font-family="Roboto Mono, monospace" font-size="9" fill="rgba(255,255,255,0.6)">CONTEXT &middot; observed</text>
+            <text x="296" y="20" font-family="Roboto Mono, monospace" font-size="9" fill="#76B900">FUTURE &middot; 21q forecast</text>
+
+            <!-- 98% band 0.01..0.99 -->
+            <path d="M280,90 C320,80 360,60 400,50 C430,42 460,38 480,40
+                     L480,200 C460,205 430,212 400,210 C360,205 320,195 280,180 Z"
+                  fill="url(#bandGrad)"/>
+            <!-- 80% band 0.10..0.90 -->
+            <path d="M280,105 C320,95 360,82 400,75 C430,70 460,68 480,70
+                     L480,178 C460,180 430,184 400,180 C360,175 320,165 280,160 Z"
+                  fill="#76B900" fill-opacity="0.35"/>
+
+            <!-- observed history -->
+            <polyline points="0,140 20,135 40,142 60,128 80,138 100,122 120,140 140,118 160,130 180,108 200,124 220,114 240,132 260,118 280,130"
+                      fill="none" stroke="#E3E3E3" stroke-width="1.6"/>
+            <!-- median forecast -->
+            <polyline points="280,130 310,118 340,108 370,98 400,90 430,86 460,84 480,82"
+                      fill="none" stroke="#76B900" stroke-width="2"/>
+
+            <!-- patch ticks -->
+            <g fill="rgba(255,255,255,0.4)" font-family="Roboto Mono, monospace" font-size="8">
+              <rect x="280" y="222" width="32" height="6" fill="rgba(118,185,0,0.25)" stroke="#76B900" stroke-width="0.5"/>
+              <rect x="312" y="222" width="32" height="6" fill="rgba(118,185,0,0.25)" stroke="#76B900" stroke-width="0.5"/>
+              <rect x="344" y="222" width="32" height="6" fill="rgba(118,185,0,0.25)" stroke="#76B900" stroke-width="0.5"/>
+              <rect x="376" y="222" width="32" height="6" fill="rgba(118,185,0,0.25)" stroke="#76B900" stroke-width="0.5"/>
+              <rect x="408" y="222" width="32" height="6" fill="rgba(118,185,0,0.25)" stroke="#76B900" stroke-width="0.5"/>
+              <rect x="440" y="222" width="32" height="6" fill="rgba(118,185,0,0.25)" stroke="#76B900" stroke-width="0.5"/>
+              <text x="296" y="237">P1</text>
+              <text x="328" y="237">P2</text>
+              <text x="360" y="237">P3</text>
+              <text x="392" y="237">P4</text>
+              <text x="424" y="237">P5</text>
+              <text x="456" y="237">P6</text>
+            </g>
+            <!-- legend right -->
+            <g font-family="DM Sans, system-ui, sans-serif" font-size="9" fill="rgba(255,255,255,0.75)">
+              <rect x="380" y="34" width="10" height="10" fill="#76B900" fill-opacity="0.35"/>
+              <text x="394" y="43">80% interval</text>
+              <rect x="380" y="48" width="10" height="10" fill="url(#bandGrad)"/>
+              <text x="394" y="57">98% interval</text>
+            </g>
+          </svg>
+
+          <div class="stat-row">
+            <div><span class="v">90.7<span class="green">%</span></span><span class="k">fev-bench win rate</span></div>
+            <div><span class="v">&gt;300<span class="green">/s</span></span><span class="k">forecasts &middot; A10G</span></div>
+            <div><span class="v">21q</span><span class="k">direct multi-step</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- spec strip -->
+      <dl class="specstrip">
+        <div class="cell"><dt>Parameters</dt><dd>120 M<small>dense</small></dd></div>
+        <div class="cell"><dt>Backbone</dt><dd>Encoder-only<small>T5-inspired</small></dd></div>
+        <div class="cell"><dt>Layers</dt><dd>12<small>num_layers</small></dd></div>
+        <div class="cell"><dt>d_model</dt><dd>768<small>d_ff = 3072</small></dd></div>
+        <div class="cell"><dt>Heads</dt><dd>12 &times; d_kv 64<small>num_heads &middot; d_kv</small></dd></div>
+        <div class="cell"><dt>Activation</dt><dd>ReLU<small>dense_act_fn</small></dd></div>
+        <div class="cell"><dt>Context</dt><dd>8192 steps<small>up to 512 input patches</small></dd></div>
+        <div class="cell"><dt>Horizon</dt><dd>1024 steps<small>up to 64 output patches</small></dd></div>
+        <div class="cell"><dt>Patch size</dt><dd>16<small>in/out stride 16</small></dd></div>
+        <div class="cell"><dt>Quantiles</dt><dd>21<small>0.01 &hellip; 0.99</small></dd></div>
+        <div class="cell"><dt>Position</dt><dd>RoPE<small>theta 10 000 &middot; time axis only</small></dd></div>
+        <div class="cell"><dt>License</dt><dd>Apache-2.0<small>amazon/chronos-2</small></dd></div>
+      </dl>
+
+      <div class="caveat" style="margin-top: var(--kui-space-md);">
+        <div class="badge">!</div>
+        <div>
+          <h4 class="caveat-title">Source-reported, not independently verified</h4>
+          <p class="caveat-body">All numbers and architectural claims on this page are drawn from the Chronos-2 technical report (arXiv 2510.15821), the Amazon Science launch blog, the Hugging Face model card &amp; config, and the published GitHub source at <code>amazon-science/chronos-forecasting</code>. Benchmark figures are reproduced as authored; we have not re-run any evaluation. Items not in those listed sources are explicitly labelled <span class="src-tag unk">not reported</span>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02. END-TO-END PIPELINE =========================== -->
+    <section id="pipeline">
+      <div class="section-head">
+        <span class="marker">02 &middot; Architecture</span>
+        <h2>End-to-end inference pipeline</h2>
+        <span class="sub">Raw pandas-style tables &rarr; grouped, scaled, patched tensors &rarr; 12 encoder blocks &rarr; 21-quantile direct multi-step forecast &rarr; inverse-scaled output bands.</span>
+      </div>
+
+      <p class="lede">Chronos-2 is a <strong>time-series</strong> model, not a language model. Its <code>vocab_size</code> in the Hugging Face config is <code>2</code> &mdash; one slot for <code>PAD</code>, one for the learned <code>REG</code> separator. Everything else flows as continuous, scaled, patched float tensors. The forward pass below covers a single batch of grouped series; no autoregressive sampling is involved &mdash; the quantile head emits the full horizon in one shot.</p>
+
+      <div class="card pipeline-card">
+        <div class="pipeline-head">
+          <div class="t">Chronos-2 forward pass &middot; from <span class="mono">pandas.DataFrame</span> to forecast tensor</div>
+          <div class="legend">
+            <span><i style="background:#FFFFFF; border-color:#1FA18D"></i>Pre-compute (scaling, masks, patching)</span>
+            <span><i style="background:#FFFFFF; border-color:#76B900"></i>Encoder backbone</span>
+            <span><i style="background:#FFFFFF; border-color:#0D69D4"></i>Quantile head &amp; inverse transform</span>
+            <span><i style="background:#F2F2F2; border-color:#D8D8D8"></i>Inputs / outputs</span>
+          </div>
+        </div>
+        <div class="pipeline-svg-wrap">
+          <svg class="pipeline" viewBox="0 0 1260 540" xmlns="http://www.w3.org/2000/svg" font-family="DM Sans, system-ui, sans-serif">
+            <defs>
+              <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" fill="#5E5E5E"/>
+              </marker>
+              <marker id="arrgr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" fill="#76B900"/>
+              </marker>
+            </defs>
+            <style>
+              .b      { fill:#FFFFFF; stroke:#D8D8D8; stroke-width:1; }
+              .b-in   { fill:#F2F2F2; stroke:#D8D8D8; stroke-width:1;}
+              .b-pre  { fill:#FFFFFF; stroke:#1FA18D; stroke-width:1.4;}
+              .b-enc  { fill:#FFFFFF; stroke:#76B900; stroke-width:1.6;}
+              .b-out  { fill:#FFFFFF; stroke:#0D69D4; stroke-width:1.4;}
+              .ttl    { font-size:12px; font-weight:500; fill:#202020;}
+              .sub    { font-size:10px; fill:#5E5E5E;}
+              .mono   { font-family:"Roboto Mono", ui-monospace, monospace; font-size:10px; fill:#202020;}
+              .mono-m { font-family:"Roboto Mono", ui-monospace, monospace; font-size:10px; fill:#5E5E5E;}
+              .tag    { font-size:9px; fill:#006B5E; font-family:"Roboto Mono", monospace; text-transform:uppercase; letter-spacing:0.5px;}
+              .tag-gr { fill:#5E9600;}
+              .tag-bl { fill:#0D69D4;}
+              .arrow  { stroke:#5E5E5E; stroke-width:1; fill:none;}
+              .arrow-gr { stroke:#76B900; stroke-width:1.4; fill:none;}
+              .hr     { stroke:#E3E3E3; stroke-width:1; stroke-dasharray:3 3;}
+              .step-n { font:600 10px/1 "Roboto Mono", monospace; fill:#1FA18D;}
+            </style>
+
+            <!-- Stage banners -->
+            <g>
+              <text x="20"   y="20" class="tag">A · Input table</text>
+              <text x="220"  y="20" class="tag">B · Pre-compute &amp; patch</text>
+              <text x="620"  y="20" class="tag tag-gr">C · 12 encoder blocks</text>
+              <text x="900"  y="20" class="tag tag-bl">D · Quantile head</text>
+              <text x="1130" y="20" class="tag">E · Forecast</text>
+              <line x1="0" y1="30" x2="1260" y2="30" class="hr"/>
+            </g>
+
+            <!-- ============ A · INPUT TABLE ============ -->
+            <g transform="translate(20 50)">
+              <rect class="b-in" x="0" y="0" width="180" height="142" rx="2"/>
+              <text x="10" y="18" class="ttl">pandas.DataFrame</text>
+              <text x="10" y="33" class="mono-m">context_df &middot; future_df</text>
+              <!-- mini table -->
+              <g transform="translate(10 42)" font-family="Roboto Mono, monospace" font-size="9">
+                <rect x="0" y="0" width="160" height="14" fill="#F2F2F2" stroke="#D8D8D8"/>
+                <text x="4" y="10" fill="#5E5E5E">item_id  ts        target  co</text>
+                <rect x="0" y="14" width="160" height="14" fill="#FFFFFF" stroke="#D8D8D8"/>
+                <text x="4" y="24" fill="#202020">A001     00:00     12.4    1</text>
+                <rect x="0" y="28" width="160" height="14" fill="#FFFFFF" stroke="#D8D8D8"/>
+                <text x="4" y="38" fill="#202020">A001     00:15     13.1    0</text>
+                <rect x="0" y="42" width="160" height="14" fill="#FFFFFF" stroke="#D8D8D8"/>
+                <text x="4" y="52" fill="#202020">A002     00:00      8.0    1</text>
+                <rect x="0" y="56" width="160" height="14" fill="#FFFFFF" stroke="#D8D8D8"/>
+                <text x="4" y="66" fill="#202020">A002     00:15      7.8    0</text>
+              </g>
+              <text x="10" y="132" class="sub">id_column · timestamp · target · covariates</text>
+
+              <!-- group assignment card -->
+              <rect class="b-pre" x="0" y="158" width="180" height="92" rx="2"/>
+              <text x="10" y="176" class="step-n">STEP 1</text>
+              <text x="10" y="191" class="ttl">Group assignment</text>
+              <text x="10" y="206" class="mono">group_ids → {0,1,2,…}</text>
+              <text x="10" y="220" class="sub">Independent univariate · cross-</text>
+              <text x="10" y="232" class="sub">learning · multivariate ·</text>
+              <text x="10" y="244" class="sub">target + covariates</text>
+
+              <!-- categorical handling -->
+              <rect class="b-pre" x="0" y="266" width="180" height="76" rx="2"/>
+              <text x="10" y="284" class="ttl">Categorical handling</text>
+              <text x="10" y="300" class="mono-m">univariate: target encoding</text>
+              <text x="10" y="314" class="mono-m">multivariate: ordinal fallback</text>
+              <text x="10" y="332" class="sub">Per report, §2 input construction</text>
+            </g>
+
+            <!-- arrows A → B -->
+            <path class="arrow" d="M200,120 H220" marker-end="url(#arr)"/>
+            <path class="arrow" d="M200,210 H220" marker-end="url(#arr)"/>
+
+            <!-- ============ B · PRE-COMPUTE ============ -->
+            <g transform="translate(220 50)">
+              <rect class="b-pre" x="0" y="0" width="380" height="450" rx="2"/>
+              <text x="14" y="18" class="ttl">Pre-compute &amp; patch construction</text>
+              <text x="14" y="32" class="sub">Robust scale → mask → time features → 16-step patches → embed</text>
+
+              <!-- Step 2: scaling -->
+              <rect class="b" x="14" y="44" width="352" height="58" rx="2"/>
+              <text x="22" y="58" class="step-n">STEP 2 · scaling</text>
+              <text x="22" y="74" class="ttl">Robust instance normalization</text>
+              <text x="22" y="88" class="mono">x' = (x − loc) / scale</text>
+              <text x="156" y="88" class="mono-m">+ arcsinh stab. (opt.)</text>
+
+              <!-- Step 3: mask -->
+              <rect class="b" x="14" y="110" width="172" height="68" rx="2"/>
+              <text x="22" y="124" class="step-n">STEP 3 · masks</text>
+              <text x="22" y="140" class="ttl">Observed mask</text>
+              <text x="22" y="156" class="mono-m">0/1 per step · context</text>
+              <text x="22" y="170" class="mono-m">+ future-covariate mask</text>
+
+              <!-- Step 4: time idx -->
+              <rect class="b" x="194" y="110" width="172" height="68" rx="2"/>
+              <text x="202" y="124" class="step-n">STEP 4 · time</text>
+              <text x="202" y="140" class="ttl">Time index features</text>
+              <text x="202" y="156" class="mono-m">i / context_len for history</text>
+              <text x="202" y="170" class="mono-m">0…h / context_len for future</text>
+
+              <!-- Step 5: patching -->
+              <rect class="b" x="14" y="186" width="352" height="98" rx="2"/>
+              <text x="22" y="200" class="step-n">STEP 5 · patching</text>
+              <text x="22" y="216" class="ttl">Non-overlapping 16-step patches</text>
+              <text x="22" y="232" class="mono">context: ⌈L_ctx/16⌉ ≤ 512 patches</text>
+              <text x="22" y="247" class="mono">future:  ≤ 64 patches → horizon ≤ 1024</text>
+              <!-- patch visual -->
+              <g transform="translate(220 198)">
+                <rect x="0"  y="0" width="14" height="10" fill="#E3E3E3" stroke="#D8D8D8"/>
+                <rect x="16" y="0" width="14" height="10" fill="#E3E3E3" stroke="#D8D8D8"/>
+                <rect x="32" y="0" width="14" height="10" fill="#E3E3E3" stroke="#D8D8D8"/>
+                <text x="50" y="9" font-family="Roboto Mono, monospace" font-size="8" fill="#5E5E5E">…</text>
+                <rect x="62" y="0" width="14" height="10" fill="#FBEEFE" stroke="#A05AB4"/>
+                <text x="22" y="-2" font-family="Roboto Mono, monospace" font-size="7" fill="#5E5E5E">context patches</text>
+                <text x="58" y="-2" font-family="Roboto Mono, monospace" font-size="7" fill="#5E9600">REG</text>
+                <rect x="78" y="0" width="14" height="10" fill="#76B900" fill-opacity="0.25" stroke="#5E9600"/>
+                <rect x="94" y="0" width="14" height="10" fill="#76B900" fill-opacity="0.25" stroke="#5E9600"/>
+                <text x="80" y="-2" font-family="Roboto Mono, monospace" font-size="7" fill="#5E9600">future</text>
+              </g>
+              <text x="22" y="275" class="mono-m">per patch: [time_enc(16), values(16), mask(16)] = 48 features</text>
+
+              <!-- Step 6: patch embed -->
+              <rect class="b" x="14" y="294" width="352" height="76" rx="2"/>
+              <text x="22" y="308" class="step-n">STEP 6 · embed</text>
+              <text x="22" y="324" class="ttl">Patch embedding ResidualBlock</text>
+              <text x="22" y="340" class="mono">ℝ⁴⁸ → ResBlock → ℝ⁷⁶⁸</text>
+              <text x="22" y="356" class="sub">Two-layer MLP w/ residual; broadcasts patches into d_model</text>
+
+              <!-- Step 7: REG -->
+              <rect class="b" x="14" y="378" width="352" height="60" rx="2"/>
+              <text x="22" y="392" class="step-n">STEP 7 · REG token</text>
+              <text x="22" y="408" class="ttl">Learned separator + attention sink</text>
+              <text x="22" y="424" class="mono-m">Inserted between context-patch and future-patch embeddings</text>
+            </g>
+
+            <!-- arrows B → C -->
+            <path class="arrow-gr" d="M600,275 H620" marker-end="url(#arrgr)"/>
+            <text x="602" y="265" class="mono-m" fill="#5E9600">tokens</text>
+
+            <!-- ============ C · ENCODER BACKBONE ============ -->
+            <g transform="translate(620 50)">
+              <rect class="b-enc" x="0" y="0" width="260" height="450" rx="2"/>
+              <text x="14" y="18" class="ttl">Chronos-2 encoder &middot; 12 blocks</text>
+              <text x="14" y="32" class="sub">T5-inspired; alternating attention axes per layer</text>
+
+              <!-- 12 block stack -->
+              <g transform="translate(14 44)">
+                <!-- block schematic -->
+                <rect x="0" y="0" width="232" height="78" rx="2" fill="#FFFFFF" stroke="#76B900" stroke-width="1.2"/>
+                <text x="8" y="14" class="step-n" fill="#5E9600">BLOCK ×12</text>
+                <rect x="8"   y="22" width="216" height="14" fill="#F2F2F2" stroke="#D8D8D8"/>
+                <text x="14"  y="32" class="mono">layer[0] · TimeSelfAttention  (RoPE)</text>
+                <rect x="8"   y="38" width="216" height="14" fill="#F2F2F2" stroke="#D8D8D8"/>
+                <text x="14"  y="48" class="mono">layer[1] · GroupSelfAttention</text>
+                <rect x="8"   y="54" width="216" height="14" fill="#F2F2F2" stroke="#D8D8D8"/>
+                <text x="14"  y="64" class="mono">layer[2] · FeedForward (3072)</text>
+              </g>
+
+              <!-- visual stack of 12 -->
+              <g transform="translate(50 134)">
+                <g>
+                  <rect x="0" y="0"   width="160" height="12" fill="#E8F4D6" stroke="#76B900" stroke-width="0.6"/>
+                  <rect x="0" y="14"  width="160" height="12" fill="#E8F4D6" stroke="#76B900" stroke-width="0.6"/>
+                  <rect x="0" y="28"  width="160" height="12" fill="#E8F4D6" stroke="#76B900" stroke-width="0.6"/>
+                  <rect x="0" y="42"  width="160" height="12" fill="#E8F4D6" stroke="#76B900" stroke-width="0.6"/>
+                  <rect x="0" y="56"  width="160" height="12" fill="#E8F4D6" stroke="#76B900" stroke-width="0.6"/>
+                  <rect x="0" y="70"  width="160" height="12" fill="#E8F4D6" stroke="#76B900" stroke-width="0.6"/>
+                  <rect x="0" y="84"  width="160" height="12" fill="#E8F4D6" stroke="#76B900" stroke-width="0.6"/>
+                  <rect x="0" y="98"  width="160" height="12" fill="#E8F4D6" stroke="#76B900" stroke-width="0.6"/>
+                  <rect x="0" y="112" width="160" height="12" fill="#E8F4D6" stroke="#76B900" stroke-width="0.6"/>
+                  <rect x="0" y="126" width="160" height="12" fill="#E8F4D6" stroke="#76B900" stroke-width="0.6"/>
+                  <rect x="0" y="140" width="160" height="12" fill="#E8F4D6" stroke="#76B900" stroke-width="0.6"/>
+                  <rect x="0" y="154" width="160" height="12" fill="#E8F4D6" stroke="#76B900" stroke-width="0.6"/>
+                </g>
+                <text x="-44" y="9"   class="mono-m">L1</text>
+                <text x="-44" y="51"  class="mono-m">L4</text>
+                <text x="-44" y="100" class="mono-m">L8</text>
+                <text x="-44" y="162" class="mono-m">L12</text>
+              </g>
+
+              <!-- final norm + slice -->
+              <rect class="b" x="14" y="316" width="232" height="46" rx="2"/>
+              <text x="22" y="332" class="ttl">Final LayerNorm + dropout</text>
+              <text x="22" y="348" class="mono-m">layer_norm_epsilon = 1e-6 · dropout 0.1</text>
+
+              <rect class="b" x="14" y="370" width="232" height="68" rx="2"/>
+              <text x="22" y="386" class="step-n">STEP 8</text>
+              <text x="22" y="402" class="ttl">Slice future-patch hidden states</text>
+              <text x="22" y="418" class="mono">H_fut ∈ ℝ^(N_fut × 768)</text>
+              <text x="22" y="430" class="mono-m">Context + REG hidden states discarded</text>
+            </g>
+
+            <!-- arrows C → D -->
+            <path class="arrow" d="M880,275 H900" marker-end="url(#arr)"/>
+
+            <!-- ============ D · QUANTILE HEAD ============ -->
+            <g transform="translate(900 50)">
+              <rect class="b-out" x="0" y="0" width="220" height="450" rx="2"/>
+              <text x="14" y="18" class="ttl">Quantile output head</text>
+              <text x="14" y="32" class="sub">Direct multi-step, no autoregression</text>
+
+              <rect class="b" x="14" y="44" width="192" height="92" rx="2"/>
+              <text x="22" y="58" class="step-n" fill="#0D69D4">STEP 9</text>
+              <text x="22" y="74" class="ttl">Output ResidualBlock</text>
+              <text x="22" y="90" class="mono">ℝ⁷⁶⁸ → ℝ^(21·16)</text>
+              <text x="22" y="106" class="sub">per future patch — 21 quantiles</text>
+              <text x="22" y="120" class="sub">× 16 horizon steps</text>
+
+              <rect class="b" x="14" y="144" width="192" height="62" rx="2"/>
+              <text x="22" y="160" class="ttl">Rearrange</text>
+              <text x="22" y="176" class="mono">[B, N_fut·16, 21]</text>
+              <text x="22" y="190" class="mono-m">→ [B, 21, horizon]</text>
+
+              <rect class="b" x="14" y="214" width="192" height="76" rx="2"/>
+              <text x="22" y="230" class="step-n" fill="#0D69D4">STEP 10</text>
+              <text x="22" y="246" class="ttl">Inverse normalization</text>
+              <text x="22" y="262" class="mono">y = x' · scale + loc</text>
+              <text x="22" y="278" class="sub">Per-series loc/scale from step 2</text>
+
+              <!-- quantile micro chart -->
+              <g transform="translate(14 304)">
+                <rect width="192" height="130" fill="#F2F2F2" stroke="#D8D8D8"/>
+                <text x="8" y="14" class="sub">Quantile bands · 21 levels</text>
+                <!-- bands -->
+                <g>
+                  <path d="M8,86 C40,72 80,56 130,46 C160,40 180,38 184,38
+                           L184,114 C180,116 160,118 130,114 C80,108 40,98 8,90 Z"
+                        fill="#76B900" fill-opacity="0.18"/>
+                  <path d="M8,82 C40,72 80,62 130,54 C160,50 180,49 184,50
+                           L184,102 C180,103 160,104 130,100 C80,95 40,90 8,86 Z"
+                        fill="#76B900" fill-opacity="0.32"/>
+                  <polyline points="8,90 40,82 80,72 130,62 160,58 184,56"
+                            fill="none" stroke="#5E9600" stroke-width="1.6"/>
+                </g>
+              </g>
+            </g>
+
+            <!-- arrow D → E -->
+            <path class="arrow" d="M1120,275 H1140" marker-end="url(#arr)"/>
+
+            <!-- ============ E · OUTPUT ============ -->
+            <g transform="translate(1140 50)">
+              <rect class="b-in" x="0" y="0" width="100" height="450" rx="2"/>
+              <text x="10" y="18" class="ttl">Forecast</text>
+              <text x="10" y="32" class="sub">Per target series</text>
+              <text x="10" y="56" class="mono">[B, 21, h]</text>
+              <text x="10" y="72" class="mono-m">B = #targets</text>
+              <text x="10" y="84" class="mono-m">h ≤ 1024 steps</text>
+
+              <text x="10" y="120" class="ttl">Loss</text>
+              <text x="10" y="136" class="mono-m">Quantile regression</text>
+              <text x="10" y="150" class="mono-m">on target dims only</text>
+
+              <text x="10" y="186" class="ttl">Covariate dims</text>
+              <text x="10" y="202" class="mono-m">predicted but</text>
+              <text x="10" y="216" class="mono-m">ignored downstream</text>
+
+              <text x="10" y="252" class="ttl">vocab_size</text>
+              <text x="10" y="268" class="mono">2  · PAD + REG</text>
+              <text x="10" y="282" class="mono-m">no token sampling</text>
+            </g>
+
+            <!-- ============ Bottom annotations ============ -->
+            <g>
+              <line x1="0" y1="510" x2="1260" y2="510" class="hr"/>
+              <text x="20"  y="528" class="mono-m">Dimensions: ctx_patches = ⌈L_ctx/16⌉ ≤ 512 &middot; fut_patches ≤ 64 &middot; horizon = fut_patches × 16 ≤ 1024 &middot; patch_vec = 3 × 16 = 48</text>
+              <text x="900" y="528" class="mono-m" fill="#5E9600">Source: arXiv 2510.15821 · model.py · layers.py · HF config</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <div class="grid-3" style="margin-top: var(--kui-space-md);">
+        <div class="card dense">
+          <div class="card-sub">Patch arithmetic</div>
+          <div class="card-title">From 8192 steps to 768-D tokens</div>
+          <ul class="flat">
+            <li><span class="k">Context patches</span><span class="v"><code>⌈L_ctx/16⌉ ≤ 512</code></span></li>
+            <li><span class="k">Future patches</span><span class="v"><code>≤ 64</code> output patches</span></li>
+            <li><span class="k">Patch vector</span><span class="v"><code>3 × 16 = 48</code> (time, value, mask)</span></li>
+            <li><span class="k">Embed dim</span><span class="v"><code>d_model = 768</code></span></li>
+          </ul>
+        </div>
+        <div class="card dense">
+          <div class="card-sub">No tokens, no sampling</div>
+          <div class="card-title">Continuous in &mdash; quantiles out</div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0;">Original Chronos quantized values into a discrete token vocabulary and ran T5 as an autoregressive language model. Chronos-2 keeps values continuous, replaces token sampling with a direct multi-step quantile head, and shrinks <code>vocab_size</code> to 2 &mdash; only <code>PAD</code> and <code>REG</code>. <span class="src-tag">arXiv 2510.15821</span></p>
+        </div>
+        <div class="card dense">
+          <div class="card-sub">REG separator</div>
+          <div class="card-title">One learned token between ctx &amp; future</div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0;">A single learned <code>REG</code> embedding is inserted at the boundary between context-patch tokens and future-patch tokens. The report describes it both as a separator and as an attention sink &mdash; a parking spot for diffuse attention mass that does not need to land on any specific patch. <span class="src-tag">arXiv 2510.15821</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03. TWO ATTENTION AXES ============================ -->
+    <section id="attention">
+      <div class="section-head">
+        <span class="marker">03 &middot; Centerpiece</span>
+        <h2>Two attention axes &middot; what makes Chronos-2 universal</h2>
+        <span class="sub">Chronos-2's differentiator is not "it is a transformer"; it is the two-axis attention pattern that lets it mix temporal context within a series <em>and</em> mix related series within a group.</span>
+      </div>
+
+      <p class="lede">Every encoder block runs two distinct self-attentions back to back. <strong>TimeSelfAttention</strong> mixes patches along the temporal axis of a single series and uses Rotary Position Embeddings to know where in time a patch sits. <strong>GroupSelfAttention</strong> mixes patches across series that share a <code>group_id</code> at the same patch index, with no positional embedding &mdash; series in a group have no canonical order. Together they cover the four group semantics in the report.</p>
+
+      <div class="grid-2">
+
+        <!-- Time attention card -->
+        <div class="card">
+          <div class="card-sub">layer[0] · within one series</div>
+          <div class="card-title">Time self-attention &middot; <code>RoPE</code></div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-md) 0;">For each series independently, every patch attends to every other patch in the same series (context + REG + future). Rotary Position Embeddings are applied to Q and K with <code>rope_theta = 10000</code>, so the model knows the relative time offset between two patches.</p>
+
+          <!-- matrix viz: time attention -->
+          <svg viewBox="0 0 480 260" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: auto;">
+            <defs>
+              <pattern id="hatch" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2="4" stroke="#76B900" stroke-width="1"/>
+              </pattern>
+            </defs>
+            <!-- series row -->
+            <g font-family="DM Sans, system-ui, sans-serif" font-size="10" fill="#5E5E5E">
+              <text x="14" y="20">series s</text>
+            </g>
+            <g transform="translate(14 30)">
+              <!-- patches -->
+              <g>
+                <rect x="0"   y="0" width="36" height="22" fill="#E3E3E3" stroke="#D8D8D8"/>
+                <text x="18" y="14" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">c1</text>
+                <rect x="38"  y="0" width="36" height="22" fill="#E3E3E3" stroke="#D8D8D8"/>
+                <text x="56" y="14" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">c2</text>
+                <rect x="76"  y="0" width="36" height="22" fill="#E3E3E3" stroke="#D8D8D8"/>
+                <text x="94" y="14" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">c3</text>
+                <rect x="114" y="0" width="36" height="22" fill="#FBEEFE" stroke="#A05AB4"/>
+                <text x="132" y="14" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">REG</text>
+                <rect x="152" y="0" width="36" height="22" fill="#E8F4D6" stroke="#76B900"/>
+                <text x="170" y="14" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">f1</text>
+                <rect x="190" y="0" width="36" height="22" fill="#E8F4D6" stroke="#76B900"/>
+                <text x="208" y="14" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">f2</text>
+                <rect x="228" y="0" width="36" height="22" fill="#E8F4D6" stroke="#76B900"/>
+                <text x="246" y="14" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">f3</text>
+              </g>
+              <!-- attention arcs from f1 -->
+              <g fill="none" stroke="#76B900" stroke-width="0.8" opacity="0.7">
+                <path d="M170,0 C150,-22 100,-22 18,0"/>
+                <path d="M170,0 C150,-20 90,-20 56,0"/>
+                <path d="M170,0 C150,-18 110,-18 94,0"/>
+                <path d="M170,0 C148,-16 138,-16 132,0"/>
+                <path d="M170,0 C200,-16 220,-16 208,0"/>
+                <path d="M170,0 C200,-18 240,-18 246,0"/>
+              </g>
+              <circle cx="170" cy="0" r="3" fill="#76B900"/>
+              <text x="170" y="-26" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#5E9600">query patch</text>
+            </g>
+
+            <!-- mask matrix -->
+            <g transform="translate(14 90)">
+              <text x="0" y="-2" font-family="DM Sans, system-ui, sans-serif" font-size="10" fill="#5E5E5E">attention mask · all-to-all within series</text>
+              <!-- 7x7 grid -->
+              <g>
+                <g>
+                  <!-- generate cells: all filled -->
+                  <g fill="#76B900" fill-opacity="0.7" stroke="#FFFFFF" stroke-width="1">
+                    <rect x="0"   y="0"   width="20" height="20"/>
+                    <rect x="22"  y="0"   width="20" height="20"/>
+                    <rect x="44"  y="0"   width="20" height="20"/>
+                    <rect x="66"  y="0"   width="20" height="20"/>
+                    <rect x="88"  y="0"   width="20" height="20"/>
+                    <rect x="110" y="0"   width="20" height="20"/>
+                    <rect x="132" y="0"   width="20" height="20"/>
+
+                    <rect x="0"   y="22"  width="20" height="20"/>
+                    <rect x="22"  y="22"  width="20" height="20"/>
+                    <rect x="44"  y="22"  width="20" height="20"/>
+                    <rect x="66"  y="22"  width="20" height="20"/>
+                    <rect x="88"  y="22"  width="20" height="20"/>
+                    <rect x="110" y="22"  width="20" height="20"/>
+                    <rect x="132" y="22"  width="20" height="20"/>
+
+                    <rect x="0"   y="44"  width="20" height="20"/>
+                    <rect x="22"  y="44"  width="20" height="20"/>
+                    <rect x="44"  y="44"  width="20" height="20"/>
+                    <rect x="66"  y="44"  width="20" height="20"/>
+                    <rect x="88"  y="44"  width="20" height="20"/>
+                    <rect x="110" y="44"  width="20" height="20"/>
+                    <rect x="132" y="44"  width="20" height="20"/>
+
+                    <rect x="0"   y="66"  width="20" height="20"/>
+                    <rect x="22"  y="66"  width="20" height="20"/>
+                    <rect x="44"  y="66"  width="20" height="20"/>
+                    <rect x="66"  y="66"  width="20" height="20"/>
+                    <rect x="88"  y="66"  width="20" height="20"/>
+                    <rect x="110" y="66"  width="20" height="20"/>
+                    <rect x="132" y="66"  width="20" height="20"/>
+
+                    <rect x="0"   y="88"  width="20" height="20"/>
+                    <rect x="22"  y="88"  width="20" height="20"/>
+                    <rect x="44"  y="88"  width="20" height="20"/>
+                    <rect x="66"  y="88"  width="20" height="20"/>
+                    <rect x="88"  y="88"  width="20" height="20"/>
+                    <rect x="110" y="88"  width="20" height="20"/>
+                    <rect x="132" y="88"  width="20" height="20"/>
+
+                    <rect x="0"   y="110" width="20" height="20"/>
+                    <rect x="22"  y="110" width="20" height="20"/>
+                    <rect x="44"  y="110" width="20" height="20"/>
+                    <rect x="66"  y="110" width="20" height="20"/>
+                    <rect x="88"  y="110" width="20" height="20"/>
+                    <rect x="110" y="110" width="20" height="20"/>
+                    <rect x="132" y="110" width="20" height="20"/>
+
+                    <rect x="0"   y="132" width="20" height="20"/>
+                    <rect x="22"  y="132" width="20" height="20"/>
+                    <rect x="44"  y="132" width="20" height="20"/>
+                    <rect x="66"  y="132" width="20" height="20"/>
+                    <rect x="88"  y="132" width="20" height="20"/>
+                    <rect x="110" y="132" width="20" height="20"/>
+                    <rect x="132" y="132" width="20" height="20"/>
+                  </g>
+                </g>
+                <!-- axis labels -->
+                <g font-family="Roboto Mono, monospace" font-size="8" fill="#5E5E5E">
+                  <text x="10"  y="166" text-anchor="middle">c1</text>
+                  <text x="32"  y="166" text-anchor="middle">c2</text>
+                  <text x="54"  y="166" text-anchor="middle">c3</text>
+                  <text x="76"  y="166" text-anchor="middle">REG</text>
+                  <text x="98"  y="166" text-anchor="middle">f1</text>
+                  <text x="120" y="166" text-anchor="middle">f2</text>
+                  <text x="142" y="166" text-anchor="middle">f3</text>
+
+                  <text x="-6"  y="14"  text-anchor="end">c1</text>
+                  <text x="-6"  y="36"  text-anchor="end">c2</text>
+                  <text x="-6"  y="58"  text-anchor="end">c3</text>
+                  <text x="-6"  y="80"  text-anchor="end">REG</text>
+                  <text x="-6"  y="102" text-anchor="end">f1</text>
+                  <text x="-6"  y="124" text-anchor="end">f2</text>
+                  <text x="-6"  y="146" text-anchor="end">f3</text>
+                </g>
+              </g>
+
+              <!-- legend -->
+              <g transform="translate(190 8)" font-family="DM Sans, system-ui, sans-serif" font-size="10" fill="#5E5E5E">
+                <rect x="0" y="0" width="14" height="14" fill="#76B900" fill-opacity="0.7"/>
+                <text x="22" y="11" fill="#202020">allowed</text>
+                <rect x="0" y="22" width="14" height="14" fill="#F2F2F2" stroke="#D8D8D8"/>
+                <text x="22" y="33" fill="#202020">masked</text>
+
+                <text x="0" y="62" fill="#5E9600" font-family="Roboto Mono, monospace" font-size="9">RoPE on Q,K</text>
+                <text x="0" y="76">positional</text>
+                <text x="0" y="89">rotation per axis</text>
+                <text x="0" y="106" fill="#5E5E5E">θ = 10 000</text>
+
+                <text x="0" y="138">Mask shape:</text>
+                <text x="0" y="152" font-family="Roboto Mono, monospace" font-size="9">[B, N_patches]</text>
+                <text x="0" y="166" fill="#5E5E5E">→ expanded for scores</text>
+              </g>
+            </g>
+          </svg>
+        </div>
+
+        <!-- Group attention card -->
+        <div class="card">
+          <div class="card-sub">layer[1] · across series sharing a group</div>
+          <div class="card-title">Group self-attention &middot; no positional embedding</div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-md) 0;">At each patch index, the patch from series <code>s</code> attends to the patches at that same index from every series with the matching <code>group_id</code>. No RoPE, no positional embedding &mdash; series in a group are an unordered set. This is what enables multivariate forecasting, cross-learning, and covariate handling in the same architecture.</p>
+
+          <!-- group attention viz -->
+          <svg viewBox="0 0 480 260" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: auto;">
+            <g font-family="DM Sans, system-ui, sans-serif" font-size="10" fill="#5E5E5E">
+              <text x="14" y="20">at patch index t</text>
+            </g>
+            <!-- columns of series -->
+            <g transform="translate(14 30)">
+              <!-- group 0 -->
+              <g>
+                <rect x="0"  y="0"  width="42" height="22" fill="#E8F4D6" stroke="#76B900"/>
+                <text x="21" y="14" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">s0 · gid 0</text>
+                <rect x="0"  y="24" width="42" height="22" fill="#E8F4D6" stroke="#76B900"/>
+                <text x="21" y="38" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">s1 · gid 0</text>
+                <rect x="0"  y="48" width="42" height="22" fill="#E8F4D6" stroke="#76B900"/>
+                <text x="21" y="62" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">s2 · gid 0</text>
+              </g>
+              <!-- group 1 -->
+              <g transform="translate(70 0)">
+                <rect x="0"  y="0"  width="42" height="22" fill="#E9F4FB" stroke="#0D69D4"/>
+                <text x="21" y="14" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">s3 · gid 1</text>
+                <rect x="0"  y="24" width="42" height="22" fill="#E9F4FB" stroke="#0D69D4"/>
+                <text x="21" y="38" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">s4 · gid 1</text>
+              </g>
+              <!-- group 2 -->
+              <g transform="translate(140 0)">
+                <rect x="0"  y="0"  width="42" height="22" fill="#FBEEFE" stroke="#A05AB4"/>
+                <text x="21" y="14" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">s5 · gid 2</text>
+              </g>
+
+              <!-- attention arcs within gid 0 from s0 -->
+              <g fill="none" stroke="#5E9600" stroke-width="0.9" opacity="0.85">
+                <path d="M42,11 C56,30 56,46 42,35"/>
+                <path d="M42,11 C58,40 58,60 42,59"/>
+                <path d="M42,35 C58,46 58,52 42,59"/>
+              </g>
+              <circle cx="42" cy="11" r="3" fill="#76B900"/>
+              <text x="80" y="-6" font-family="Roboto Mono, monospace" font-size="9" fill="#5E9600">↻ same group only</text>
+            </g>
+
+            <!-- group mask matrix -->
+            <g transform="translate(14 110)">
+              <text x="0" y="-2" font-family="DM Sans, system-ui, sans-serif" font-size="10" fill="#5E5E5E">attention mask · same group_id at this patch index</text>
+              <g font-family="Roboto Mono, monospace" font-size="8" fill="#5E5E5E">
+                <!-- 6x6 grid: gid pattern [0,0,0,1,1,2] -->
+                <g fill="#F2F2F2" stroke="#D8D8D8" stroke-width="1">
+                  <!-- rows -->
+                  <rect x="0"   y="0"   width="20" height="20"/>
+                  <rect x="22"  y="0"   width="20" height="20"/>
+                  <rect x="44"  y="0"   width="20" height="20"/>
+                  <rect x="66"  y="0"   width="20" height="20"/>
+                  <rect x="88"  y="0"   width="20" height="20"/>
+                  <rect x="110" y="0"   width="20" height="20"/>
+
+                  <rect x="0"   y="22"  width="20" height="20"/>
+                  <rect x="22"  y="22"  width="20" height="20"/>
+                  <rect x="44"  y="22"  width="20" height="20"/>
+                  <rect x="66"  y="22"  width="20" height="20"/>
+                  <rect x="88"  y="22"  width="20" height="20"/>
+                  <rect x="110" y="22"  width="20" height="20"/>
+
+                  <rect x="0"   y="44"  width="20" height="20"/>
+                  <rect x="22"  y="44"  width="20" height="20"/>
+                  <rect x="44"  y="44"  width="20" height="20"/>
+                  <rect x="66"  y="44"  width="20" height="20"/>
+                  <rect x="88"  y="44"  width="20" height="20"/>
+                  <rect x="110" y="44"  width="20" height="20"/>
+
+                  <rect x="0"   y="66"  width="20" height="20"/>
+                  <rect x="22"  y="66"  width="20" height="20"/>
+                  <rect x="44"  y="66"  width="20" height="20"/>
+                  <rect x="66"  y="66"  width="20" height="20"/>
+                  <rect x="88"  y="66"  width="20" height="20"/>
+                  <rect x="110" y="66"  width="20" height="20"/>
+
+                  <rect x="0"   y="88"  width="20" height="20"/>
+                  <rect x="22"  y="88"  width="20" height="20"/>
+                  <rect x="44"  y="88"  width="20" height="20"/>
+                  <rect x="66"  y="88"  width="20" height="20"/>
+                  <rect x="88"  y="88"  width="20" height="20"/>
+                  <rect x="110" y="88"  width="20" height="20"/>
+
+                  <rect x="0"   y="110" width="20" height="20"/>
+                  <rect x="22"  y="110" width="20" height="20"/>
+                  <rect x="44"  y="110" width="20" height="20"/>
+                  <rect x="66"  y="110" width="20" height="20"/>
+                  <rect x="88"  y="110" width="20" height="20"/>
+                  <rect x="110" y="110" width="20" height="20"/>
+                </g>
+                <!-- highlight same-group blocks -->
+                <g fill="#76B900" fill-opacity="0.7" stroke="#FFFFFF">
+                  <!-- gid 0: s0,s1,s2 -->
+                  <rect x="0"   y="0"   width="20" height="20"/>
+                  <rect x="22"  y="0"   width="20" height="20"/>
+                  <rect x="44"  y="0"   width="20" height="20"/>
+                  <rect x="0"   y="22"  width="20" height="20"/>
+                  <rect x="22"  y="22"  width="20" height="20"/>
+                  <rect x="44"  y="22"  width="20" height="20"/>
+                  <rect x="0"   y="44"  width="20" height="20"/>
+                  <rect x="22"  y="44"  width="20" height="20"/>
+                  <rect x="44"  y="44"  width="20" height="20"/>
+                  <!-- gid 1: s3,s4 -->
+                  <rect x="66"  y="66"  width="20" height="20"/>
+                  <rect x="88"  y="66"  width="20" height="20"/>
+                  <rect x="66"  y="88"  width="20" height="20"/>
+                  <rect x="88"  y="88"  width="20" height="20"/>
+                  <!-- gid 2: s5 -->
+                  <rect x="110" y="110" width="20" height="20"/>
+                </g>
+
+                <!-- labels -->
+                <text x="10"  y="144" text-anchor="middle">s0</text>
+                <text x="32"  y="144" text-anchor="middle">s1</text>
+                <text x="54"  y="144" text-anchor="middle">s2</text>
+                <text x="76"  y="144" text-anchor="middle">s3</text>
+                <text x="98"  y="144" text-anchor="middle">s4</text>
+                <text x="120" y="144" text-anchor="middle">s5</text>
+
+                <text x="-6"  y="14"  text-anchor="end">s0</text>
+                <text x="-6"  y="36"  text-anchor="end">s1</text>
+                <text x="-6"  y="58"  text-anchor="end">s2</text>
+                <text x="-6"  y="80"  text-anchor="end">s3</text>
+                <text x="-6"  y="102" text-anchor="end">s4</text>
+                <text x="-6"  y="124" text-anchor="end">s5</text>
+              </g>
+
+              <g transform="translate(170 8)" font-family="DM Sans, system-ui, sans-serif" font-size="10" fill="#5E5E5E">
+                <rect x="0" y="0" width="14" height="14" fill="#76B900" fill-opacity="0.7"/>
+                <text x="22" y="11" fill="#202020">same group · allowed</text>
+                <rect x="0" y="22" width="14" height="14" fill="#F2F2F2" stroke="#D8D8D8"/>
+                <text x="22" y="33" fill="#202020">different group · masked</text>
+
+                <text x="0" y="62" fill="#5E9600" font-family="Roboto Mono, monospace" font-size="9">no positional embed</text>
+                <text x="0" y="76">group is an</text>
+                <text x="0" y="89">unordered set</text>
+
+                <text x="0" y="118">Built from:</text>
+                <text x="0" y="132" font-family="Roboto Mono, monospace" font-size="9">group_ids[s] == group_ids[s']</text>
+              </g>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <!-- four group semantics -->
+      <div class="grid-4" style="margin-top: var(--kui-space-md);">
+        <div class="card dense">
+          <div class="card-sub">group semantic 1</div>
+          <div class="card-title">Independent univariate</div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-sm) 0;">One series per group. Group attention degenerates to identity &mdash; each series is forecast in isolation. Equivalent to running Chronos-Bolt-style univariate forecasting in a batch.</p>
+          <code class="mono mono-sm">group_ids = [0, 1, 2, …, N−1]</code>
+        </div>
+        <div class="card dense">
+          <div class="card-sub">group semantic 2</div>
+          <div class="card-title">Cross-learning / cold-start</div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-sm) 0;">Related items (same SKU family, same store region, shared metadata) put in one group. Information flows between siblings in-context &mdash; useful for short or new series.</p>
+          <code class="mono mono-sm">group_ids = [0, 0, 0, 1, 1, …]</code>
+        </div>
+        <div class="card dense">
+          <div class="card-sub">group semantic 3</div>
+          <div class="card-title">Multivariate variates</div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-sm) 0;">Variates of one multivariate system &mdash; e.g. price, load, generation in one energy market. All variates share a group_id; the model jointly forecasts the multivariate vector.</p>
+          <code class="mono mono-sm">group_ids = [0, 0, 0, …]</code>
+        </div>
+        <div class="card dense">
+          <div class="card-sub">group semantic 4</div>
+          <div class="card-title">Target + covariates</div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-sm) 0;">One forecasting task: target(s) plus past-only covariates plus known future covariates, all in one group. Covariate predictions are computed but the loss only flows through target dims.</p>
+          <code class="mono mono-sm">group_ids = [0, 0, 0, 0]</code>
+        </div>
+      </div>
+
+      <div class="caveat" style="margin-top: var(--kui-space-md);">
+        <div class="badge success">✓</div>
+        <div>
+          <h4 class="caveat-title">Why this matters</h4>
+          <p class="caveat-body">Every other large time-series foundation model in the listed sources is either strictly univariate or relies on external covariate regressors stacked on top. Chronos-2 lifts that distinction into the architecture: a single forward pass handles univariate, cross-learning, multivariate, and covariate-informed tasks &mdash; the difference is just how you set <code>group_ids</code>. <span class="src-tag">arXiv 2510.15821</span> <span class="src-tag">Amazon Science blog</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04. ENCODER BLOCK ============================ -->
+    <section id="block">
+      <div class="section-head">
+        <span class="marker">04 &middot; Encoder block</span>
+        <h2>Inside one of the 12 Chronos-2 encoder blocks</h2>
+        <span class="sub">Three layers per block, repeated 12 times. Final LayerNorm + dropout after the stack. Class names from <code>layers.py</code> at <code>amazon-science/chronos-forecasting</code>.</span>
+      </div>
+
+      <div class="card pipeline-card">
+        <div class="pipeline-head">
+          <div class="t"><code>Chronos2EncoderBlock</code> &middot; <code>num_layers = 12</code></div>
+          <div class="legend">
+            <span><i style="background:#FFFFFF; border-color:#76B900"></i>Attention sublayers</span>
+            <span><i style="background:#FFFFFF; border-color:#1FA18D"></i>FeedForward sublayer</span>
+            <span><i style="background:#F2F2F2; border-color:#D8D8D8"></i>Tensor shape annotations</span>
+          </div>
+        </div>
+        <div class="pipeline-svg-wrap">
+          <svg class="pipeline" viewBox="0 0 1200 340" xmlns="http://www.w3.org/2000/svg" font-family="DM Sans, system-ui, sans-serif">
+            <defs>
+              <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" fill="#5E5E5E"/>
+              </marker>
+            </defs>
+            <style>
+              .b      { fill:#FFFFFF; stroke:#D8D8D8; stroke-width:1; }
+              .b-attn { fill:#FFFFFF; stroke:#76B900; stroke-width:1.4;}
+              .b-ff   { fill:#FFFFFF; stroke:#1FA18D; stroke-width:1.4;}
+              .b-shape{ fill:#F2F2F2; stroke:#D8D8D8; stroke-width:1;}
+              .ttl    { font-size:12px; font-weight:500; fill:#202020;}
+              .sub    { font-size:10px; fill:#5E5E5E;}
+              .mono   { font-family:"Roboto Mono", ui-monospace, monospace; font-size:10px; fill:#202020;}
+              .mono-m { font-family:"Roboto Mono", ui-monospace, monospace; font-size:10px; fill:#5E5E5E;}
+              .arrow  { stroke:#5E5E5E; stroke-width:1; fill:none;}
+              .lab    { font-size:9px; fill:#5E9600; font-family:"Roboto Mono", monospace; text-transform:uppercase; letter-spacing:0.5px;}
+            </style>
+
+            <!-- input shape -->
+            <g transform="translate(20 130)">
+              <rect class="b-shape" width="130" height="60" rx="2"/>
+              <text x="10" y="18" class="ttl">Input tokens</text>
+              <text x="10" y="34" class="mono">[B, S, N, 768]</text>
+              <text x="10" y="50" class="sub">B=batch, S=series, N=patches</text>
+            </g>
+            <path class="arrow" d="M150,160 H180" marker-end="url(#arr2)"/>
+
+            <!-- layer[0] TimeSelfAttention -->
+            <g transform="translate(180 80)">
+              <rect class="b-attn" width="240" height="180" rx="2"/>
+              <text x="14" y="20" class="lab">layer[0]</text>
+              <text x="14" y="40" class="ttl">TimeSelfAttention</text>
+              <text x="14" y="56" class="mono-m">// chronos2/layers.py</text>
+
+              <rect class="b" x="14" y="66" width="212" height="22" rx="2"/>
+              <text x="22" y="80" class="mono">LayerNorm (eps 1e-6)</text>
+
+              <rect class="b" x="14" y="92" width="212" height="34" rx="2"/>
+              <text x="22" y="106" class="mono">Multi-head attn · 12 × 64</text>
+              <text x="22" y="120" class="mono-m">RoPE on Q,K · θ = 10000</text>
+
+              <rect class="b" x="14" y="130" width="212" height="22" rx="2"/>
+              <text x="22" y="144" class="mono">Dropout 0.1 · residual add</text>
+
+              <text x="14" y="170" class="sub">Attends along temporal patch axis · independent per series</text>
+            </g>
+            <path class="arrow" d="M420,170 H460" marker-end="url(#arr2)"/>
+
+            <!-- layer[1] GroupSelfAttention -->
+            <g transform="translate(460 80)">
+              <rect class="b-attn" width="240" height="180" rx="2"/>
+              <text x="14" y="20" class="lab">layer[1]</text>
+              <text x="14" y="40" class="ttl">GroupSelfAttention</text>
+              <text x="14" y="56" class="mono-m">// chronos2/layers.py</text>
+
+              <rect class="b" x="14" y="66" width="212" height="22" rx="2"/>
+              <text x="22" y="80" class="mono">LayerNorm (eps 1e-6)</text>
+
+              <rect class="b" x="14" y="92" width="212" height="34" rx="2"/>
+              <text x="22" y="106" class="mono">Multi-head attn · 12 × 64</text>
+              <text x="22" y="120" class="mono-m">no positional embed · group mask</text>
+
+              <rect class="b" x="14" y="130" width="212" height="22" rx="2"/>
+              <text x="22" y="144" class="mono">Dropout 0.1 · residual add</text>
+
+              <text x="14" y="170" class="sub">Attends across series sharing a group_id · same patch index</text>
+            </g>
+            <path class="arrow" d="M700,170 H740" marker-end="url(#arr2)"/>
+
+            <!-- layer[2] FeedForward -->
+            <g transform="translate(740 80)">
+              <rect class="b-ff" width="240" height="180" rx="2"/>
+              <text x="14" y="20" class="lab" fill="#006B5E">layer[2]</text>
+              <text x="14" y="40" class="ttl">FeedForward</text>
+              <text x="14" y="56" class="mono-m">// T5-style dense block</text>
+
+              <rect class="b" x="14" y="66" width="212" height="22" rx="2"/>
+              <text x="22" y="80" class="mono">LayerNorm (eps 1e-6)</text>
+
+              <rect class="b" x="14" y="92" width="212" height="34" rx="2"/>
+              <text x="22" y="106" class="mono">Linear 768 → 3072</text>
+              <text x="22" y="120" class="mono">ReLU · Linear 3072 → 768</text>
+
+              <rect class="b" x="14" y="130" width="212" height="22" rx="2"/>
+              <text x="22" y="144" class="mono">Dropout 0.1 · residual add</text>
+
+              <text x="14" y="170" class="sub">d_ff = 4 · d_model · dense_act_fn = relu</text>
+            </g>
+            <path class="arrow" d="M980,170 H1020" marker-end="url(#arr2)"/>
+
+            <!-- output stack -->
+            <g transform="translate(1020 90)">
+              <rect class="b-shape" width="160" height="160" rx="2"/>
+              <text x="10" y="18" class="ttl">Output tokens</text>
+              <text x="10" y="34" class="mono">[B, S, N, 768]</text>
+              <text x="10" y="50" class="sub">same shape as input</text>
+              <rect class="b" x="10" y="62" width="140" height="22" rx="2"/>
+              <text x="18" y="76" class="mono-m">× 12 blocks</text>
+              <rect class="b" x="10" y="88" width="140" height="22" rx="2"/>
+              <text x="18" y="102" class="mono">final LayerNorm</text>
+              <rect class="b" x="10" y="114" width="140" height="22" rx="2"/>
+              <text x="18" y="128" class="mono">dropout 0.1</text>
+            </g>
+
+            <!-- × 12 loop -->
+            <g>
+              <path class="arrow" d="M1100,250 q40,40 -50,60 q-440,30 -880,0 q-50,-30 -30,-90" stroke-dasharray="5 4" fill="none" marker-end="url(#arr2)"/>
+              <text x="560" y="320" class="lab" text-anchor="middle">× 12 — repeated blocks · shared d_model = 768</text>
+            </g>
+
+            <!-- norm-placement caveat -->
+            <g transform="translate(20 220)">
+              <rect class="b-shape" width="130" height="62" rx="2"/>
+              <text x="10" y="18" class="ttl">Config</text>
+              <text x="10" y="34" class="mono-m">d_model 768</text>
+              <text x="10" y="46" class="mono-m">d_ff    3072</text>
+              <text x="10" y="58" class="mono-m">d_kv     64</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <!-- config + caveat -->
+      <div class="grid-2" style="margin-top: var(--kui-space-md);">
+        <div class="card">
+          <div class="card-sub">Hugging Face config · amazon/chronos-2</div>
+          <div class="card-title">Encoder hyperparameters</div>
+          <ul class="flat">
+            <li><span class="k">num_layers</span><span class="v"><code>12</code></span></li>
+            <li><span class="k">num_heads</span><span class="v"><code>12</code></span></li>
+            <li><span class="k">d_model</span><span class="v"><code>768</code></span></li>
+            <li><span class="k">d_ff</span><span class="v"><code>3072</code></span></li>
+            <li><span class="k">d_kv</span><span class="v"><code>64</code></span></li>
+            <li><span class="k">dropout_rate</span><span class="v"><code>0.1</code></span></li>
+            <li><span class="k">layer_norm_epsilon</span><span class="v"><code>1e-6</code></span></li>
+            <li><span class="k">dense_act_fn</span><span class="v"><code>relu</code></span></li>
+            <li><span class="k">rope_theta</span><span class="v"><code>10 000</code> · time axis only</span></li>
+            <li><span class="k">torch_dtype</span><span class="v"><code>float32</code></span></li>
+            <li><span class="k">vocab_size</span><span class="v"><code>2</code> · PAD, REG only</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-sub">Pre/post-norm &middot; residual order</div>
+          <div class="card-title">Implementation-detail caveat</div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-md) 0;">Chronos-2's encoder block schematic above shows LayerNorm at the start of each sublayer, matching the T5-style pre-norm convention referenced in the report. <span class="src-tag">arXiv 2510.15821</span></p>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-md) 0;">The exact placement (pre vs post-norm) and residual ordering &mdash; including whether the FeedForward sublayer uses a T5 RMS-LayerNorm variant or a plain LayerNorm &mdash; should be confirmed against <code>layers.py</code> at the pinned commit. We flag this rather than asserting a specific arrangement.</p>
+          <span class="src-tag unk">verify in <code>chronos/chronos2/layers.py</code></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05. INPUT FIELDS / COVARIATES ===================== -->
+    <section id="inputs">
+      <div class="section-head">
+        <span class="marker">05 &middot; Input construction</span>
+        <h2>Historical context, future covariates, and masks</h2>
+        <span class="sub">Chronos-2 keeps historical and future inputs in separate tensors with paired masks so it can encode &ldquo;target unknown, covariate known&rdquo; cleanly.</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-sub">x_hist · historical context</div>
+          <div class="card-title">What the model sees from the past</div>
+          <ul class="flat">
+            <li><span class="k">Target(s)</span><span class="v">Observed target values for the last ≤ 8192 steps</span></li>
+            <li><span class="k">Past covariates</span><span class="v">Real and categorical regressors observed alongside the target</span></li>
+            <li><span class="k">Known-future covs</span><span class="v">Observed values in the context window are also placed here</span></li>
+            <li><span class="k">Observed mask</span><span class="v">Binary mask flags missing or padded history</span></li>
+            <li><span class="k">Time index</span><span class="v"><code>i / context_length</code> per step (Step 4)</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-sub">x_future · future inputs</div>
+          <div class="card-title">What the model is allowed to peek at</div>
+          <ul class="flat">
+            <li><span class="k">Target(s)</span><span class="v">Zeros + mask &mdash; future target is what we are predicting</span></li>
+            <li><span class="k">Known-future covs</span><span class="v">Calendar features, planned promos, holidays, etc.</span></li>
+            <li><span class="k">Past-only covs</span><span class="v">Zeros + mask &mdash; not known into the future</span></li>
+            <li><span class="k">Future-cov mask</span><span class="v">Binary mask flags which future cells are actually known</span></li>
+            <li><span class="k">Time index</span><span class="v">Runs from <code>0</code> forward, scaled by context length</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="grid-3" style="margin-top: var(--kui-space-md);">
+        <div class="card dense">
+          <div class="card-sub">Scaling</div>
+          <div class="card-title">Robust instance norm</div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0;">Per-series <code>loc</code> and <code>scale</code> are computed from observed history. Values are normalized before patching; an optional arcsinh-style variance stabilization can be enabled for heavy-tailed targets. Future covariates are normalized with the <em>same</em> per-series statistics so context and future live on the same scale.</p>
+        </div>
+        <div class="card dense">
+          <div class="card-sub">Categorical covariates</div>
+          <div class="card-title">Target vs ordinal encoding</div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0;">Per the report, categorical covariates are <strong>target-encoded</strong> when the task is univariate, and fall back to <strong>ordinal encoding</strong> when the task is multivariate (no single target to encode against). <span class="src-tag">arXiv 2510.15821 §3</span></p>
+        </div>
+        <div class="card dense">
+          <div class="card-sub">Loss masking</div>
+          <div class="card-title">Targets only</div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0;">The model also produces forecasts for covariate dimensions, but those forecasts are <em>ignored downstream</em>. Loss is computed only against target dimensions, and missing target steps are masked out of the loss too.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06. PATCH EMBEDDING + REG ============================ -->
+    <section id="patch">
+      <div class="section-head">
+        <span class="marker">06 &middot; Patch &amp; REG</span>
+        <h2>From normalized values to 768-D patch tokens</h2>
+        <span class="sub">Non-overlapping 16-step patches; concatenated time/value/mask channels; one learned REG separator at the context-future boundary.</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-sub">Patch construction</div>
+          <div class="card-title">16-step non-overlapping patches</div>
+
+          <!-- patch construction viz -->
+          <svg viewBox="0 0 540 220" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: auto; margin-bottom: var(--kui-space-sm);">
+            <style>
+              .ax    { stroke:#D8D8D8; stroke-width:1; fill:none; }
+              .lab2  { font:10px "Roboto Mono", monospace; fill:#5E5E5E; }
+              .lab2b { font:10px "Roboto Mono", monospace; fill:#202020; }
+              .cell  { stroke:#D8D8D8; stroke-width:0.5; }
+            </style>
+
+            <!-- time encoding row -->
+            <text x="0" y="22" class="lab2">time</text>
+            <g transform="translate(40 10)">
+              <g>
+                <rect x="0"   y="0" width="14" height="14" class="cell" fill="#E9F4FB"/>
+                <rect x="14"  y="0" width="14" height="14" class="cell" fill="#D7E6F5"/>
+                <rect x="28"  y="0" width="14" height="14" class="cell" fill="#C2D7EE"/>
+                <rect x="42"  y="0" width="14" height="14" class="cell" fill="#AECAE6"/>
+                <rect x="56"  y="0" width="14" height="14" class="cell" fill="#98BBDE"/>
+                <rect x="70"  y="0" width="14" height="14" class="cell" fill="#82ACD6"/>
+                <rect x="84"  y="0" width="14" height="14" class="cell" fill="#6D9DCE"/>
+                <rect x="98"  y="0" width="14" height="14" class="cell" fill="#588EC6"/>
+                <rect x="112" y="0" width="14" height="14" class="cell" fill="#4380BD"/>
+                <rect x="126" y="0" width="14" height="14" class="cell" fill="#3373B5"/>
+                <rect x="140" y="0" width="14" height="14" class="cell" fill="#2467AC"/>
+                <rect x="154" y="0" width="14" height="14" class="cell" fill="#1F5C9F"/>
+                <rect x="168" y="0" width="14" height="14" class="cell" fill="#1A5293"/>
+                <rect x="182" y="0" width="14" height="14" class="cell" fill="#164885"/>
+                <rect x="196" y="0" width="14" height="14" class="cell" fill="#123F77"/>
+                <rect x="210" y="0" width="14" height="14" class="cell" fill="#0F356A"/>
+              </g>
+            </g>
+
+            <!-- value row -->
+            <text x="0" y="52" class="lab2">values</text>
+            <g transform="translate(40 40)">
+              <g>
+                <rect x="0"   y="0" width="14" height="14" class="cell" fill="#F2F2F2"/>
+                <rect x="14"  y="0" width="14" height="14" class="cell" fill="#E3F0CC"/>
+                <rect x="28"  y="0" width="14" height="14" class="cell" fill="#D2E6B0"/>
+                <rect x="42"  y="0" width="14" height="14" class="cell" fill="#C1DC95"/>
+                <rect x="56"  y="0" width="14" height="14" class="cell" fill="#B1D27B"/>
+                <rect x="70"  y="0" width="14" height="14" class="cell" fill="#A0C962"/>
+                <rect x="84"  y="0" width="14" height="14" class="cell" fill="#90C04A"/>
+                <rect x="98"  y="0" width="14" height="14" class="cell" fill="#7FB734"/>
+                <rect x="112" y="0" width="14" height="14" class="cell" fill="#76B900"/>
+                <rect x="126" y="0" width="14" height="14" class="cell" fill="#6CAE00"/>
+                <rect x="140" y="0" width="14" height="14" class="cell" fill="#629F00"/>
+                <rect x="154" y="0" width="14" height="14" class="cell" fill="#588F00"/>
+                <rect x="168" y="0" width="14" height="14" class="cell" fill="#4F8200"/>
+                <rect x="182" y="0" width="14" height="14" class="cell" fill="#467300"/>
+                <rect x="196" y="0" width="14" height="14" class="cell" fill="#3D6500"/>
+                <rect x="210" y="0" width="14" height="14" class="cell" fill="#345700"/>
+              </g>
+            </g>
+
+            <!-- mask row -->
+            <text x="0" y="82" class="lab2">mask</text>
+            <g transform="translate(40 70)">
+              <g>
+                <rect x="0"   y="0" width="14" height="14" class="cell" fill="#202020"/>
+                <rect x="14"  y="0" width="14" height="14" class="cell" fill="#202020"/>
+                <rect x="28"  y="0" width="14" height="14" class="cell" fill="#202020"/>
+                <rect x="42"  y="0" width="14" height="14" class="cell" fill="#FFFFFF"/>
+                <rect x="56"  y="0" width="14" height="14" class="cell" fill="#202020"/>
+                <rect x="70"  y="0" width="14" height="14" class="cell" fill="#202020"/>
+                <rect x="84"  y="0" width="14" height="14" class="cell" fill="#202020"/>
+                <rect x="98"  y="0" width="14" height="14" class="cell" fill="#202020"/>
+                <rect x="112" y="0" width="14" height="14" class="cell" fill="#202020"/>
+                <rect x="126" y="0" width="14" height="14" class="cell" fill="#202020"/>
+                <rect x="140" y="0" width="14" height="14" class="cell" fill="#202020"/>
+                <rect x="154" y="0" width="14" height="14" class="cell" fill="#FFFFFF"/>
+                <rect x="168" y="0" width="14" height="14" class="cell" fill="#202020"/>
+                <rect x="182" y="0" width="14" height="14" class="cell" fill="#202020"/>
+                <rect x="196" y="0" width="14" height="14" class="cell" fill="#202020"/>
+                <rect x="210" y="0" width="14" height="14" class="cell" fill="#202020"/>
+              </g>
+            </g>
+
+            <!-- patch bracket -->
+            <g transform="translate(40 96)">
+              <path d="M0,0 L0,8 L224,8 L224,0" class="ax"/>
+              <text x="112" y="22" text-anchor="middle" class="lab2b">one 16-step patch · 48 features (concat)</text>
+            </g>
+
+            <!-- arrow into ResBlock -->
+            <g transform="translate(40 134)">
+              <rect x="0" y="0" width="224" height="32" fill="#FFFFFF" stroke="#76B900" stroke-width="1.4" rx="2"/>
+              <text x="112" y="20" text-anchor="middle" class="lab2b">ResidualBlock · 48 → 768</text>
+            </g>
+
+            <path d="M152,134 L152,124" stroke="#5E5E5E" stroke-width="1" fill="none"/>
+            <path d="M260,150 L320,150" stroke="#5E5E5E" stroke-width="1" fill="none" marker-end="url(#arr2)"/>
+            <g transform="translate(330 130)">
+              <rect x="0" y="0" width="200" height="36" fill="#F2F2F2" stroke="#D8D8D8" stroke-width="1" rx="2"/>
+              <text x="10" y="14" class="lab2">patch embedding</text>
+              <text x="10" y="30" font-family="Roboto Mono, monospace" font-size="11" fill="#202020">∈ ℝ⁷⁶⁸</text>
+            </g>
+
+            <text x="270" y="200" font-family="Roboto Mono, monospace" font-size="10" fill="#5E5E5E" text-anchor="middle">
+              patch_embed = ResBlock( concat( time_patch, value_patch, mask_patch ) ) → ℝ⁷⁶⁸
+            </text>
+          </svg>
+
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0;">Context values are truncated to the last 8192 steps before patching, then split into ≤ 512 non-overlapping 16-step patches. Each patch concatenates a 16-D time encoding, the 16 normalized values, and the 16 mask bits. The full 48-D vector is mapped to 768-D by a two-layer residual MLP.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-sub">REG token</div>
+          <div class="card-title">Separator + attention sink</div>
+
+          <!-- REG token viz -->
+          <svg viewBox="0 0 540 220" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: auto; margin-bottom: var(--kui-space-sm);">
+            <style>
+              .lab3 { font:10px "Roboto Mono", monospace; fill:#5E5E5E; }
+              .lab3b{ font:11px "DM Sans", system-ui, sans-serif; fill:#202020;}
+            </style>
+
+            <!-- patch sequence row -->
+            <text x="0" y="56" class="lab3">tokens</text>
+            <g transform="translate(60 38)">
+              <!-- context patches -->
+              <rect x="0"   y="0" width="34" height="34" fill="#E3E3E3" stroke="#D8D8D8"/>
+              <text x="17"  y="20" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">c1</text>
+              <rect x="36"  y="0" width="34" height="34" fill="#E3E3E3" stroke="#D8D8D8"/>
+              <text x="53"  y="20" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">c2</text>
+              <rect x="72"  y="0" width="34" height="34" fill="#E3E3E3" stroke="#D8D8D8"/>
+              <text x="89"  y="20" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">c3</text>
+              <rect x="108" y="0" width="34" height="34" fill="#E3E3E3" stroke="#D8D8D8"/>
+              <text x="125" y="20" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">…</text>
+              <rect x="144" y="0" width="34" height="34" fill="#E3E3E3" stroke="#D8D8D8"/>
+              <text x="161" y="20" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">c512</text>
+
+              <!-- REG -->
+              <rect x="184" y="0" width="48" height="34" fill="#FBEEFE" stroke="#A05AB4" stroke-width="1.4"/>
+              <text x="208" y="20" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#202020">REG</text>
+
+              <!-- future patches -->
+              <rect x="238" y="0" width="34" height="34" fill="#E8F4D6" stroke="#76B900"/>
+              <text x="255" y="20" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">f1</text>
+              <rect x="274" y="0" width="34" height="34" fill="#E8F4D6" stroke="#76B900"/>
+              <text x="291" y="20" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">f2</text>
+              <rect x="310" y="0" width="34" height="34" fill="#E8F4D6" stroke="#76B900"/>
+              <text x="327" y="20" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">…</text>
+              <rect x="346" y="0" width="34" height="34" fill="#E8F4D6" stroke="#76B900"/>
+              <text x="363" y="20" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="9" fill="#202020">f64</text>
+
+              <!-- annotations -->
+              <text x="89"  y="-10" text-anchor="middle" class="lab3b">context patches</text>
+              <text x="89"  y="50"  text-anchor="middle" class="lab3">≤ 512</text>
+              <text x="208" y="-10" text-anchor="middle" class="lab3b" fill="#A05AB4">separator</text>
+              <text x="208" y="50"  text-anchor="middle" class="lab3" fill="#A05AB4">learned · attention sink</text>
+              <text x="291" y="-10" text-anchor="middle" class="lab3b" fill="#5E9600">future patches</text>
+              <text x="291" y="50"  text-anchor="middle" class="lab3" fill="#5E9600">≤ 64 · horizon ≤ 1024</text>
+            </g>
+
+            <!-- sink illustration -->
+            <g transform="translate(60 130)">
+              <text x="0" y="0" class="lab3b">attention mass landing on REG (illustrative)</text>
+              <rect x="0"   y="10" width="380" height="20" fill="#F2F2F2" stroke="#D8D8D8"/>
+              <rect x="0"   y="10" width="48"  height="20" fill="#76B900" fill-opacity="0.18"/>
+              <rect x="48"  y="10" width="62"  height="20" fill="#76B900" fill-opacity="0.18"/>
+              <rect x="110" y="10" width="74"  height="20" fill="#A05AB4" fill-opacity="0.55"/>
+              <rect x="184" y="10" width="196" height="20" fill="#76B900" fill-opacity="0.18"/>
+              <text x="24"  y="46" text-anchor="middle" class="lab3">c-early</text>
+              <text x="79"  y="46" text-anchor="middle" class="lab3">c-late</text>
+              <text x="147" y="46" text-anchor="middle" class="lab3" fill="#A05AB4">REG sink</text>
+              <text x="282" y="46" text-anchor="middle" class="lab3">future patches</text>
+              <text x="0"   y="80" class="lab3">A common attention-sink pattern: undirected attention mass lands on the separator instead of corrupting nearby patches.</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <div class="caveat" style="margin-top: var(--kui-space-md);">
+        <div class="badge info">i</div>
+        <div>
+          <h4 class="caveat-title">Future time encoding</h4>
+          <p class="caveat-body">Future time encoding runs from <code>0</code> forward and is scaled by <code>context_length</code>, so a forecast of horizon <em>h</em> with a context of <em>L</em> always lands in the same numeric range regardless of how long that particular context happens to be. Context loc/scale are reused for future covariate normalization &mdash; the model never sees raw target units. <span class="src-tag">arXiv 2510.15821</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07. QUANTILE HEAD =================================== -->
+    <section id="quantile">
+      <div class="section-head">
+        <span class="marker">07 &middot; Output head</span>
+        <h2>21-quantile direct multi-step forecast head</h2>
+        <span class="sub">Chronos-2 emits the full prediction horizon in one shot. No autoregressive token sampling; no Monte-Carlo passes for uncertainty.</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-sub">From future hidden states to quantiles</div>
+          <div class="card-title">Output pipeline</div>
+          <ol style="margin: 0; padding-left: 18px; font: var(--kui-body); color: var(--kui-fg-default);">
+            <li>Slice hidden states for the <strong>future patches only</strong>: <code>H_fut ∈ ℝ^(B × N_fut × 768)</code>.</li>
+            <li>Apply a <strong>ResidualBlock</strong> that maps <code>768 → 21 · 16</code> values per future patch.</li>
+            <li>Rearrange to <code>[B, 21, horizon]</code>, where <code>horizon = N_fut · 16</code>.</li>
+            <li>Inverse instance normalization: <code>y = ŷ · scale + loc</code> per series.</li>
+            <li>Loss (training) or output (inference) over <strong>target dimensions only</strong>; covariate-dim forecasts are dropped.</li>
+          </ol>
+          <div style="margin-top: var(--kui-space-md);">
+            <pre class="code"><span class="c"># conceptual</span>
+<span class="v">H_fut</span>   <span class="k">=</span> hidden_states[<span class="k">:, :, n_ctx+1:, :</span>]    <span class="c"># skip ctx + REG</span>
+<span class="v">flat</span>    <span class="k">=</span> <span class="f">res_block</span>(<span class="v">H_fut</span>)                     <span class="c"># [B, N_fut, 21·16]</span>
+<span class="v">q</span>       <span class="k">=</span> rearrange(<span class="v">flat</span>, <span class="s">"b n (q t) -&gt; b q (n t)"</span>)
+<span class="v">y</span>       <span class="k">=</span> <span class="v">q</span> <span class="k">*</span> scale <span class="k">+</span> loc                  <span class="c"># [B, 21, horizon]</span></pre>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-sub">21 quantile levels</div>
+          <div class="card-title">From <code>q=0.01</code> to <code>q=0.99</code></div>
+          <div class="chip-row" style="margin-bottom: var(--kui-space-md);">
+            <span class="chip"><code>0.01</code></span>
+            <span class="chip"><code>0.05</code></span>
+            <span class="chip"><code>0.10</code></span>
+            <span class="chip"><code>0.15</code></span>
+            <span class="chip"><code>0.20</code></span>
+            <span class="chip"><code>0.25</code></span>
+            <span class="chip"><code>0.30</code></span>
+            <span class="chip"><code>0.35</code></span>
+            <span class="chip"><code>0.40</code></span>
+            <span class="chip"><code>0.45</code></span>
+            <span class="chip" style="background:#E8F4D6; border-color:#76B900;"><code>0.50</code></span>
+            <span class="chip"><code>0.55</code></span>
+            <span class="chip"><code>0.60</code></span>
+            <span class="chip"><code>0.65</code></span>
+            <span class="chip"><code>0.70</code></span>
+            <span class="chip"><code>0.75</code></span>
+            <span class="chip"><code>0.80</code></span>
+            <span class="chip"><code>0.85</code></span>
+            <span class="chip"><code>0.90</code></span>
+            <span class="chip"><code>0.95</code></span>
+            <span class="chip"><code>0.99</code></span>
+          </div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-sm) 0;">The two extreme quantiles &mdash; <code>0.01</code> and <code>0.99</code> &mdash; are what differentiate Chronos-2's coverage at the tails: extreme-quantile output improves rare-event coverage and risk-aware forecasting, per the report.</p>
+        </div>
+      </div>
+
+      <!-- forecast band example -->
+      <div class="qband" style="margin-top: var(--kui-space-md);">
+        <div class="card-sub" style="margin-bottom: var(--kui-space-sm);">Illustrative · median + 80% + 98% intervals</div>
+        <svg viewBox="0 0 1200 260" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: auto;">
+          <defs>
+            <linearGradient id="b98" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stop-color="#76B900" stop-opacity="0.32"/>
+              <stop offset="100%" stop-color="#76B900" stop-opacity="0.04"/>
+            </linearGradient>
+          </defs>
+          <g stroke="#E3E3E3" stroke-width="1">
+            <line x1="0" y1="60"  x2="1200" y2="60"/>
+            <line x1="0" y1="130" x2="1200" y2="130"/>
+            <line x1="0" y1="200" x2="1200" y2="200"/>
+          </g>
+          <line x1="700" y1="0" x2="700" y2="240" stroke="#76B900" stroke-width="1.2" stroke-dasharray="4 4"/>
+          <text x="20"  y="22" font-family="Roboto Mono, monospace" font-size="11" fill="#5E5E5E">CONTEXT — observed history</text>
+          <text x="710" y="22" font-family="Roboto Mono, monospace" font-size="11" fill="#5E9600">FUTURE — 21 quantiles</text>
+
+          <!-- 98% band -->
+          <path d="M700,135 C780,118 880,85 1000,68 C1080,58 1140,52 1180,52
+                   L1180,222 C1140,228 1080,232 1000,226 C880,218 780,205 700,180 Z"
+                fill="url(#b98)"/>
+          <!-- 80% band -->
+          <path d="M700,138 C780,124 880,98 1000,82 C1080,74 1140,70 1180,72
+                   L1180,200 C1140,202 1080,204 1000,200 C880,194 780,184 700,168 Z"
+                fill="#76B900" fill-opacity="0.32"/>
+
+          <!-- observed -->
+          <polyline points="0,160 50,158 100,150 150,162 200,148 250,154 300,142 350,156 400,138 450,150 500,134 550,148 600,132 650,142 700,150"
+                    fill="none" stroke="#202020" stroke-width="1.6"/>
+          <!-- median -->
+          <polyline points="700,150 760,142 820,128 880,114 940,104 1000,96 1060,88 1120,84 1180,82"
+                    fill="none" stroke="#76B900" stroke-width="2.2"/>
+
+          <!-- patch ticks -->
+          <g font-family="Roboto Mono, monospace" font-size="9" fill="#5E5E5E">
+            <line x1="700" y1="240" x2="1180" y2="240" stroke="#D8D8D8"/>
+            <g stroke="#76B900" stroke-width="0.6">
+              <line x1="700" y1="240" x2="700" y2="246"/>
+              <line x1="760" y1="240" x2="760" y2="246"/>
+              <line x1="820" y1="240" x2="820" y2="246"/>
+              <line x1="880" y1="240" x2="880" y2="246"/>
+              <line x1="940" y1="240" x2="940" y2="246"/>
+              <line x1="1000" y1="240" x2="1000" y2="246"/>
+              <line x1="1060" y1="240" x2="1060" y2="246"/>
+              <line x1="1120" y1="240" x2="1120" y2="246"/>
+              <line x1="1180" y1="240" x2="1180" y2="246"/>
+            </g>
+            <text x="730" y="256" text-anchor="middle">P1</text>
+            <text x="790" y="256" text-anchor="middle">P2</text>
+            <text x="850" y="256" text-anchor="middle">P3</text>
+            <text x="910" y="256" text-anchor="middle">P4</text>
+            <text x="970" y="256" text-anchor="middle">P5</text>
+            <text x="1030" y="256" text-anchor="middle">P6</text>
+            <text x="1090" y="256" text-anchor="middle">P7</text>
+            <text x="1150" y="256" text-anchor="middle">P8</text>
+          </g>
+
+          <!-- legend -->
+          <g font-family="DM Sans, system-ui, sans-serif" font-size="11" fill="#202020">
+            <rect x="900" y="32" width="14" height="14" fill="#76B900" fill-opacity="0.32"/>
+            <text x="920" y="44">80% interval · q0.10 — q0.90</text>
+            <rect x="1080" y="32" width="14" height="14" fill="url(#b98)"/>
+            <text x="1100" y="44">98% interval · q0.01 — q0.99</text>
+          </g>
+        </svg>
+      </div>
+    </section>
+
+    <!-- ===== 08. TRAINING & DATA ============================ -->
+    <section id="training">
+      <div class="section-head">
+        <span class="marker">08 &middot; Training</span>
+        <h2>Objective, schedule, and data mix</h2>
+        <span class="sub">A two-stage context schedule, quantile-regression loss, real + synthetic time-series corpora. Exact compute and optimizer details are <strong>not reported</strong> in the listed sources.</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-sub">Objective</div>
+          <div class="card-title">Quantile regression loss</div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-md) 0;">For each target step in the horizon and each of the 21 quantile levels <code>τ</code>, Chronos-2 minimizes the standard pinball loss <code>ρ_τ(y − ŷ_τ)</code>. Known-future covariate values and missing target values are excluded; only observed target steps contribute to the loss.</p>
+          <pre class="code"><span class="c"># pinball / quantile loss</span>
+<span class="v">L</span> <span class="k">=</span> <span class="f">mean</span>(
+        <span class="f">max</span>(<span class="v">τ</span><span class="k">·</span>(<span class="v">y</span><span class="k">−</span><span class="v">ŷ_τ</span>), (<span class="v">τ</span><span class="k">−</span><span class="s">1</span>)<span class="k">·</span>(<span class="v">y</span><span class="k">−</span><span class="v">ŷ_τ</span>))
+    ) <span class="c"># over target steps × 21 quantiles</span></pre>
+        </div>
+
+        <div class="card">
+          <div class="card-sub">Two-stage context schedule</div>
+          <div class="card-title">2K → 8K curriculum</div>
+          <!-- schedule timeline -->
+          <svg viewBox="0 0 540 130" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: auto; margin-bottom: var(--kui-space-md);">
+            <style>
+              .lbl4 { font: 11px "DM Sans", system-ui, sans-serif; fill:#202020;}
+              .lbl4m { font: 10px "Roboto Mono", monospace; fill:#5E5E5E;}
+            </style>
+            <rect x="0"   y="30" width="220" height="40" fill="#FFFFFF" stroke="#1FA18D" stroke-width="1.4" rx="2"/>
+            <text x="110" y="48" text-anchor="middle" class="lbl4" font-weight="500">Stage 1</text>
+            <text x="110" y="62" text-anchor="middle" class="lbl4m">L_ctx = 2048 · few output patches</text>
+
+            <path d="M225,50 L255,50" stroke="#5E5E5E" stroke-width="1" fill="none" marker-end="url(#arr2)"/>
+
+            <rect x="260" y="30" width="280" height="40" fill="#FFFFFF" stroke="#76B900" stroke-width="1.4" rx="2"/>
+            <text x="400" y="48" text-anchor="middle" class="lbl4" font-weight="500">Stage 2</text>
+            <text x="400" y="62" text-anchor="middle" class="lbl4m">L_ctx = 8192 · max output patches ↑</text>
+
+            <text x="0"   y="100" class="lbl4m">Stage 1 trains the bulk of the model at a shorter window. Stage 2 lengthens context to the published 8192 limit</text>
+            <text x="0"   y="114" class="lbl4m">and increases the number of sampled output patches per step. Exact step counts, LR schedule, and batch size: <span style="fill:#C54600">not reported</span>.</text>
+          </svg>
+          <span class="src-tag">arXiv 2510.15821 §5</span>
+        </div>
+      </div>
+
+      <div class="grid-3" style="margin-top: var(--kui-space-md);">
+        <div class="card">
+          <div class="card-sub">Task mix</div>
+          <div class="card-title">Three training tasks</div>
+          <ul class="flat">
+            <li><span class="k">Univariate</span><span class="v">single target series · group_id per series</span></li>
+            <li><span class="k">Multivariate</span><span class="v">multiple variates per group; some with past-only covariates</span></li>
+            <li><span class="k">Multivariate + future</span><span class="v">multivariate tasks with known future covariates</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-sub">Real data sources</div>
+          <div class="card-title">Curated corpora</div>
+          <ul class="flat">
+            <li><span class="k">Chronos Datasets</span><span class="v">subset, test portions overlapping with GIFT-Eval excluded</span></li>
+            <li><span class="k">GIFT-Eval Pretrain</span><span class="v">subset used for pretraining</span></li>
+            <li><span class="k">Synthetic uni- &amp; multivariate</span><span class="v">a substantial fraction of the mix — see right card</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-sub">Synthetic generators</div>
+          <div class="card-title">TSI · TCM · multivariatizers</div>
+          <ul class="flat">
+            <li><span class="k">TSI</span><span class="v">Trend, Seasonality, Irregularity composer</span></li>
+            <li><span class="k">TCM</span><span class="v">Temporal Causal Model</span></li>
+            <li><span class="k">Multivariatizers</span><span class="v">over AR, ETS, TSI, KernelSynth-style base generators</span></li>
+            <li><span class="k">Cotemporaneous</span><span class="v">same-time dependencies across variates</span></li>
+            <li><span class="k">Sequential</span><span class="v">lead-lag &amp; cointegration-like dependencies</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="caveat" style="margin-top: var(--kui-space-md);">
+        <div class="badge">!</div>
+        <div>
+          <h4 class="caveat-title">Training details not reported</h4>
+          <p class="caveat-body">The listed sources do <strong>not</strong> publish exact pretraining corpus size, number of training patches or training steps, compute budget, hardware, optimizer, learning-rate schedule, batch size, or end-to-end training duration. Treat any number you encounter for these fields outside the report itself as community estimation rather than vendor disclosure.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 09. CAPABILITY COMPARISON ============================ -->
+    <section id="capabilities">
+      <div class="section-head">
+        <span class="marker">09 &middot; Family comparison</span>
+        <h2>Chronos · Chronos-Bolt · Chronos-2</h2>
+        <span class="sub">What the new model adds versus its predecessors. All claims drawn from the Chronos-2 report and Amazon Science blog.</span>
+      </div>
+
+      <table class="spec">
+        <thead>
+          <tr>
+            <th style="width: 30%;">Capability</th>
+            <th>Chronos-2</th>
+            <th>Chronos-Bolt</th>
+            <th>Chronos (original)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">Univariate forecasting</td>
+            <td><span class="yes">● Yes</span></td>
+            <td><span class="yes">● Yes</span></td>
+            <td><span class="yes">● Yes</span></td>
+          </tr>
+          <tr>
+            <td class="name">Cross-learning across related items</td>
+            <td><span class="yes">● Yes &mdash; via group attention</span></td>
+            <td><span class="no">○ No</span></td>
+            <td><span class="no">○ No</span></td>
+          </tr>
+          <tr>
+            <td class="name">Multivariate forecasting (native)</td>
+            <td><span class="yes">● Yes</span></td>
+            <td><span class="no">○ No</span></td>
+            <td><span class="no">○ No</span></td>
+          </tr>
+          <tr>
+            <td class="name">Past-only real / categorical covariates</td>
+            <td><span class="yes">● Yes &mdash; in-context</span></td>
+            <td><span class="no">○ No</span></td>
+            <td><span class="no">○ No</span></td>
+          </tr>
+          <tr>
+            <td class="name">Known future real / categorical covariates</td>
+            <td><span class="yes">● Yes &mdash; native</span></td>
+            <td><span class="partial">◐ Only via external covariate regressors</span></td>
+            <td><span class="partial">◐ Only via external covariate regressors</span></td>
+          </tr>
+          <tr>
+            <td class="name">Max context length</td>
+            <td><span class="num">8192</span></td>
+            <td><span class="num">2048</span></td>
+            <td><span class="num">512</span></td>
+          </tr>
+          <tr>
+            <td class="name">Max prediction length</td>
+            <td><span class="num">1024</span></td>
+            <td><span class="num">64</span></td>
+            <td><span class="num">64</span></td>
+          </tr>
+          <tr>
+            <td class="name">Output</td>
+            <td>21-quantile direct multi-step</td>
+            <td>Quantile direct multi-step</td>
+            <td>Autoregressive token sampling</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ===== 10. BENCHMARKS ============================ -->
+    <section id="bench">
+      <div class="section-head">
+        <span class="marker">10 &middot; Reported benchmarks</span>
+        <h2>Benchmarks &middot; as reported by the Chronos-2 team</h2>
+        <span class="sub">All figures are the Chronos-2 authors' own. We surface them faithfully; we have not re-run any evaluation.</span>
+      </div>
+
+      <!-- tabs -->
+      <div class="tabs" role="tablist">
+        <button class="active" data-tab="fev">fev-bench</button>
+        <button data-tab="gift">GIFT-Eval</button>
+        <button data-tab="cb2">Chronos Benchmark II</button>
+        <button data-tab="eff">Efficiency</button>
+        <button data-tab="case">Domain case studies</button>
+      </div>
+
+      <!-- fev-bench -->
+      <div class="tab-panel active" data-panel="fev">
+        <div class="card">
+          <div class="card-sub">fev-bench &middot; average win rate · higher is better</div>
+          <div class="card-title">Win rate across competitors</div>
+          <div class="bench-row">
+            <div class="lbl lead">Chronos-2<small>120M · this model</small></div>
+            <div class="bar-track"><div class="bar-fill lead" style="width: 90.7%;"></div></div>
+            <div class="val">90.7%<small>median runtime 3.6s · 0% leakage · 0 failures</small></div>
+          </div>
+          <div class="bench-row">
+            <div class="lbl">TiRex</div>
+            <div class="bar-track"><div class="bar-fill" style="width: 80.8%;"></div></div>
+            <div class="val">80.8%<small>1.4s</small></div>
+          </div>
+          <div class="bench-row">
+            <div class="lbl">TimesFM-2.5</div>
+            <div class="bar-track"><div class="bar-fill" style="width: 75.9%;"></div></div>
+            <div class="val">75.9%<small>16.9s</small></div>
+          </div>
+          <div class="bench-row">
+            <div class="lbl">Toto-1.0</div>
+            <div class="bar-track"><div class="bar-fill" style="width: 66.6%;"></div></div>
+            <div class="val">66.6%<small>90.7s</small></div>
+          </div>
+          <div class="bench-row">
+            <div class="lbl">COSMIC</div>
+            <div class="bar-track"><div class="bar-fill" style="width: 65.6%;"></div></div>
+            <div class="val">65.6%<small>34.4s</small></div>
+          </div>
+          <div class="bench-row">
+            <div class="lbl">Moirai-2.0</div>
+            <div class="bar-track"><div class="bar-fill" style="width: 61.1%;"></div></div>
+            <div class="val">61.1%<small>2.5s</small></div>
+          </div>
+          <div class="bench-row">
+            <div class="lbl">Chronos-Bolt</div>
+            <div class="bar-track"><div class="bar-fill" style="width: 60.3%;"></div></div>
+            <div class="val">60.3%<small>1.0s</small></div>
+          </div>
+
+          <hr class="divider" style="margin: var(--kui-space-md) 0;">
+
+          <div class="card-sub">Skill score · higher is better</div>
+          <div class="bench-row">
+            <div class="lbl lead">Chronos-2</div>
+            <div class="bar-track"><div class="bar-fill lead" style="width: 94.6%;"></div></div>
+            <div class="val">47.3%</div>
+          </div>
+          <div class="bench-row">
+            <div class="lbl">TiRex</div>
+            <div class="bar-track"><div class="bar-fill" style="width: 85.2%;"></div></div>
+            <div class="val">42.6%</div>
+          </div>
+          <div class="bench-row">
+            <div class="lbl">TimesFM-2.5</div>
+            <div class="bar-track"><div class="bar-fill" style="width: 84.6%;"></div></div>
+            <div class="val">42.3%</div>
+          </div>
+          <div class="bench-row">
+            <div class="lbl">Toto-1.0</div>
+            <div class="bar-track"><div class="bar-fill" style="width: 81.4%;"></div></div>
+            <div class="val">40.7%</div>
+          </div>
+          <div class="bench-row">
+            <div class="lbl">Moirai-2.0</div>
+            <div class="bar-track"><div class="bar-fill" style="width: 78.6%;"></div></div>
+            <div class="val">39.3%</div>
+          </div>
+          <div class="bench-row">
+            <div class="lbl">COSMIC</div>
+            <div class="bar-track"><div class="bar-fill" style="width: 78.0%;"></div></div>
+            <div class="val">39.0%</div>
+          </div>
+          <div class="bench-row">
+            <div class="lbl">Chronos-Bolt</div>
+            <div class="bar-track"><div class="bar-fill" style="width: 77.8%;"></div></div>
+            <div class="val">38.9%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GIFT-Eval -->
+      <div class="tab-panel" data-panel="gift">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-sub">GIFT-Eval · WQL · weighted quantile loss</div>
+            <div class="card-title">Win rate &amp; skill score</div>
+            <div class="bench-row">
+              <div class="lbl lead">Average win rate</div>
+              <div class="bar-track"><div class="bar-fill lead" style="width: 81.9%;"></div></div>
+              <div class="val">81.9%</div>
+            </div>
+            <div class="bench-row">
+              <div class="lbl lead">Skill score</div>
+              <div class="bar-track"><div class="bar-fill teal" style="width: 51.4%;"></div></div>
+              <div class="val">51.4%</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-sub">GIFT-Eval · MASE</div>
+            <div class="card-title">Win rate &amp; skill score</div>
+            <div class="bench-row">
+              <div class="lbl lead">Average win rate</div>
+              <div class="bar-track"><div class="bar-fill lead" style="width: 83.8%;"></div></div>
+              <div class="val">83.8%</div>
+            </div>
+            <div class="bench-row">
+              <div class="lbl lead">Skill score</div>
+              <div class="bar-track"><div class="bar-fill teal" style="width: 30.2%;"></div></div>
+              <div class="val">30.2%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chronos Benchmark II -->
+      <div class="tab-panel" data-panel="cb2">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-sub">Chronos Benchmark II · WQL</div>
+            <div class="card-title">Win rate &amp; skill score</div>
+            <div class="bench-row">
+              <div class="lbl lead">Average win rate</div>
+              <div class="bar-track"><div class="bar-fill lead" style="width: 79.8%;"></div></div>
+              <div class="val">79.8%</div>
+            </div>
+            <div class="bench-row">
+              <div class="lbl lead">Skill score</div>
+              <div class="bar-track"><div class="bar-fill teal" style="width: 46.6%;"></div></div>
+              <div class="val">46.6%</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-sub">Chronos Benchmark II · MASE</div>
+            <div class="card-title">Win rate &amp; skill score</div>
+            <div class="bench-row">
+              <div class="lbl lead">Average win rate</div>
+              <div class="bar-track"><div class="bar-fill lead" style="width: 81.5%;"></div></div>
+              <div class="val">81.5%</div>
+            </div>
+            <div class="bench-row">
+              <div class="lbl lead">Skill score</div>
+              <div class="bar-track"><div class="bar-fill teal" style="width: 26.5%;"></div></div>
+              <div class="val">26.5%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Efficiency -->
+      <div class="tab-panel" data-panel="eff">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-sub">Reported throughput</div>
+            <div class="card-title">Over 300 forecasts/s on one A10G</div>
+            <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-md) 0;">Chronos-2 delivers more than 300 series-level forecasts per second on a single NVIDIA A10G GPU under the conditions defined by the report.</p>
+            <ul class="flat">
+              <li><span class="k">Batch size</span><span class="v">1024 series</span></li>
+              <li><span class="k">Context length</span><span class="v">2048 steps</span></li>
+              <li><span class="k">Prediction length</span><span class="v">64 steps</span></li>
+              <li><span class="k">GPU</span><span class="v">NVIDIA A10G</span></li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-sub">Why it can be both bigger and fast</div>
+            <div class="card-title">Direct multi-step amortization</div>
+            <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0;">Original Chronos sampled future values one token at a time; the new direct multi-step head produces all 21 quantile trajectories in a single forward pass. Combined with the encoder-only backbone &mdash; no decoder cross-attention, no per-step cache &mdash; throughput stays high even though the parameter count moved to 120 M.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Case studies -->
+      <div class="tab-panel" data-panel="case">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-sub">Domain case study</div>
+            <div class="card-title">Energy price forecasting</div>
+            <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-md) 0;">Day-ahead market price as the target, with load and renewable generation forecasts as known future covariates. The report uses this case to illustrate how a single Chronos-2 inference call ingests target history and future covariates jointly &mdash; no separate covariate regressor required.</p>
+            <span class="src-tag">arXiv 2510.15821 §7</span>
+          </div>
+          <div class="card">
+            <div class="card-sub">Domain case study</div>
+            <div class="card-title">Rossmann retail sales</div>
+            <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-md) 0;">Store-level sales with footfall, store-open / closed flags, ongoing promotions, and holiday calendars as covariates. Group attention lets siblings in a store cluster share information; future covariates land directly in the same forward pass.</p>
+            <span class="src-tag">arXiv 2510.15821 §7</span>
+          </div>
+        </div>
+        <p style="font: var(--kui-text); color: var(--kui-fg-muted); margin: var(--kui-space-md) 0 0 0;">Description is qualitative; we have not lifted exact chart values from the source figures.</p>
+      </div>
+    </section>
+
+    <!-- ===== 11. ABLATIONS ============================ -->
+    <section id="ablations">
+      <div class="section-head">
+        <span class="marker">11 &middot; Ablations</span>
+        <h2>What moves the needle &middot; ablations from the report</h2>
+        <span class="sub">All three rows below summarize the qualitative direction of each ablation as authored. Exact bar values from the report figures are not transcribed here.</span>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-sub">model size</div>
+          <div class="card-title">28M variant</div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-md) 0;">A smaller 28M-parameter Chronos-2 variant. Reportedly strong but slightly behind the 120M model: GIFT-Eval skill score lags by ~1 percentage point, and inference is nearly 2× faster.</p>
+          <div style="height: 8px; background: var(--kui-n050); border: 1px solid var(--kui-border-default); position: relative;">
+            <div style="position:absolute; left:0; top:0; bottom:0; width: 96%; background: var(--kui-n300);"></div>
+            <div style="position:absolute; left:0; top:0; bottom:0; width: 100%; background: transparent; border-right: 2px solid var(--kui-brand-green);"></div>
+          </div>
+          <p style="font: var(--kui-text); color: var(--kui-fg-muted); margin: 6px 0 0 0;">120M (green tick) vs 28M (grey) · directional</p>
+        </div>
+
+        <div class="card">
+          <div class="card-sub">data composition</div>
+          <div class="card-title">Synthetic-only</div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-md) 0;">Training only on synthetic data (TSI, TCM, multivariatizers) underperforms the real+synthetic blend on Chronos Benchmark II and GIFT-Eval; the gap widens on fev-bench. Real corpora carry information synthetic generators do not yet match.</p>
+          <div style="height: 8px; background: var(--kui-n050); border: 1px solid var(--kui-border-default); position: relative;">
+            <div style="position:absolute; left:0; top:0; bottom:0; width: 88%; background: var(--kui-n300);"></div>
+            <div style="position:absolute; left:0; top:0; bottom:0; width: 100%; background: transparent; border-right: 2px solid var(--kui-brand-green);"></div>
+          </div>
+          <p style="font: var(--kui-text); color: var(--kui-fg-muted); margin: 6px 0 0 0;">real+synth (green) vs synth-only (grey) · directional</p>
+        </div>
+
+        <div class="card">
+          <div class="card-sub">long-context post-training</div>
+          <div class="card-title">Chronos-2-2K vs 8K</div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-md) 0;">The stage-2 extension from 2K to 8K context is what brings the largest gains on GIFT-Eval's high-frequency long-seasonality tasks &mdash; weekly/daily series with long memory benefit disproportionately.</p>
+          <div style="height: 8px; background: var(--kui-n050); border: 1px solid var(--kui-border-default); position: relative;">
+            <div style="position:absolute; left:0; top:0; bottom:0; width: 78%; background: var(--kui-n300);"></div>
+            <div style="position:absolute; left:0; top:0; bottom:0; width: 100%; background: transparent; border-right: 2px solid var(--kui-brand-green);"></div>
+          </div>
+          <p style="font: var(--kui-text); color: var(--kui-fg-muted); margin: 6px 0 0 0;">8K (green) vs 2K-only (grey) · directional</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 12. USAGE ============================ -->
+    <section id="usage">
+      <div class="section-head">
+        <span class="marker">12 &middot; Implementation</span>
+        <h2>How to call Chronos-2</h2>
+        <span class="sub">Shipped via the official <code>chronos-forecasting</code> package and Hugging Face. SageMaker JumpStart deployment was added 30 Dec 2025.</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-sub">Package &amp; pipeline</div>
+          <div class="card-title">Python · <code>chronos-forecasting ≥ 2.0</code></div>
+          <ul class="flat">
+            <li><span class="k">PyPI package</span><span class="v"><code>chronos-forecasting</code></span></li>
+            <li><span class="k">Pipeline class</span><span class="v"><code>Chronos2Pipeline</code></span></li>
+            <li><span class="k">HF model id</span><span class="v"><code>amazon/chronos-2</code></span></li>
+            <li><span class="k">SageMaker model id</span><span class="v"><code>pytorch-forecasting-chronos-2</code></span></li>
+            <li><span class="k">License</span><span class="v">Apache-2.0</span></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-sub">pandas API · sketch</div>
+          <div class="card-title">From DataFrame to quantile forecast</div>
+          <pre class="code"><span class="k">from</span> chronos <span class="k">import</span> <span class="v">Chronos2Pipeline</span>
+
+<span class="v">pipe</span> <span class="k">=</span> <span class="v">Chronos2Pipeline</span>.<span class="f">from_pretrained</span>(<span class="s">"amazon/chronos-2"</span>)
+
+<span class="v">forecast</span> <span class="k">=</span> <span class="v">pipe</span>.<span class="f">predict_df</span>(
+    context_df     <span class="k">=</span> <span class="v">context_df</span>,
+    future_df      <span class="k">=</span> <span class="v">future_df</span>,         <span class="c"># optional</span>
+    prediction_length <span class="k">=</span> <span class="s">96</span>,
+    quantile_levels   <span class="k">=</span> [<span class="s">0.1</span>, <span class="s">0.5</span>, <span class="s">0.9</span>],
+    id_column         <span class="k">=</span> <span class="s">"item_id"</span>,
+    timestamp_column  <span class="k">=</span> <span class="s">"timestamp"</span>,
+    target            <span class="k">=</span> <span class="s">"target"</span>,
+)
+<span class="c"># forecast: pandas.DataFrame with one column per requested quantile</span></pre>
+          <p style="font: var(--kui-text); color: var(--kui-fg-muted); margin: var(--kui-space-sm) 0 0 0;">Argument names are taken from the model card / README and may be subject to release-version changes. Kept short here intentionally &mdash; this page is an architecture visualization, not a notebook.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 13. CAVEATS ============================ -->
+    <section id="caveats">
+      <div class="section-head">
+        <span class="marker">13 &middot; Caveats</span>
+        <h2>What is and is not in the listed public sources</h2>
+        <span class="sub">Explicit list of items reported, items inferred from code, and items not disclosed.</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="caveat">
+          <div class="badge info">i</div>
+          <div>
+            <h4 class="caveat-title">Encoder-only · not the original autoregressive T5</h4>
+            <p class="caveat-body">Chronos-2 is described and configured as a single encoder stack ("T5-inspired") with a direct multi-step quantile head. It is <strong>not</strong> the original Chronos discrete-token autoregressive setup &mdash; values are continuous, <code>vocab_size = 2</code> only for PAD/REG, and no decoder cross-attention is used.</p>
+          </div>
+        </div>
+
+        <div class="caveat">
+          <div class="badge info">i</div>
+          <div>
+            <h4 class="caveat-title">Covariate handling vs predecessors</h4>
+            <p class="caveat-body">Original Chronos and Chronos-Bolt can be combined with external covariate regressors at the application layer, but neither model natively conditions on covariates inside its own forward pass. Chronos-2 does. When the report contrasts "native" vs "external regressors" treat this as the meaning.</p>
+          </div>
+        </div>
+
+        <div class="caveat">
+          <div class="badge">!</div>
+          <div>
+            <h4 class="caveat-title">Norm placement &amp; residual order</h4>
+            <p class="caveat-body">The exact placement of LayerNorm (pre vs post) and the residual ordering inside the encoder block should be confirmed against <code>layers.py</code> at the pinned commit. We have shown a standard T5-style pre-norm arrangement; if the source code differs, follow the source code.</p>
+          </div>
+        </div>
+
+        <div class="caveat">
+          <div class="badge">!</div>
+          <div>
+            <h4 class="caveat-title">Items <em>not</em> reported in listed sources</h4>
+            <p class="caveat-body">Exact pretraining corpus size, number of training patches/steps, compute budget, hardware, optimizer, learning-rate schedule, batch size, training duration, and any hidden implementation details beyond the public code/config are <strong>not in the listed sources</strong>. Where a column or label says <span class="src-tag unk">not reported</span>, we mean exactly that.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 14. SOURCES ============================ -->
+    <section id="sources">
+      <div class="section-head">
+        <span class="marker">14 &middot; Sources</span>
+        <h2>References used for this page</h2>
+        <span class="sub">Direct vendor &amp; first-party sources only. No third-party benchmarks were used for the numbers above.</span>
+      </div>
+
+      <div class="src-list">
+        <div class="src"><div class="idx">[1]</div><div class="body"><strong>Chronos-2 technical report</strong> &middot; arXiv 2510.15821 (v1, 17 Oct 2025)<small><a href="https://arxiv.org/abs/2510.15821">arxiv.org/abs/2510.15821</a> · HTML mirror <a href="https://arxiv.org/html/2510.15821">arxiv.org/html/2510.15821</a></small></div></div>
+        <div class="src"><div class="idx">[2]</div><div class="body"><strong>Amazon Science launch blog</strong><small><a href="https://www.amazon.science/blog/introducing-chronos-2-from-univariate-to-universal-forecasting">amazon.science · Introducing Chronos-2: from univariate to universal forecasting</a></small></div></div>
+        <div class="src"><div class="idx">[3]</div><div class="body"><strong>Hugging Face model card</strong> &middot; <code>amazon/chronos-2</code><small><a href="https://huggingface.co/amazon/chronos-2">huggingface.co/amazon/chronos-2</a></small></div></div>
+        <div class="src"><div class="idx">[4]</div><div class="body"><strong>HF config</strong> &middot; raw <code>config.json</code><small><a href="https://huggingface.co/amazon/chronos-2/raw/main/config.json">huggingface.co/amazon/chronos-2/raw/main/config.json</a></small></div></div>
+        <div class="src"><div class="idx">[5]</div><div class="body"><strong>chronos-forecasting repo</strong> &middot; Apache-2.0<small><a href="https://github.com/amazon-science/chronos-forecasting">github.com/amazon-science/chronos-forecasting</a></small></div></div>
+        <div class="src"><div class="idx">[6]</div><div class="body"><strong>Chronos-2 implementation</strong> &middot; <code>model.py</code><small><a href="https://github.com/amazon-science/chronos-forecasting/blob/main/src/chronos/chronos2/model.py">amazon-science/chronos-forecasting · chronos2/model.py</a></small></div></div>
+        <div class="src"><div class="idx">[7]</div><div class="body"><strong>Chronos-2 layers</strong> &middot; <code>layers.py</code><small><a href="https://github.com/amazon-science/chronos-forecasting/blob/main/src/chronos/chronos2/layers.py">amazon-science/chronos-forecasting · chronos2/layers.py</a></small></div></div>
+        <div class="src"><div class="idx">[8]</div><div class="body"><strong>SageMaker JumpStart deployment</strong> &middot; pytorch-forecasting-chronos-2<small>Added 30 Dec 2025 per release notes; deployment details vary by region.</small></div></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer class="page-footer">
+  <div>Model Atlas &middot; Chronos-2 architecture page &middot; built against the Chronos-2 technical report (arXiv 2510.15821), the Amazon Science launch blog, the Hugging Face model card &amp; <code>config.json</code>, and the published source at <code>amazon-science/chronos-forecasting</code>.</div>
+  <div style="white-space: nowrap;">v1 &middot; 2025</div>
+</footer>
+
+<script>
+  // Tabs in the benchmarks section
+  (function() {
+    const tabBtns = document.querySelectorAll('.tabs button');
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+        document.querySelectorAll('.tab-panel').forEach(p => {
+          p.classList.toggle('active', p.dataset.panel === tab);
+        });
+      });
+    });
+  })();
+
+  // Section scrollspy for the left rail
+  (function() {
+    const navLinks = Array.from(document.querySelectorAll('#rail-nav a'));
+    const sections = navLinks
+      .map(a => document.getElementById(a.dataset.target))
+      .filter(Boolean);
+
+    function setActive(id) {
+      navLinks.forEach(a => a.classList.toggle('active', a.dataset.target === id));
+    }
+
+    const io = new IntersectionObserver((entries) => {
+      // Pick the entry closest to the top that is intersecting.
+      const visible = entries
+        .filter(e => e.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+      if (visible[0]) setActive(visible[0].target.id);
+    }, { rootMargin: '-72px 0px -65% 0px', threshold: 0 });
+
+    sections.forEach(s => io.observe(s));
+
+    // Initial active state
+    if (sections[0]) setActive(sections[0].id);
+  })();
+</script>
+
+</body>
+</html>

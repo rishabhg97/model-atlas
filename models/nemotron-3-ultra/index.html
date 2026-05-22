@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nemotron 3 Ultra Architecture</title>
+<link rel="stylesheet" href="kaizen/colors_and_type.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font: var(--kui-body);
+    color: var(--kui-fg-strong);
+    background: var(--kui-bg-canvas);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  a { color: var(--kui-info); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ────────────── Top bar ────────────── */
+  .topbar {
+    height: 56px;
+    background: var(--kui-n950);
+    color: var(--kui-fg-inverse);
+    display: flex;
+    align-items: center;
+    padding: 0 var(--kui-space-ml);
+    gap: var(--kui-space-ml);
+    border-bottom: 1px solid var(--kui-n800);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .topbar .eye { width: 28px; height: 28px; }
+  .topbar .wordmark { height: 14px; opacity: .92; filter: invert(1) brightness(1.4); }
+  .topbar .sep { width: 1px; height: 20px; background: #343434; }
+  .topbar .home-link {
+    color: #c6c6c6;
+    font: var(--kui-text-sm);
+    border: 1px solid #343434;
+    border-radius: var(--kui-radius-sm);
+    padding: 6px 10px;
+    white-space: nowrap;
+  }
+  .topbar .home-link:hover {
+    color: var(--kui-fg-inverse);
+    border-color: var(--kui-brand-green);
+    text-decoration: none;
+  }
+  .topbar .crumb {
+    font: var(--kui-overline);
+    letter-spacing: 1.2px;
+    color: #c6c6c6;
+    text-transform: uppercase;
+  }
+  .topbar .title {
+    font: var(--kui-h4);
+    color: var(--kui-fg-inverse);
+    margin-left: auto;
+  }
+  .topbar .status {
+    display: inline-flex; align-items: center; gap: 6px;
+    font: var(--kui-text-sm);
+    color: #c6c6c6;
+    padding: 4px 10px;
+    border: 1px solid #343434;
+    border-radius: var(--kui-radius-pill);
+  }
+  .topbar .status .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--kui-warning);
+    box-shadow: 0 0 0 2px rgba(197,70,0,.18);
+  }
+
+  /* ────────────── Layout ────────────── */
+  .shell {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    min-height: calc(100vh - 56px);
+  }
+  .nav {
+    border-right: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    padding: var(--kui-space-ml) 0;
+    position: sticky; top: 56px;
+    align-self: start;
+    height: calc(100vh - 56px);
+    overflow-y: auto;
+  }
+  .nav h6 {
+    margin: 0;
+    padding: 0 var(--kui-space-ml) var(--kui-space-xs);
+    font: var(--kui-overline);
+    letter-spacing: 1.2px;
+    color: var(--kui-fg-muted);
+    text-transform: uppercase;
+  }
+  .nav ol {
+    list-style: none; padding: 0; margin: 0 0 var(--kui-space-md);
+    counter-reset: navc;
+  }
+  .nav ol li {
+    counter-increment: navc;
+  }
+  .nav ol li a {
+    display: flex;
+    align-items: baseline;
+    gap: var(--kui-space-sm);
+    padding: 7px var(--kui-space-ml);
+    color: var(--kui-fg-default);
+    font: var(--kui-text);
+    border-left: 2px solid transparent;
+    transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+  }
+  .nav ol li a::before {
+    content: counter(navc, decimal-leading-zero);
+    font: var(--kui-overline);
+    color: var(--kui-fg-muted);
+    min-width: 18px;
+  }
+  .nav ol li a:hover {
+    background: var(--kui-n050);
+    color: var(--kui-fg-strong);
+    text-decoration: none;
+  }
+  .nav ol li a.active {
+    color: var(--kui-fg-strong);
+    border-left-color: var(--kui-brand-green);
+    background: linear-gradient(90deg, rgba(118,185,0,.06), transparent 50%);
+  }
+  .nav .footer {
+    padding: var(--kui-space-md) var(--kui-space-ml);
+    border-top: 1px solid var(--kui-border-subtle);
+    margin-top: var(--kui-space-md);
+    font: var(--kui-caption);
+    color: var(--kui-fg-muted);
+  }
+
+  .main {
+    padding: var(--kui-space-xl) var(--kui-space-xl) var(--kui-space-xxl);
+    max-width: 1280px;
+  }
+  section {
+    margin-bottom: var(--kui-space-xxl);
+    scroll-margin-top: 72px;
+  }
+  .sec-label {
+    font: var(--kui-overline);
+    letter-spacing: 1.4px;
+    color: var(--kui-fg-muted);
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: var(--kui-space-sm);
+    margin-bottom: var(--kui-space-sm);
+  }
+  .sec-label::before {
+    content: ""; display: inline-block;
+    width: 12px; height: 1px; background: var(--kui-brand-green);
+  }
+  h1, h2, h3, h4 { letter-spacing: var(--kui-tracking-heading); margin: 0; }
+  h1 { font: var(--kui-h1); }
+  h2 { font: var(--kui-h2); margin-bottom: var(--kui-space-sm); }
+  h3 { font: var(--kui-h3); margin: 0 0 var(--kui-space-sm); }
+  h4 { font: var(--kui-h4); margin: 0 0 var(--kui-space-xs); }
+
+  .lede {
+    font: 400 16px/1.6 var(--kui-font-sans);
+    color: var(--kui-fg-default);
+    max-width: 72ch;
+    margin-top: var(--kui-space-sm);
+  }
+  p { font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 var(--kui-space-sm); max-width: 78ch;}
+  p.tight { margin: 0; }
+
+  /* ────────────── Hero ────────────── */
+  .hero {
+    border: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    padding: var(--kui-space-xl);
+    border-radius: var(--kui-radius-sm);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: "";
+    position: absolute; right: 0; top: 0; bottom: 0;
+    width: 6px; background: var(--kui-brand-green);
+  }
+  .hero .eyebrow {
+    font: var(--kui-overline); letter-spacing: 1.4px;
+    color: var(--kui-fg-muted); text-transform: uppercase;
+    margin-bottom: var(--kui-space-sm);
+  }
+  .hero h1 {
+    font: 500 40px/1.15 var(--kui-font-sans);
+    letter-spacing: -0.5px;
+    margin-bottom: var(--kui-space-sm);
+  }
+  .hero .meta {
+    display: flex; flex-wrap: wrap; gap: var(--kui-space-sm);
+    margin-top: var(--kui-space-ml);
+  }
+  .tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-xs);
+    font: var(--kui-text-sm);
+    color: var(--kui-fg-default);
+    background: var(--kui-bg-canvas);
+  }
+  .tag.green { color: var(--kui-success); background: var(--kui-success-bg); border-color: #C8E2A1; }
+  .tag.warn  { color: var(--kui-warning); background: var(--kui-warning-bg); border-color: #F5C5A6; }
+  .tag.info  { color: var(--kui-info-text); background: var(--kui-info-bg); border-color: #C7E1F4; }
+
+  /* ────────────── Spec grid ────────────── */
+  .specs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    border-radius: var(--kui-radius-sm);
+    margin-top: var(--kui-space-ml);
+  }
+  .specs .cell {
+    padding: var(--kui-space-md) var(--kui-space-ml);
+    border-right: 1px solid var(--kui-border-default);
+    border-bottom: 1px solid var(--kui-border-default);
+  }
+  .specs .cell:nth-child(4n) { border-right: none; }
+  .specs .cell:nth-last-child(-n+4) { border-bottom: none; }
+  .specs .k {
+    font: var(--kui-overline); letter-spacing: 1.2px;
+    color: var(--kui-fg-muted); text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .specs .v {
+    font: 500 22px/1.15 var(--kui-font-sans);
+    letter-spacing: -0.25px;
+    color: var(--kui-fg-strong);
+  }
+  .specs .v .sub {
+    font: var(--kui-text-sm); color: var(--kui-fg-muted);
+    margin-left: 4px; font-weight: 400; letter-spacing: 0;
+  }
+  .specs .v.unknown {
+    font: 400 14px/1.4 var(--kui-font-sans);
+    color: var(--kui-fg-muted);
+    font-style: italic;
+  }
+
+  /* ────────────── Cards / panels ────────────── */
+  .panel {
+    border: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    border-radius: var(--kui-radius-sm);
+    padding: var(--kui-space-ml);
+  }
+  .panel + .panel { margin-top: var(--kui-space-md); }
+  .grid-2 {
+    display: grid; gap: var(--kui-space-md);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .grid-3 {
+    display: grid; gap: var(--kui-space-md);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .grid-4 {
+    display: grid; gap: var(--kui-space-md);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  /* ────────────── Tables ────────────── */
+  table.kui-tbl {
+    width: 100%; border-collapse: collapse;
+    background: var(--kui-bg-mid);
+    border: 1px solid var(--kui-border-default);
+    font: var(--kui-body);
+  }
+  table.kui-tbl th, table.kui-tbl td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--kui-border-default);
+    vertical-align: top;
+  }
+  table.kui-tbl th {
+    background: var(--kui-n050);
+    font: 500 12px/1 var(--kui-font-sans);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--kui-fg-muted);
+  }
+  table.kui-tbl td .unknown { color: var(--kui-fg-muted); font-style: italic; }
+  table.kui-tbl tr:last-child td { border-bottom: none; }
+  table.kui-tbl td.num {
+    font: 400 14px/1.5 var(--kui-font-mono);
+    color: var(--kui-fg-strong);
+    white-space: nowrap;
+  }
+  .table-caption {
+    font: var(--kui-caption);
+    color: var(--kui-fg-muted);
+    margin-top: 8px;
+  }
+
+  /* ────────────── Code / math chips ────────────── */
+  code {
+    font: var(--kui-code);
+    background: var(--kui-n050);
+    border: 1px solid var(--kui-border-subtle);
+    border-radius: var(--kui-radius-xs);
+    padding: 1px 6px;
+    color: var(--kui-fg-strong);
+    white-space: nowrap;
+  }
+  .math {
+    display: inline-block;
+    font: var(--kui-code);
+    background: #FBF8F0;
+    border: 1px solid #EAE0C5;
+    color: #5E4500;
+    padding: 2px 8px;
+    border-radius: var(--kui-radius-xs);
+  }
+  .verified {
+    display: inline-flex; align-items: center; gap: 5px;
+    font: var(--kui-text-sm); color: var(--kui-success);
+    padding: 2px 8px; border-radius: var(--kui-radius-pill);
+    background: var(--kui-success-bg); border: 1px solid #C8E2A1;
+  }
+  .verified::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--kui-success);
+  }
+  .unknown-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font: var(--kui-text-sm); color: var(--kui-fg-muted);
+    padding: 2px 8px; border-radius: var(--kui-radius-pill);
+    background: var(--kui-n050); border: 1px dashed var(--kui-border-default);
+    font-style: italic;
+  }
+
+  /* ────────────── Diagrams (general) ────────────── */
+  .diagram-wrap {
+    border: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    border-radius: var(--kui-radius-sm);
+    padding: var(--kui-space-ml);
+    overflow-x: auto;
+  }
+  .diagram-wrap svg { display: block; max-width: 100%; height: auto; }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 14px;
+    margin-top: var(--kui-space-md);
+    padding-top: var(--kui-space-md);
+    border-top: 1px solid var(--kui-border-subtle);
+    font: var(--kui-text-sm); color: var(--kui-fg-muted);
+  }
+  .legend .sw {
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .legend .sw i {
+    width: 12px; height: 12px; border-radius: 2px; display: inline-block;
+    border: 1px solid rgba(0,0,0,.1);
+  }
+
+  /* Color codes for diagrammatic block types */
+  .c-emb   { background: #E9F4FB; border-color: #C7E1F4; color: #0D69D4; }
+  .c-mamba { background: #E0F2EF; border-color: #ABDCD2; color: #006B5E; }
+  .c-attn  { background: #FBEEFE; border-color: #ECD1F2; color: #6E2C82; }
+  .c-moe   { background: #F1ECFB; border-color: #D7C9F2; color: #4F3E97; }
+  .c-mtp   { background: #FDEFE6; border-color: #F5C5A6; color: #C54600; }
+  .c-out   { background: #E8F4D6; border-color: #C8E2A1; color: #486A18; }
+
+  /* ────────────── Callout ────────────── */
+  .callout {
+    border: 1px solid var(--kui-border-default);
+    border-left: 3px solid var(--kui-info);
+    background: var(--kui-info-bg);
+    padding: var(--kui-space-md) var(--kui-space-ml);
+    border-radius: var(--kui-radius-sm);
+    font: var(--kui-body);
+    color: var(--kui-fg-strong);
+  }
+  .callout.warn { background: var(--kui-warning-bg); border-left-color: var(--kui-warning); }
+  .callout.muted { background: var(--kui-n050); border-left-color: var(--kui-n400); color: var(--kui-fg-default); }
+  .callout .lbl {
+    font: var(--kui-overline); letter-spacing: 1.2px;
+    text-transform: uppercase; color: var(--kui-fg-muted);
+    margin-bottom: 4px;
+  }
+
+  /* ────────────── Unknowns table ────────────── */
+  .unknown-list {
+    border: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    border-radius: var(--kui-radius-sm);
+  }
+  .unknown-list .row {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr) 160px;
+    gap: var(--kui-space-md);
+    padding: 12px var(--kui-space-ml);
+    border-bottom: 1px solid var(--kui-border-subtle);
+    align-items: baseline;
+  }
+  .unknown-list .row:last-child { border-bottom: none; }
+  .unknown-list .row .k { font: 500 14px/1.4 var(--kui-font-sans); }
+  .unknown-list .row .desc { font: var(--kui-body); color: var(--kui-fg-default); }
+  .unknown-list .row .lead { font: var(--kui-text-sm); color: var(--kui-fg-muted); font-style: italic; text-align: right; }
+
+  /* ────────────── Footnote / sources ────────────── */
+  .sources li {
+    font: var(--kui-body); color: var(--kui-fg-default);
+    margin-bottom: 6px;
+    list-style: none;
+  }
+  .sources ol { padding: 0; margin: 0; counter-reset: src; }
+  .sources li::before {
+    content: "[" counter(src) "]";
+    counter-increment: src;
+    font: var(--kui-code);
+    color: var(--kui-fg-muted);
+    margin-right: 10px;
+  }
+  .sources .pubmeta { font: var(--kui-caption); color: var(--kui-fg-muted); margin-left: 6px; }
+
+  /* ────────────── Responsive ────────────── */
+  @media (max-width: 1100px) {
+    .shell { grid-template-columns: 220px 1fr; }
+    .specs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .specs .cell { border-right: 1px solid var(--kui-border-default); }
+    .specs .cell:nth-child(2n) { border-right: none; }
+    .specs .cell:nth-last-child(-n+4) { border-bottom: 1px solid var(--kui-border-default); }
+    .specs .cell:nth-last-child(-n+2) { border-bottom: none; }
+    .grid-3, .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .main { padding: var(--kui-space-ml); }
+  }
+  @media (max-width: 720px) {
+    .shell { grid-template-columns: 1fr; }
+    .nav { position: static; height: auto; }
+    .specs { grid-template-columns: 1fr; }
+    .specs .cell { border-right: none; }
+    .specs .cell:nth-last-child(-n+1) { border-bottom: none; }
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    .unknown-list .row { grid-template-columns: 1fr; gap: 4px; }
+    .unknown-list .row .lead { text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ────────────── Top bar ────────────── -->
+<header class="topbar">
+  <img src="kaizen/NVIDIA-eye-mark.svg" alt="NVIDIA" class="eye">
+  <img src="kaizen/NVIDIA-wordmark.svg" alt="NVIDIA" class="wordmark">
+  <span class="sep"></span>
+  <a class="home-link" href="../../index.html">Atlas home</a>
+  <span class="crumb">Model Architecture Atlas · Nemotron 3 Ultra</span>
+  <span class="title">Architecture Briefing</span>
+  <span class="status"><span class="dot"></span>Base checkpoint · weights pending (1H 2026)</span>
+</header>
+
+<div class="shell">
+  <!-- ────────────── Left nav ────────────── -->
+  <aside class="nav" aria-label="Section navigation">
+    <h6>On this page</h6>
+    <ol>
+      <li><a href="#overview" class="active">Overview</a></li>
+      <li><a href="#specs">Architectural dimensions</a></li>
+      <li><a href="#map">End-to-end model map</a></li>
+      <li><a href="#block">Hybrid block structure</a></li>
+      <li><a href="#latentmoe">LatentMoE</a></li>
+      <li><a href="#mtp">Multi-token prediction</a></li>
+      <li><a href="#mamba">Mamba-2 long-context path</a></li>
+      <li><a href="#training">Training &amp; precision</a></li>
+      <li><a href="#throughput">Throughput claim</a></li>
+      <li><a href="#family">Nemotron 3 family</a></li>
+      <li><a href="#unknowns">Unknowns &amp; caveats</a></li>
+      <li><a href="#sources">Sources</a></li>
+    </ol>
+    <div class="footer">
+      Every fact is tagged <span class="verified" style="margin: 0 2px;">verified</span> against a primary NVIDIA source, or
+      <span class="unknown-chip" style="margin: 0 2px;">unknown</span> if the source inventory is silent.
+    </div>
+  </aside>
+
+  <!-- ────────────── Main ────────────── -->
+  <main class="main">
+
+    <!-- ────────────── Overview ────────────── -->
+    <section id="overview">
+      <div class="hero">
+        <div class="eyebrow">Vendor · NVIDIA &nbsp;·&nbsp; Release · 1H 2026 (expected) &nbsp;·&nbsp; License · NVIDIA Open Model License</div>
+        <h1>Nemotron 3 Ultra</h1>
+        <div class="lede">
+          The largest open model in NVIDIA's Nemotron 3 family — a 550-billion-parameter hybrid Mamba‑Transformer
+          mixture-of-experts (MoE) reasoning engine with 55 B parameters active per token, a 1 M-token context window,
+          and built-in speculative decoding via multi-token prediction heads. Pre-trained natively in 4-bit NVFP4 on
+          NVIDIA Blackwell. Shipped first as a pre-training base checkpoint for downstream customization.
+        </div>
+        <div class="meta">
+          <span class="tag green">Hybrid Mamba-Transformer MoE</span>
+          <span class="tag">LatentMoE</span>
+          <span class="tag">Multi-Token Prediction (MTP)</span>
+          <span class="tag">NVFP4 pre-training</span>
+          <span class="tag">1 M-token context</span>
+          <span class="tag warn">Base only — no post-training yet</span>
+          <span class="tag info">Weights pending 1H 2026</span>
+        </div>
+      </div>
+
+      <p class="lede" style="margin-top: var(--kui-space-ml);">
+        Nemotron 3 Ultra is positioned as NVIDIA's <strong>large-scale reasoning engine</strong> within an
+        agentic stack: Nano (30 B/A3B) for high-throughput sub-agents, Super (120 B/A12B) for collaborative
+        multi-agent workloads, and Ultra (550 B/A55B) for complex planning and deep analysis. All three share
+        the same backbone — Mamba-2 selective state-space layers interleaved with grouped-query attention
+        layers and LatentMoE feed-forward layers — and differ primarily in scale.
+      </p>
+    </section>
+
+    <!-- ────────────── Specs grid ────────────── -->
+    <section id="specs">
+      <div class="sec-label">Section 01</div>
+      <h2>Architectural dimensions</h2>
+      <p>Source-confirmed numbers are shown in full weight; cells labeled "unknown in source inventory" mark
+        dimensions NVIDIA has not yet published in the public Ultra material.</p>
+
+      <div class="specs">
+        <div class="cell">
+          <div class="k">Total parameters</div>
+          <div class="v">550 B <span class="sub">verified</span></div>
+        </div>
+        <div class="cell">
+          <div class="k">Active per token</div>
+          <div class="v">55 B <span class="sub">verified</span></div>
+        </div>
+        <div class="cell">
+          <div class="k">Context length</div>
+          <div class="v">1,048,576 <span class="sub">tokens (≈1 M)</span></div>
+        </div>
+        <div class="cell">
+          <div class="k">Pre-training precision</div>
+          <div class="v">NVFP4 <span class="sub">4-bit</span></div>
+        </div>
+        <div class="cell">
+          <div class="k">Backbone</div>
+          <div class="v" style="font-size: 16px;">Hybrid Mamba‑2 · Attention · LatentMoE</div>
+        </div>
+        <div class="cell">
+          <div class="k">Sparsity ratio</div>
+          <div class="v">10 % <span class="sub">active / total</span></div>
+        </div>
+        <div class="cell">
+          <div class="k">License</div>
+          <div class="v" style="font-size: 16px;">NVIDIA Open Model License</div>
+        </div>
+        <div class="cell">
+          <div class="k">Post-training</div>
+          <div class="v" style="font-size: 16px; color: var(--kui-warning);">Not yet · base only</div>
+        </div>
+        <div class="cell">
+          <div class="k">Layer count</div>
+          <div class="v unknown">unknown in source inventory</div>
+        </div>
+        <div class="cell">
+          <div class="k">Hidden size</div>
+          <div class="v unknown">unknown in source inventory</div>
+        </div>
+        <div class="cell">
+          <div class="k">Expert count / top-k</div>
+          <div class="v unknown">unknown in source inventory</div>
+        </div>
+        <div class="cell">
+          <div class="k">Vocabulary / tokenizer</div>
+          <div class="v unknown">unknown in source inventory</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ────────────── End-to-end map ────────────── -->
+    <section id="map">
+      <div class="sec-label">Section 02</div>
+      <h2>End-to-end model map</h2>
+      <p>From input tokens to output distribution. Only operations confirmed by the official cookbook and
+        Nemotron 3 white paper are drawn. Layer counts and projection dimensions are omitted where unverified.</p>
+
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 1180 520" role="img" aria-label="End-to-end architecture diagram">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#5E5E5E"/>
+            </marker>
+            <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#76B900"/>
+            </marker>
+            <pattern id="dotgrid" width="14" height="14" patternUnits="userSpaceOnUse">
+              <circle cx="1" cy="1" r="0.8" fill="#E3E3E3"/>
+            </pattern>
+          </defs>
+
+          <rect x="0" y="0" width="1180" height="520" fill="url(#dotgrid)"/>
+
+          <!-- Stage labels along top -->
+          <g font-family="DM Sans, sans-serif" font-size="10" fill="#767676" letter-spacing="1.2">
+            <text x="80" y="28">INPUT</text>
+            <text x="285" y="28">EMBEDDING</text>
+            <text x="600" y="28">REPEATED HYBRID STACK</text>
+            <text x="930" y="28">PREDICTION HEADS</text>
+          </g>
+          <line x1="0" y1="40" x2="1180" y2="40" stroke="#D8D8D8" stroke-dasharray="2 4"/>
+
+          <!-- Input -->
+          <g transform="translate(40, 90)">
+            <rect width="160" height="80" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="80" y="32" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="500" fill="#202020">Input tokens</text>
+            <text x="80" y="52" text-anchor="middle" font-family="DM Sans" font-size="11" fill="#767676">BPE-style tokenizer</text>
+            <text x="80" y="68" text-anchor="middle" font-family="Roboto Mono" font-size="10" fill="#8F8F8F">(vocab: unknown)</text>
+          </g>
+
+          <!-- Embedding -->
+          <g transform="translate(240, 90)">
+            <rect width="160" height="80" rx="4" fill="#E9F4FB" stroke="#C7E1F4"/>
+            <text x="80" y="32" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="500" fill="#0D69D4">Token embedding</text>
+            <text x="80" y="52" text-anchor="middle" font-family="DM Sans" font-size="11" fill="#0D69D4">x ∈ ℝ^(L × d_model)</text>
+            <text x="80" y="68" text-anchor="middle" font-family="Roboto Mono" font-size="10" fill="#2378CA">(d_model: unknown)</text>
+          </g>
+
+          <!-- Repeated stack — three block types stacked vertically inside one outer card -->
+          <g transform="translate(440, 70)">
+            <rect width="420" height="370" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="20" y="25" font-family="DM Sans" font-size="11" font-weight="500" fill="#5E5E5E" letter-spacing="0.8">REPEATED HYBRID BLOCK · N layers (count unknown for Ultra)</text>
+
+            <!-- Mamba-2 block -->
+            <g transform="translate(20, 45)">
+              <rect width="380" height="80" rx="4" fill="#E0F2EF" stroke="#ABDCD2"/>
+              <text x="14" y="22" font-family="DM Sans" font-size="13" font-weight="500" fill="#006B5E">Mamba-2 selective state-space layer</text>
+              <text x="14" y="40" font-family="DM Sans" font-size="11" fill="#006B5E">Linear-time mixing over the sequence (O(L) compute)</text>
+              <text x="14" y="56" font-family="Roboto Mono" font-size="10" fill="#006B5E">h_t = A_t h_{t-1} + B_t x_t   ·   y_t = C_t h_t</text>
+              <text x="14" y="72" font-family="DM Sans" font-size="10" fill="#5E5E5E" font-style="italic">Carries the 1 M-token context — no KV cache to grow.</text>
+            </g>
+
+            <!-- Attention block -->
+            <g transform="translate(20, 135)">
+              <rect width="380" height="80" rx="4" fill="#FBEEFE" stroke="#ECD1F2"/>
+              <text x="14" y="22" font-family="DM Sans" font-size="13" font-weight="500" fill="#6E2C82">Attention layer · interleaved sparsely</text>
+              <text x="14" y="40" font-family="DM Sans" font-size="11" fill="#6E2C82">Provides precise global token-to-token interaction</text>
+              <text x="14" y="56" font-family="Roboto Mono" font-size="10" fill="#6E2C82">softmax( Q K^⊤ / √d_k ) V</text>
+              <text x="14" y="72" font-family="DM Sans" font-size="10" fill="#5E5E5E" font-style="italic">Head count / GQA grouping: unknown for Ultra.</text>
+            </g>
+
+            <!-- LatentMoE -->
+            <g transform="translate(20, 225)">
+              <rect width="380" height="125" rx="4" fill="#F1ECFB" stroke="#D7C9F2"/>
+              <text x="14" y="22" font-family="DM Sans" font-size="13" font-weight="500" fill="#4F3E97">LatentMoE feed-forward layer</text>
+              <text x="14" y="40" font-family="DM Sans" font-size="11" fill="#4F3E97">Compress to low-rank latent → route → many specialists</text>
+              <text x="14" y="58" font-family="Roboto Mono" font-size="10" fill="#4F3E97">z = W_down x   (low-rank latent)</text>
+              <text x="14" y="73" font-family="Roboto Mono" font-size="10" fill="#4F3E97">g = softmax(Router(z)) ; top-k experts</text>
+              <text x="14" y="88" font-family="Roboto Mono" font-size="10" fill="#4F3E97">y = Σ_i  g_i · Expert_i(z)</text>
+              <text x="14" y="106" font-family="DM Sans" font-size="10" fill="#5E5E5E" font-style="italic">4× more expert specialists at the same active FLOPs.</text>
+              <text x="14" y="120" font-family="DM Sans" font-size="10" fill="#5E5E5E" font-style="italic">Expert count / top-k for Ultra: unknown.</text>
+            </g>
+          </g>
+
+          <!-- Prediction heads -->
+          <g transform="translate(900, 90)">
+            <rect width="240" height="200" rx="4" fill="#FDEFE6" stroke="#F5C5A6"/>
+            <text x="14" y="24" font-family="DM Sans" font-size="13" font-weight="500" fill="#C54600">Main LM head</text>
+            <text x="14" y="42" font-family="DM Sans" font-size="11" fill="#C54600">Predicts token t+1</text>
+            <text x="14" y="58" font-family="Roboto Mono" font-size="10" fill="#C54600">p(x_{t+1} | x_≤t)</text>
+
+            <line x1="14" y1="78" x2="226" y2="78" stroke="#F5C5A6" stroke-dasharray="3 3"/>
+
+            <text x="14" y="100" font-family="DM Sans" font-size="13" font-weight="500" fill="#C54600">MTP draft heads</text>
+            <text x="14" y="118" font-family="DM Sans" font-size="11" fill="#C54600">Predict t+2, t+3, … in parallel</text>
+            <text x="14" y="134" font-family="Roboto Mono" font-size="10" fill="#C54600">p(x_{t+k} | x_≤t)</text>
+            <text x="14" y="152" font-family="DM Sans" font-size="10" fill="#5E5E5E" font-style="italic">Acts as built-in draft model</text>
+            <text x="14" y="168" font-family="DM Sans" font-size="10" fill="#5E5E5E" font-style="italic">for speculative decoding.</text>
+            <text x="14" y="188" font-family="Roboto Mono" font-size="10" fill="#8F8F8F">k (MTP depth): unknown for Ultra</text>
+          </g>
+
+          <!-- Output -->
+          <g transform="translate(900, 330)">
+            <rect width="240" height="80" rx="4" fill="#E8F4D6" stroke="#C8E2A1"/>
+            <text x="120" y="32" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="500" fill="#486A18">Output distribution</text>
+            <text x="120" y="52" text-anchor="middle" font-family="DM Sans" font-size="11" fill="#486A18">softmax over vocabulary</text>
+            <text x="120" y="68" text-anchor="middle" font-family="Roboto Mono" font-size="10" fill="#486A18">verified single forward pass</text>
+          </g>
+
+          <!-- Arrows -->
+          <line x1="200" y1="130" x2="240" y2="130" stroke="#5E5E5E" stroke-width="1.5" marker-end="url(#arrow)"/>
+          <line x1="400" y1="130" x2="440" y2="130" stroke="#5E5E5E" stroke-width="1.5" marker-end="url(#arrow)"/>
+          <line x1="860" y1="130" x2="900" y2="130" stroke="#5E5E5E" stroke-width="1.5" marker-end="url(#arrow)"/>
+          <line x1="1020" y1="290" x2="1020" y2="330" stroke="#76B900" stroke-width="2" marker-end="url(#arrow-green)"/>
+
+          <!-- Residual hint -->
+          <path d="M 460 460 Q 650 490 840 460" fill="none" stroke="#8F8F8F" stroke-dasharray="4 4" stroke-width="1"/>
+          <text x="650" y="500" text-anchor="middle" font-family="DM Sans" font-size="10" fill="#767676" font-style="italic">Each sub-layer wrapped in residual + normalization (specific scheme not reported for Ultra)</text>
+        </svg>
+
+        <div class="legend">
+          <span class="sw"><i style="background:#E9F4FB; border-color:#C7E1F4;"></i> Embedding</span>
+          <span class="sw"><i style="background:#E0F2EF; border-color:#ABDCD2;"></i> Mamba-2 SSM</span>
+          <span class="sw"><i style="background:#FBEEFE; border-color:#ECD1F2;"></i> Attention</span>
+          <span class="sw"><i style="background:#F1ECFB; border-color:#D7C9F2;"></i> LatentMoE</span>
+          <span class="sw"><i style="background:#FDEFE6; border-color:#F5C5A6;"></i> MTP heads</span>
+          <span class="sw"><i style="background:#E8F4D6; border-color:#C8E2A1;"></i> Output</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ────────────── Block structure ────────────── -->
+    <section id="block">
+      <div class="sec-label">Section 03</div>
+      <h2>Hybrid block structure</h2>
+      <p>NVIDIA describes Nemotron 3 as a Mixture-of-Experts hybrid Mamba‑Transformer architecture. The exact
+        interleaving pattern (how many Mamba‑2, attention, and MoE layers, and in what order) <em>is</em>
+        published for Nemotron 3 Nano, but it has <strong>not</strong> been disclosed for Ultra in the source
+        inventory. The diagram below shows the three operations that share each block, drawn at the granularity
+        the cookbook confirms.</p>
+
+      <div class="grid-3">
+        <div class="panel">
+          <h4><span class="verified">verified</span></h4>
+          <h3 style="color:#006B5E;">Mamba-2 layers</h3>
+          <p>Selective state-space layers that mix information along the sequence axis in
+            <strong>linear time</strong>. NVIDIA explicitly credits Mamba-2 with making the 1 M-token context
+            window "practical for long-document and agentic workloads."</p>
+          <p class="tight">Update rule:</p>
+          <p><span class="math">h_t = A_t · h_{t-1} + B_t · x_t,&nbsp; y_t = C_t · h_t</span></p>
+        </div>
+
+        <div class="panel">
+          <h4><span class="verified">verified</span></h4>
+          <h3 style="color:#6E2C82;">Attention layers</h3>
+          <p>Standard transformer attention is interleaved sparsely between the Mamba‑2 layers to preserve
+            precise token-to-token interaction that pure SSMs lack. The Nemotron 3 white paper labels the
+            backbone "<em>MoE hybrid Mamba‑Transformer</em>", confirming attention is part of every layer
+            pattern.</p>
+          <p class="tight"><span class="unknown-chip">head count for Ultra unknown</span></p>
+        </div>
+
+        <div class="panel">
+          <h4><span class="verified">verified</span></h4>
+          <h3 style="color:#4F3E97;">LatentMoE feed-forward</h3>
+          <p>Sparse feed-forward layer that compresses each token into a low-rank latent space
+            <em>before</em> routing, then dispatches the compressed representation to a small subset of
+            many specialist experts. This produces the 10 % active-parameter ratio (55 B&nbsp;/&nbsp;550 B).</p>
+          <p class="tight"><span class="unknown-chip">expert count, top-k for Ultra unknown</span></p>
+        </div>
+      </div>
+
+      <div class="callout muted" style="margin-top: var(--kui-space-md);">
+        <div class="lbl">Reference — Nemotron 3 Nano (published layer pattern)</div>
+        For context only: Nemotron 3 Nano (30 B / A3B) is published as 23 Mamba‑2 layers + 23 LatentMoE layers
+        + 6 grouped-query attention layers, with 128 experts and top-6 routing. The Ultra layer-pattern
+        equivalents are not in the source inventory and are <strong>not</strong> assumed here.
+      </div>
+    </section>
+
+    <!-- ────────────── LatentMoE detail ────────────── -->
+    <section id="latentmoe">
+      <div class="sec-label">Section 04</div>
+      <h2>LatentMoE</h2>
+      <p>LatentMoE is the architectural lever that lets Ultra hold 550 B parameters at 55 B active per token.
+        Conventional MoE routes the full hidden state through a chosen expert; LatentMoE first projects the
+        hidden state to a <em>low-rank latent</em>, then routes and expert-applies in the compressed space.
+        The smaller per-expert compute lets NVIDIA pack <strong>roughly 4× as many expert specialists</strong>
+        for the same inference budget.</p>
+
+      <div class="diagram-wrap" style="margin-top: var(--kui-space-md);">
+        <svg viewBox="0 0 1140 360" role="img" aria-label="LatentMoE routing diagram">
+          <defs>
+            <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#4F3E97"/>
+            </marker>
+            <marker id="arrow2g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#8F8F8F"/>
+            </marker>
+          </defs>
+
+          <!-- Token in -->
+          <g transform="translate(20, 150)">
+            <rect width="140" height="60" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="70" y="28" text-anchor="middle" font-family="DM Sans" font-size="12" font-weight="500" fill="#202020">Token state</text>
+            <text x="70" y="46" text-anchor="middle" font-family="Roboto Mono" font-size="10" fill="#5E5E5E">x ∈ ℝ^{d}</text>
+          </g>
+          <line x1="160" y1="180" x2="200" y2="180" stroke="#4F3E97" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+          <!-- Down projection -->
+          <g transform="translate(200, 130)">
+            <rect width="180" height="100" rx="4" fill="#F1ECFB" stroke="#D7C9F2"/>
+            <text x="90" y="26" text-anchor="middle" font-family="DM Sans" font-size="12" font-weight="500" fill="#4F3E97">Down-projection</text>
+            <text x="90" y="46" text-anchor="middle" font-family="Roboto Mono" font-size="11" fill="#4F3E97">z = W_down · x</text>
+            <text x="90" y="64" text-anchor="middle" font-family="DM Sans" font-size="11" fill="#4F3E97">z ∈ ℝ^{r}, r ≪ d</text>
+            <text x="90" y="86" text-anchor="middle" font-family="DM Sans" font-size="10" fill="#5E5E5E" font-style="italic">Compresses to a latent</text>
+          </g>
+          <line x1="380" y1="180" x2="420" y2="180" stroke="#4F3E97" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+          <!-- Router -->
+          <g transform="translate(420, 140)">
+            <rect width="160" height="80" rx="4" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <text x="80" y="26" text-anchor="middle" font-family="DM Sans" font-size="12" font-weight="500" fill="#4F3E97">Router</text>
+            <text x="80" y="46" text-anchor="middle" font-family="Roboto Mono" font-size="10" fill="#4F3E97">g = softmax(W_r z)</text>
+            <text x="80" y="64" text-anchor="middle" font-family="DM Sans" font-size="11" fill="#4F3E97">pick top-k experts</text>
+          </g>
+          <line x1="580" y1="180" x2="620" y2="180" stroke="#4F3E97" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+          <!-- Expert grid -->
+          <g transform="translate(620, 30)">
+            <text x="0" y="-2" font-family="DM Sans" font-size="11" font-weight="500" fill="#4F3E97">Specialist experts (~4× the count of a regular MoE at equal inference cost)</text>
+            <g font-family="Roboto Mono" font-size="10" fill="#202020">
+              <!-- 4 rows × 8 cols of small expert boxes -->
+            </g>
+          </g>
+          <g id="experts" transform="translate(620, 30)">
+          </g>
+
+          <!-- 4x8 grid generated inline -->
+          <g transform="translate(620, 30)">
+            <!-- Row 1 -->
+            <rect x="0" y="20" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="48" y="20" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="96" y="20" width="40" height="40" rx="3" fill="#F1ECFB" stroke="#4F3E97" stroke-width="1.5"/>
+            <rect x="144" y="20" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="192" y="20" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="240" y="20" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="288" y="20" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="336" y="20" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <!-- Row 2 -->
+            <rect x="0" y="68" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="48" y="68" width="40" height="40" rx="3" fill="#F1ECFB" stroke="#4F3E97" stroke-width="1.5"/>
+            <rect x="96" y="68" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="144" y="68" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="192" y="68" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="240" y="68" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="288" y="68" width="40" height="40" rx="3" fill="#F1ECFB" stroke="#4F3E97" stroke-width="1.5"/>
+            <rect x="336" y="68" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <!-- Row 3 -->
+            <rect x="0" y="116" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="48" y="116" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="96" y="116" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="144" y="116" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="192" y="116" width="40" height="40" rx="3" fill="#F1ECFB" stroke="#4F3E97" stroke-width="1.5"/>
+            <rect x="240" y="116" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="288" y="116" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="336" y="116" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <!-- Row 4 -->
+            <rect x="0" y="164" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="48" y="164" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="96" y="164" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="144" y="164" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="192" y="164" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="240" y="164" width="40" height="40" rx="3" fill="#F1ECFB" stroke="#4F3E97" stroke-width="1.5"/>
+            <rect x="288" y="164" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+            <rect x="336" y="164" width="40" height="40" rx="3" fill="#FFFFFF" stroke="#D7C9F2"/>
+
+            <text x="190" y="226" text-anchor="middle" font-family="DM Sans" font-size="11" fill="#5E5E5E">Filled = top-k experts selected for this token. Counts not reported for Ultra.</text>
+          </g>
+
+          <!-- Combine + up-project -->
+          <g transform="translate(420, 280)">
+            <rect width="380" height="60" rx="4" fill="#F1ECFB" stroke="#D7C9F2"/>
+            <text x="190" y="26" text-anchor="middle" font-family="DM Sans" font-size="12" font-weight="500" fill="#4F3E97">Weighted combine &amp; up-project</text>
+            <text x="190" y="46" text-anchor="middle" font-family="Roboto Mono" font-size="11" fill="#4F3E97">y = W_up · ( Σ_i g_i · Expert_i(z) )</text>
+          </g>
+
+          <path d="M 800 200 C 850 210, 850 280, 800 280" fill="none" stroke="#8F8F8F" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#arrow2g)"/>
+
+          <!-- Token out -->
+          <g transform="translate(870, 280)">
+            <rect width="140" height="60" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="70" y="28" text-anchor="middle" font-family="DM Sans" font-size="12" font-weight="500" fill="#202020">y ∈ ℝ^{d}</text>
+            <text x="70" y="46" text-anchor="middle" font-family="DM Sans" font-size="10" fill="#5E5E5E">back to residual stream</text>
+          </g>
+          <line x1="800" y1="310" x2="870" y2="310" stroke="#4F3E97" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+        </svg>
+      </div>
+
+      <div class="grid-2" style="margin-top: var(--kui-space-md);">
+        <div class="panel">
+          <h4>Why latent compression matters</h4>
+          <p>Per-token FLOPs through an expert are dominated by the matmul against expert weights. Routing in the
+            compressed space <code>r ≪ d</code> reduces those FLOPs proportional to <code>r/d</code>, which is
+            what frees the budget for additional specialists.</p>
+        </div>
+        <div class="panel">
+          <h4>Effective parameter ratio</h4>
+          <p>For Ultra, the published 55 B / 550 B figure implies roughly <strong>10 % of weights active per token</strong>.
+            That number includes Mamba-2 and attention layers in addition to the MoE experts; the per-layer
+            sparsity is not separately reported.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ────────────── MTP ────────────── -->
+    <section id="mtp">
+      <div class="sec-label">Section 05</div>
+      <h2>Multi-Token Prediction (MTP)</h2>
+      <p>NVIDIA describes Multi-Token Prediction as predicting <em>multiple future tokens in a single forward pass</em>.
+        The auxiliary heads serve two roles: they improve representations (encouraging the trunk to capture
+        longer-range dependencies during pre-training) and they act as an <strong>internal draft model for
+        speculative decoding</strong> at inference time, eliminating the need for an external draft model.</p>
+
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 1140 320" role="img" aria-label="Multi-token prediction diagram">
+          <defs>
+            <marker id="arrow3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#C54600"/>
+            </marker>
+            <marker id="arrow3g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#5E5E5E"/>
+            </marker>
+          </defs>
+
+          <!-- Trunk -->
+          <g transform="translate(20, 110)">
+            <rect width="260" height="100" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="130" y="32" text-anchor="middle" font-family="DM Sans" font-size="13" font-weight="500" fill="#202020">Hybrid Mamba‑Transformer trunk</text>
+            <text x="130" y="54" text-anchor="middle" font-family="DM Sans" font-size="11" fill="#5E5E5E">Final hidden state h_t for position t</text>
+            <text x="130" y="80" text-anchor="middle" font-family="Roboto Mono" font-size="11" fill="#202020">h_t</text>
+          </g>
+
+          <!-- Main + MTP heads -->
+          <g transform="translate(360, 30)">
+            <text x="0" y="-5" font-family="DM Sans" font-size="11" font-weight="500" fill="#C54600" letter-spacing="0.8">PREDICTION HEADS (shared trunk, independent projections)</text>
+
+            <!-- Head 0: main -->
+            <rect x="0" y="10" width="200" height="60" rx="4" fill="#FDEFE6" stroke="#F5C5A6"/>
+            <text x="14" y="32" font-family="DM Sans" font-size="12" font-weight="500" fill="#C54600">Head 0 · main LM</text>
+            <text x="14" y="50" font-family="Roboto Mono" font-size="10" fill="#C54600">p(x_{t+1} | x_≤t)</text>
+            <text x="14" y="64" font-family="DM Sans" font-size="10" fill="#5E5E5E">accepted unconditionally</text>
+
+            <!-- Head 1 -->
+            <rect x="0" y="80" width="200" height="60" rx="4" fill="#FDEFE6" stroke="#F5C5A6"/>
+            <text x="14" y="102" font-family="DM Sans" font-size="12" font-weight="500" fill="#C54600">Head 1 · MTP draft</text>
+            <text x="14" y="120" font-family="Roboto Mono" font-size="10" fill="#C54600">p(x_{t+2} | x_≤t)</text>
+            <text x="14" y="134" font-family="DM Sans" font-size="10" fill="#5E5E5E">verified next step</text>
+
+            <!-- Head k -->
+            <rect x="0" y="150" width="200" height="60" rx="4" fill="#FDEFE6" stroke="#F5C5A6"/>
+            <text x="14" y="172" font-family="DM Sans" font-size="12" font-weight="500" fill="#C54600">Head k · MTP draft</text>
+            <text x="14" y="190" font-family="Roboto Mono" font-size="10" fill="#C54600">p(x_{t+k+1} | x_≤t)</text>
+            <text x="14" y="204" font-family="DM Sans" font-size="10" fill="#5E5E5E" font-style="italic">depth k unknown for Ultra</text>
+          </g>
+
+          <!-- Connections -->
+          <line x1="280" y1="160" x2="360" y2="40" stroke="#C54600" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#arrow3)"/>
+          <line x1="280" y1="160" x2="360" y2="110" stroke="#C54600" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#arrow3)"/>
+          <line x1="280" y1="160" x2="360" y2="180" stroke="#C54600" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#arrow3)"/>
+
+          <!-- Spec decoding block -->
+          <g transform="translate(680, 60)">
+            <rect width="420" height="200" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="20" y="26" font-family="DM Sans" font-size="13" font-weight="500" fill="#202020">Speculative decoding loop (inference)</text>
+
+            <text x="20" y="62" font-family="DM Sans" font-size="11" fill="#5E5E5E">1. Sample candidate (x'_{t+1}, x'_{t+2}, …, x'_{t+k+1}) from heads.</text>
+            <text x="20" y="86" font-family="DM Sans" font-size="11" fill="#5E5E5E">2. Re-feed candidate to the trunk in a single batched pass.</text>
+            <text x="20" y="110" font-family="DM Sans" font-size="11" fill="#5E5E5E">3. Accept the longest prefix whose head-0 probabilities match.</text>
+            <text x="20" y="134" font-family="DM Sans" font-size="11" fill="#5E5E5E">4. Resample at the first mismatch and continue.</text>
+
+            <rect x="20" y="156" width="380" height="32" rx="3" fill="#E8F4D6" stroke="#C8E2A1"/>
+            <text x="210" y="176" text-anchor="middle" font-family="DM Sans" font-size="11" font-weight="500" fill="#486A18">Net effect: multiple tokens emitted per trunk pass &nbsp;⇒&nbsp; lower decode latency</text>
+          </g>
+
+          <!-- Connector between heads and spec block -->
+          <line x1="560" y1="160" x2="680" y2="160" stroke="#5E5E5E" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#arrow3g)"/>
+        </svg>
+      </div>
+
+      <div class="callout">
+        <div class="lbl">From the cookbook</div>
+        "Multi-Token Prediction (MTP) — predicts multiple future tokens in a single forward pass, improving
+        chain-of-thought coherence and enabling built-in speculative decoding at inference time."
+      </div>
+    </section>
+
+    <!-- ────────────── Mamba-2 ────────────── -->
+    <section id="mamba">
+      <div class="sec-label">Section 06</div>
+      <h2>Mamba-2 and the 1 M-token context path</h2>
+      <p>Attention is quadratic in sequence length; that is what makes a 1 M-token context window expensive in a
+        pure transformer. Nemotron 3 Ultra carries most of the sequence-mixing work in Mamba‑2 selective
+        state-space layers, which run in <em>linear</em> time and use a fixed-size recurrent state — no KV cache
+        to grow with context. NVIDIA states this directly: "Mamba‑2 layers provide linear-time complexity over
+        sequence length, making 1 M-token context practical for long-document and agentic workloads."</p>
+
+      <div class="grid-2">
+        <div class="diagram-wrap">
+          <svg viewBox="0 0 540 320" role="img" aria-label="Mamba-2 SSM diagram">
+            <!-- Recurrent state -->
+            <rect x="20" y="120" width="100" height="70" rx="4" fill="#E0F2EF" stroke="#ABDCD2"/>
+            <text x="70" y="148" text-anchor="middle" font-family="DM Sans" font-size="12" font-weight="500" fill="#006B5E">State h_{t-1}</text>
+            <text x="70" y="170" text-anchor="middle" font-family="DM Sans" font-size="10" fill="#006B5E">fixed size</text>
+
+            <rect x="220" y="120" width="100" height="70" rx="4" fill="#E0F2EF" stroke="#ABDCD2"/>
+            <text x="270" y="148" text-anchor="middle" font-family="DM Sans" font-size="12" font-weight="500" fill="#006B5E">State h_t</text>
+
+            <rect x="420" y="120" width="100" height="70" rx="4" fill="#E0F2EF" stroke="#ABDCD2"/>
+            <text x="470" y="148" text-anchor="middle" font-family="DM Sans" font-size="12" font-weight="500" fill="#006B5E">State h_{t+1}</text>
+
+            <!-- Inputs -->
+            <rect x="220" y="30" width="100" height="40" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="270" y="55" text-anchor="middle" font-family="DM Sans" font-size="12" fill="#202020">x_t</text>
+
+            <rect x="420" y="30" width="100" height="40" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="470" y="55" text-anchor="middle" font-family="DM Sans" font-size="12" fill="#202020">x_{t+1}</text>
+
+            <!-- Output -->
+            <rect x="220" y="240" width="100" height="40" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="270" y="265" text-anchor="middle" font-family="DM Sans" font-size="12" fill="#202020">y_t</text>
+
+            <rect x="420" y="240" width="100" height="40" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="470" y="265" text-anchor="middle" font-family="DM Sans" font-size="12" fill="#202020">y_{t+1}</text>
+
+            <!-- Arrows -->
+            <line x1="120" y1="155" x2="220" y2="155" stroke="#006B5E" stroke-width="1.5" marker-end="url(#arrow)"/>
+            <line x1="320" y1="155" x2="420" y2="155" stroke="#006B5E" stroke-width="1.5" marker-end="url(#arrow)"/>
+            <line x1="270" y1="70" x2="270" y2="120" stroke="#006B5E" stroke-width="1.5" marker-end="url(#arrow)"/>
+            <line x1="470" y1="70" x2="470" y2="120" stroke="#006B5E" stroke-width="1.5" marker-end="url(#arrow)"/>
+            <line x1="270" y1="190" x2="270" y2="240" stroke="#006B5E" stroke-width="1.5" marker-end="url(#arrow)"/>
+            <line x1="470" y1="190" x2="470" y2="240" stroke="#006B5E" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+            <text x="170" y="138" text-anchor="middle" font-family="Roboto Mono" font-size="9" fill="#006B5E">A_t</text>
+            <text x="370" y="138" text-anchor="middle" font-family="Roboto Mono" font-size="9" fill="#006B5E">A_{t+1}</text>
+            <text x="288" y="100" font-family="Roboto Mono" font-size="9" fill="#006B5E">B_t</text>
+            <text x="488" y="100" font-family="Roboto Mono" font-size="9" fill="#006B5E">B_{t+1}</text>
+            <text x="288" y="220" font-family="Roboto Mono" font-size="9" fill="#006B5E">C_t</text>
+            <text x="488" y="220" font-family="Roboto Mono" font-size="9" fill="#006B5E">C_{t+1}</text>
+
+            <text x="270" y="305" text-anchor="middle" font-family="DM Sans" font-size="10" fill="#5E5E5E" font-style="italic">Selective: A_t, B_t, C_t are input-dependent.</text>
+          </svg>
+        </div>
+
+        <div class="panel">
+          <h4>Why this matters for Ultra</h4>
+          <table class="kui-tbl" style="border: none;">
+            <tbody>
+              <tr>
+                <td><strong>Sequence compute</strong></td>
+                <td class="num">O(L)</td>
+                <td>linear, not quadratic</td>
+              </tr>
+              <tr>
+                <td><strong>Inference state</strong></td>
+                <td class="num">O(1)</td>
+                <td>recurrent — no KV cache</td>
+              </tr>
+              <tr>
+                <td><strong>Max context</strong></td>
+                <td class="num">1,048,576</td>
+                <td>tokens, verified</td>
+              </tr>
+              <tr>
+                <td><strong>Attention role</strong></td>
+                <td>sparse</td>
+                <td>preserves precise global mixing where Mamba‑2 alone is weak</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="tight" style="margin-top: var(--kui-space-md);">The attention layers <em>do</em> still
+            have a KV cache, but at a much smaller per-layer rate than a pure-transformer model would — exact
+            grouping (MHA vs. GQA vs. MQA) and head counts are not reported for Ultra.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ────────────── Training ────────────── -->
+    <section id="training">
+      <div class="sec-label">Section 07</div>
+      <h2>Training and precision</h2>
+      <p>Nemotron 3 Ultra is shipped as a <strong>pre-training base checkpoint</strong>. NVIDIA explicitly notes
+        it has <em>not</em> undergone instruction tuning or post-training alignment — that is positioned as
+        downstream work for adopters who will fine-tune, run RLHF, or build custom instruction pipelines on top
+        of the base.</p>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Pre-training precision</h3>
+          <p>Pre-trained natively in <strong>NVFP4</strong>, NVIDIA's 4-bit floating-point format optimised for
+            Blackwell. The Nemotron 3 white paper claims this delivers "stable and accurate pre-training in
+            low precision."</p>
+          <table class="kui-tbl" style="margin-top: var(--kui-space-sm);">
+            <tbody>
+              <tr><th>Format</th><th>Bits</th><th>Hardware</th></tr>
+              <tr><td>NVFP4</td><td class="num">4</td><td>NVIDIA Blackwell</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel">
+          <h3>Training pipeline</h3>
+          <table class="kui-tbl">
+            <tbody>
+              <tr><th>Stage</th><th>Status for Ultra</th></tr>
+              <tr><td>Pre-training corpus &amp; curriculum</td><td><span class="unknown-chip">not reported in source inventory</span></td></tr>
+              <tr><td>Total training tokens</td><td><span class="unknown-chip">not reported in source inventory</span></td></tr>
+              <tr><td>Long-context extension</td><td>1 M tokens — <span class="verified">verified</span></td></tr>
+              <tr><td>Supervised fine-tuning (SFT)</td><td><span class="tag warn">not in base release</span></td></tr>
+              <tr><td>RL / RLHF post-training</td><td><span class="tag warn">not in base release</span></td></tr>
+              <tr><td>Reasoning-mode alignment</td><td><span class="tag warn">not in base release</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="callout warn" style="margin-top: var(--kui-space-md);">
+        <div class="lbl">Important caveat</div>
+        Nemotron 3 Nano and Super are post-trained with a multi-environment reinforcement learning pipeline
+        described in the Nemotron 3 white paper, and Super's model card details asynchronous RL with
+        in-flight weight updates and MTP-accelerated rollout generation. <strong>None of that is confirmed for
+        the Ultra base release.</strong> Until NVIDIA publishes Ultra's technical report, treat Ultra's
+        post-training pipeline as undisclosed.
+      </div>
+    </section>
+
+    <!-- ────────────── Throughput ────────────── -->
+    <section id="throughput">
+      <div class="sec-label">Section 08</div>
+      <h2>Throughput claim</h2>
+      <p>Only a single source-reported throughput claim is available for Ultra. NVIDIA states the Ultra base
+        model, measured on a <strong>GB200 NVL72</strong> rack, delivers up to <strong>5× higher tokens-per-second
+        at maximum throughput</strong> than two named comparison models. No accuracy benchmark numbers are
+        published yet.</p>
+
+      <div class="panel">
+        <h4>Reported comparison (NVIDIA, source-reported)</h4>
+        <table class="kui-tbl">
+          <thead>
+            <tr><th>Model</th><th>Total / active params</th><th>Reported relative TPS at max throughput</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Nemotron 3 Ultra (base)</strong></td>
+              <td class="num">550 B / 55 B</td>
+              <td>
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <div style="height:14px; width: 100%; max-width: 320px; background:#76B900; border-radius:2px;"></div>
+                  <span class="num" style="color:#486A18;">5.0×</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>GLM-4.5</td>
+              <td class="num">355 B / 32 B</td>
+              <td>
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <div style="height:14px; width: 64px; background:#C6C6C6; border-radius:2px;"></div>
+                  <span class="num" style="color:#5E5E5E;">1.0× (baseline)</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>Kimi-K2-1026</td>
+              <td class="num">1 T / 33 B</td>
+              <td>
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <div style="height:14px; width: 64px; background:#C6C6C6; border-radius:2px;"></div>
+                  <span class="num" style="color:#5E5E5E;">1.0× (baseline)</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="table-caption">
+          Source-reported by NVIDIA on GB200 NVL72. "Up to 5×" is NVIDIA's wording; per-model breakouts are not
+          published. Independent verification has not been performed. Accuracy benchmark numbers for Ultra are
+          <em>not</em> reported in the source inventory.
+        </div>
+      </div>
+
+      <div class="callout muted" style="margin-top: var(--kui-space-md);">
+        <div class="lbl">Benchmarks</div>
+        Benchmarks not reported in source inventory. NVIDIA describes Ultra's intended role qualitatively
+        ("state-of-the-art accuracy and reasoning performance"; "advanced reasoning, coding, and multi-turn
+        agent orchestration") but does not publish accuracy scores against MMLU, GPQA, AIME, HumanEval,
+        SWE-bench, or other named evaluations for the Ultra base release. This page intentionally omits
+        any score table until the official Ultra technical report lands.
+      </div>
+    </section>
+
+    <!-- ────────────── Family ────────────── -->
+    <section id="family">
+      <div class="sec-label">Section 09</div>
+      <h2>Where Ultra sits in the Nemotron 3 family</h2>
+      <p>All three Nemotron 3 models share the same hybrid Mamba‑Transformer MoE backbone and the same 1 M-token
+        target context window. They differ in scale, expert count, and intended role within an agent stack.</p>
+
+      <table class="kui-tbl">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Nemotron 3 Nano</th>
+            <th>Nemotron 3 Super</th>
+            <th>Nemotron 3 Ultra</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Total params</strong></td>
+            <td class="num">30 B</td>
+            <td class="num">120 B</td>
+            <td class="num">550 B</td>
+          </tr>
+          <tr>
+            <td><strong>Active per token</strong></td>
+            <td class="num">3 B</td>
+            <td class="num">12 B</td>
+            <td class="num">55 B</td>
+          </tr>
+          <tr>
+            <td><strong>Backbone</strong></td>
+            <td>Hybrid Mamba‑Transformer MoE</td>
+            <td>Hybrid Mamba‑Transformer MoE</td>
+            <td>Hybrid Mamba‑Transformer MoE</td>
+          </tr>
+          <tr>
+            <td><strong>LatentMoE</strong></td>
+            <td>—</td>
+            <td>✓</td>
+            <td>✓</td>
+          </tr>
+          <tr>
+            <td><strong>Multi-Token Prediction</strong></td>
+            <td>—</td>
+            <td>✓</td>
+            <td>✓</td>
+          </tr>
+          <tr>
+            <td><strong>Pre-training precision</strong></td>
+            <td>BF16</td>
+            <td>NVFP4</td>
+            <td>NVFP4</td>
+          </tr>
+          <tr>
+            <td><strong>Context length</strong></td>
+            <td class="num">1 M</td>
+            <td class="num">1 M</td>
+            <td class="num">1 M</td>
+          </tr>
+          <tr>
+            <td><strong>Post-trained variant available</strong></td>
+            <td>✓ Instruct</td>
+            <td>✓ Instruct</td>
+            <td><span class="tag warn" style="margin: 0;">not yet — base only</span></td>
+          </tr>
+          <tr>
+            <td><strong>Positioning</strong></td>
+            <td>High-throughput sub-agent</td>
+            <td>Collaborative multi-agent workloads</td>
+            <td>Large-scale reasoning engine</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="table-caption">Compiled from the NVIDIA newsroom announcement, the Nemotron 3 white paper
+        (arXiv:2512.20856), the Nemotron 3 Super technical report, and the official Nemotron 3 Ultra Base
+        cookbook page. The Nano-row LatentMoE / MTP entries follow the white paper, which states only Super and
+        Ultra use NVFP4 and the two larger models include MTP layers.</div>
+    </section>
+
+    <!-- ────────────── Unknowns ────────────── -->
+    <section id="unknowns">
+      <div class="sec-label">Section 10</div>
+      <h2>Unknowns &amp; caveats</h2>
+      <p>The following architecture facts are <strong>not</strong> currently reported in the source inventory
+        for Nemotron 3 Ultra and should not be inferred from sibling models in the family.</p>
+
+      <div class="unknown-list">
+        <div class="row">
+          <div class="k">Layer count</div>
+          <div class="desc">Total number of hybrid blocks, and the per-layer interleaving pattern of Mamba‑2 / attention / LatentMoE.</div>
+          <div class="lead">unknown in source inventory</div>
+        </div>
+        <div class="row">
+          <div class="k">Hidden size</div>
+          <div class="desc">Model dimension d_model, and the latent compression rank r used inside LatentMoE.</div>
+          <div class="lead">unknown in source inventory</div>
+        </div>
+        <div class="row">
+          <div class="k">Attention configuration</div>
+          <div class="desc">Number of query / KV heads, head dim, and whether attention uses MHA, GQA, or MQA grouping.</div>
+          <div class="lead">unknown in source inventory</div>
+        </div>
+        <div class="row">
+          <div class="k">Positional encoding</div>
+          <div class="desc">Type (RoPE, ALiBi, NoPE, etc.) and any long-context interpolation or scaling scheme.</div>
+          <div class="lead">unknown in source inventory</div>
+        </div>
+        <div class="row">
+          <div class="k">Normalization</div>
+          <div class="desc">Pre- vs. post-norm, RMSNorm vs. LayerNorm, and any QK-norm or per-head normalization.</div>
+          <div class="lead">unknown in source inventory</div>
+        </div>
+        <div class="row">
+          <div class="k">Expert configuration</div>
+          <div class="desc">Number of routed experts, top-k, whether a shared expert is used, router type, and load-balancing loss.</div>
+          <div class="lead">unknown in source inventory</div>
+        </div>
+        <div class="row">
+          <div class="k">MTP depth</div>
+          <div class="desc">Number of auxiliary multi-token-prediction heads and whether they share weights with the main LM head.</div>
+          <div class="lead">unknown in source inventory</div>
+        </div>
+        <div class="row">
+          <div class="k">Tokenizer / vocabulary</div>
+          <div class="desc">Tokenizer family (BPE / SentencePiece), vocabulary size, and whether it is shared with Nano / Super.</div>
+          <div class="lead">unknown in source inventory</div>
+        </div>
+        <div class="row">
+          <div class="k">Training corpus &amp; token count</div>
+          <div class="desc">Pre-training mixture, curriculum schedule (Nano and Super use a two-phase 25 T-token curriculum, but Ultra's recipe is not published).</div>
+          <div class="lead">unknown in source inventory</div>
+        </div>
+        <div class="row">
+          <div class="k">Post-training pipeline</div>
+          <div class="desc">SFT, RL, RLHF, reasoning-mode alignment — none of these apply to the announced Ultra base checkpoint.</div>
+          <div class="lead">not in base release</div>
+        </div>
+        <div class="row">
+          <div class="k">Accuracy benchmarks</div>
+          <div class="desc">MMLU, GPQA, AIME, HumanEval, SWE-bench, MATH, BBH, agentic-tool-use scores — no numbers published yet for Ultra.</div>
+          <div class="lead">not reported</div>
+        </div>
+        <div class="row">
+          <div class="k">Weight availability</div>
+          <div class="desc">Hugging Face repository for Ultra is "in development". Weights are expected with the full release in 1H 2026.</div>
+          <div class="lead">pending</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ────────────── Sources ────────────── -->
+    <section id="sources" class="sources">
+      <div class="sec-label">Section 11</div>
+      <h2>Sources</h2>
+      <ol>
+        <li>
+          NVIDIA Nemotron 3 Ultra — Base Model cookbook page.
+          <a href="https://docs.nvidia.com/nemotron/nightly/usage-cookbook/Nemotron-3-Ultra-Base/README.html" target="_blank" rel="noopener">docs.nvidia.com/nemotron/.../Nemotron-3-Ultra-Base</a>.
+          <span class="pubmeta">Primary source for total / active parameters (550 B / 55 B), hybrid Mamba‑Transformer MoE backbone, LatentMoE, MTP, 1 M-token context via Mamba‑2, NVFP4 pre-training, base-only status, 5× TPS comparison vs. GLM-4.5 and Kimi-K2-1026 on GB200 NVL72, 1H 2026 weight release.</span>
+        </li>
+        <li>
+          NVIDIA. <em>NVIDIA Nemotron 3: Efficient and Open Intelligence</em> (white paper). arXiv:2512.20856.
+          <a href="https://arxiv.org/pdf/2512.20856" target="_blank" rel="noopener">arxiv.org/pdf/2512.20856</a>.
+          <span class="pubmeta">Confirms family-wide MoE hybrid Mamba‑Transformer architecture, NVFP4 + LatentMoE in Super and Ultra, MTP in the two larger models, multi-environment RL post-training framework, 1 M-token context.</span>
+        </li>
+        <li>
+          NVIDIA Newsroom. <em>NVIDIA Debuts Nemotron 3 Family of Open Models</em>.
+          <a href="https://nvidianews.nvidia.com/news/nvidia-debuts-nemotron-3-family-of-open-models" target="_blank" rel="noopener">nvidianews.nvidia.com</a>.
+          <span class="pubmeta">Official launch announcement; positioning of Ultra as "large reasoning engine, ~500 B parameters, up to 50 B active per token". Cookbook supersedes this with the refined 550 B / 55 B figures.</span>
+        </li>
+        <li>
+          NVIDIA Hugging Face organization profile.
+          <a href="https://huggingface.co/nvidia" target="_blank" rel="noopener">huggingface.co/nvidia</a>.
+          <span class="pubmeta">Lists Nemotron 3 Ultra as "in development — larger parameter variant designed for advanced reasoning, coding, and multi-turn agent orchestration."</span>
+        </li>
+        <li>
+          NVIDIA. <em>Nemotron 3 Super Technical Report</em>.
+          <a href="https://research.nvidia.com/labs/nemotron/files/NVIDIA-Nemotron-3-Super-Technical-Report.pdf" target="_blank" rel="noopener">research.nvidia.com</a>.
+          <span class="pubmeta">Family-level reference for LatentMoE (Elango et al., 2026), MTP-based speculative decoding, and the two-phase 25 T-token pre-training curriculum used by Nano and Super. Used here only as context — Ultra's training recipe is not assumed to match.</span>
+        </li>
+        <li>
+          NVIDIA. <em>NVIDIA-Nemotron-3-Nano-30B-A3B-BF16 model card</em>.
+          <a href="https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16" target="_blank" rel="noopener">huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16</a>.
+          <span class="pubmeta">Confirms Nano layer pattern (23 Mamba‑2 + MoE, 6 attention) referenced once in this page as published-for-Nano context, never assumed for Ultra.</span>
+        </li>
+      </ol>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  // Scrollspy for the left nav
+  (function () {
+    const links = Array.from(document.querySelectorAll('.nav a[href^="#"]'));
+    const sections = links
+      .map(l => document.getElementById(l.getAttribute('href').slice(1)))
+      .filter(Boolean);
+
+    const setActive = (id) => {
+      links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + id));
+    };
+
+    const io = new IntersectionObserver((entries) => {
+      // Find the topmost intersecting section
+      const visible = entries
+        .filter(e => e.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+      if (visible.length) setActive(visible[0].target.id);
+    }, { rootMargin: '-72px 0px -55% 0px', threshold: [0, 0.2, 0.5, 1] });
+
+    sections.forEach(s => io.observe(s));
+
+    // Smooth scroll
+    links.forEach(l => l.addEventListener('click', (e) => {
+      const id = l.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) {
+        e.preventDefault();
+        window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 64, behavior: 'smooth' });
+        history.replaceState(null, '', '#' + id);
+      }
+    }));
+  })();
+</script>
+</body>
+</html>

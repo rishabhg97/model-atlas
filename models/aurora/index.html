@@ -1,0 +1,1337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurora Weather And Climate Architecture</title>
+<link rel="stylesheet" href="colors_and_type.css">
+<style>
+  /* ============================================================
+     Aurora architecture atlas — single page research briefing.
+     Kaizen / KUI v11 tokens only. Flat surfaces, sharp radii,
+     thin borders, NVIDIA green = brand accent. Teal used for
+     the "library / research" rail per Kaizen library-type usage.
+     ============================================================ */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font: var(--kui-body);
+    color: var(--kui-fg-strong);
+    background: var(--kui-bg-canvas);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  a { color: var(--kui-info); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, .mono { font: var(--kui-code); color: var(--kui-fg-strong); }
+  .mono-sm { font-family: var(--kui-font-mono); font-size: 11px; line-height: 1; }
+  hr.divider {
+    border: 0; border-top: 1px solid var(--kui-border-default); margin: 0;
+  }
+
+  /* ---------- Top app bar ---------- */
+  .appbar {
+    display: flex; align-items: center; gap: var(--kui-space-md);
+    height: 56px; padding: 0 var(--kui-space-ml);
+    background: var(--kui-bg-mid);
+    border-bottom: 1px solid var(--kui-border-default);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .appbar .brand {
+    display: flex; align-items: center; gap: var(--kui-space-sm);
+    font-weight: var(--kui-fw-bold); letter-spacing: -0.25px;
+  }
+  .appbar .brand-eye { width: 22px; height: 22px; }
+  .appbar .brand-wordmark { font: 700 14px/1 var(--kui-font-sans); letter-spacing: 1.5px; text-transform: uppercase; }
+  .appbar .sep { width: 1px; height: 22px; background: var(--kui-border-default); }
+  .appbar .crumb { font: var(--kui-text); color: var(--kui-fg-muted); }
+  .appbar .crumb strong { color: var(--kui-fg-strong); font-weight: var(--kui-fw-medium); }
+  .appbar .spacer { flex: 1; }
+  .appbar .links { display: flex; gap: var(--kui-space-ml); }
+  .appbar .links a { font: var(--kui-text); color: var(--kui-fg-muted); }
+  .appbar .links a:hover { color: var(--kui-fg-strong); text-decoration: none; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 22px; padding: 0 8px;
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-xs);
+    font: var(--kui-text-sm); color: var(--kui-fg-muted);
+    background: var(--kui-bg-mid);
+  }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--kui-brand-green); }
+  .pill .dot.teal { background: var(--kui-accent-teal); }
+  .pill .dot.info { background: var(--kui-info); }
+  .pill .dot.muted { background: var(--kui-n300); }
+
+  /* ---------- Layout ---------- */
+  .layout {
+    display: grid;
+    grid-template-columns: 248px minmax(0, 1fr);
+    min-height: calc(100vh - 56px);
+  }
+  /* Left nav rail */
+  .rail {
+    border-right: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    padding: var(--kui-space-ml) 0;
+    position: sticky; top: 56px; align-self: start;
+    height: calc(100vh - 56px); overflow: auto;
+  }
+  .rail .accent {
+    width: 4px; height: 32px; background: var(--kui-accent-teal);
+    margin: 0 0 var(--kui-space-md) var(--kui-space-ml);
+  }
+  .rail h4 {
+    font: var(--kui-overline);
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--kui-fg-muted);
+    padding: 0 var(--kui-space-ml);
+    margin: var(--kui-space-ml) 0 var(--kui-space-sm) 0;
+  }
+  .rail h4:first-of-type { margin-top: 0; }
+  .rail nav { display: flex; flex-direction: column; }
+  .rail nav a {
+    display: flex; align-items: center; gap: var(--kui-space-sm);
+    padding: 8px var(--kui-space-ml);
+    color: var(--kui-fg-default);
+    font: var(--kui-text);
+    border-left: 2px solid transparent;
+    transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+  }
+  .rail nav a:hover { background: var(--kui-n050); text-decoration: none; }
+  .rail nav a.active { color: var(--kui-fg-strong); border-left-color: var(--kui-brand-green); background: var(--kui-n050); font-weight: var(--kui-fw-medium); }
+  .rail nav a .num { font: var(--kui-text-sm); color: var(--kui-fg-muted); width: 22px; text-align: right; }
+  .home-link {
+    display: flex; align-items: center;
+    margin: 0 var(--kui-space-ml) var(--kui-space-md);
+    padding: 8px 10px;
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-xs);
+    color: var(--kui-fg-default);
+    font: var(--kui-text);
+    background: var(--kui-bg-mid);
+  }
+  .home-link:hover { background: var(--kui-n050); border-color: var(--kui-brand-green); color: var(--kui-fg-strong); text-decoration: none; }
+  .rail .meta { padding: var(--kui-space-md) var(--kui-space-ml); margin-top: var(--kui-space-md); border-top: 1px solid var(--kui-border-default); }
+  .rail .meta dt { font: var(--kui-text-sm); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+  .rail .meta dd { font: var(--kui-text); color: var(--kui-fg-strong); margin: 0 0 var(--kui-space-sm) 0; }
+
+  /* Main column */
+  main { padding: var(--kui-space-xl) var(--kui-space-xl) 96px; max-width: 1280px; }
+  section { scroll-margin-top: 72px; }
+  section + section { margin-top: var(--kui-space-xxl); }
+  .section-head {
+    display: flex; align-items: baseline; gap: var(--kui-space-md);
+    margin-bottom: var(--kui-space-md);
+  }
+  .section-head .marker {
+    font: var(--kui-text-sm); color: var(--kui-accent-teal-dk);
+    text-transform: uppercase; letter-spacing: 1px;
+    font-weight: var(--kui-fw-medium);
+  }
+  .section-head h2 { font: var(--kui-h2); letter-spacing: var(--kui-tracking-heading); margin: 0; }
+  .section-head .sub { font: var(--kui-body); color: var(--kui-fg-muted); margin-left: auto; max-width: 480px; text-align: right; }
+
+  p.lede { font: var(--kui-body-md); color: var(--kui-fg-default); max-width: 72ch; margin: 0 0 var(--kui-space-md) 0; }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    border: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    border-radius: var(--kui-radius-sm);
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    overflow: hidden;
+  }
+  .hero-l { padding: var(--kui-space-xl); position: relative; }
+  .hero-l .accent { position: absolute; top: 0; left: 0; width: 4px; height: 64px; background: var(--kui-accent-teal); }
+  .hero-l .eyebrow {
+    font: var(--kui-overline); color: var(--kui-accent-teal-dk);
+    text-transform: uppercase; letter-spacing: 1.5px;
+    margin-bottom: var(--kui-space-ms);
+  }
+  .hero-l h1 {
+    font: var(--kui-display-2); letter-spacing: -0.5px;
+    margin: 0 0 var(--kui-space-sm) 0;
+    color: var(--kui-fg-strong);
+  }
+  .hero-l h1 .green { color: var(--kui-brand-green); }
+  .hero-l .tag { font: var(--kui-h4); color: var(--kui-fg-muted); margin-bottom: var(--kui-space-ml); }
+  .hero-l p { font: var(--kui-body-md); color: var(--kui-fg-default); max-width: 56ch; margin: 0; }
+  .hero-meta {
+    display: grid; grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: var(--kui-space-md) var(--kui-space-xl);
+    margin-top: var(--kui-space-ml);
+  }
+  .hero-meta dt { font: var(--kui-text-sm); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .hero-meta dd { margin: 0; font: var(--kui-h4); color: var(--kui-fg-strong); }
+  .hero-meta dd small { display: block; font: var(--kui-text); color: var(--kui-fg-muted); margin-top: 2px; font-weight: var(--kui-fw-regular); }
+
+  .hero-r {
+    background: var(--kui-n950);
+    color: var(--kui-fg-inverse);
+    padding: var(--kui-space-xl);
+    display: flex; flex-direction: column; gap: var(--kui-space-md);
+    border-left: 1px solid var(--kui-border-default);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-r::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(circle at 20% 30%, rgba(118,185,0,0.05) 0, transparent 30%),
+      radial-gradient(circle at 70% 60%, rgba(31,161,141,0.04) 0, transparent 35%);
+  }
+  .hero-r .label {
+    font: var(--kui-overline); color: rgba(255,255,255,0.55);
+    text-transform: uppercase; letter-spacing: 1.5px;
+  }
+  .hero-r .globe { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; position: relative; }
+  .hero-r .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--kui-space-md); border-top: 1px solid rgba(255,255,255,0.12); padding-top: var(--kui-space-md); position: relative; z-index: 1; }
+  .hero-r .stat-row .stat { display: flex; flex-direction: column; gap: 2px; }
+  .hero-r .stat-row .v { font: 500 22px/1 var(--kui-font-sans); color: var(--kui-fg-inverse); }
+  .hero-r .stat-row .v .green { color: var(--kui-brand-green); }
+  .hero-r .stat-row .k { font: var(--kui-text-sm); color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* ---------- Cards & grids ---------- */
+  .card {
+    background: var(--kui-bg-mid);
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-sm);
+    padding: var(--kui-space-ml);
+  }
+  .card.dense { padding: var(--kui-space-md); }
+  .card-title { font: var(--kui-h4); letter-spacing: var(--kui-tracking-heading); margin: 0 0 var(--kui-space-sm) 0; }
+  .card-sub { font: var(--kui-text-sm); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 var(--kui-space-sm) 0; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: var(--kui-space-md); }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: var(--kui-space-md); }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: var(--kui-space-md); }
+
+  /* ---------- Big architecture diagram ---------- */
+  .pipeline-card { padding: 0; overflow: hidden; }
+  .pipeline-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: var(--kui-space-md) var(--kui-space-ml);
+    border-bottom: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+  }
+  .pipeline-head .t { font: var(--kui-h4); letter-spacing: var(--kui-tracking-heading); }
+  .pipeline-head .legend { display: flex; gap: var(--kui-space-md); font: var(--kui-text-sm); color: var(--kui-fg-muted); }
+  .pipeline-head .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: -1px; border-radius: 1px; }
+  .pipeline-svg-wrap {
+    background:
+      linear-gradient(var(--kui-n050) 0%, var(--kui-n050) 100%);
+    padding: var(--kui-space-md);
+  }
+  svg.pipeline { display: block; width: 100%; height: auto; }
+
+  /* ---------- Variant table ---------- */
+  table.spec {
+    width: 100%; border-collapse: collapse;
+    background: var(--kui-bg-mid);
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-sm);
+    overflow: hidden;
+    font: var(--kui-body);
+  }
+  table.spec th, table.spec td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--kui-border-default);
+    vertical-align: top;
+  }
+  table.spec thead th {
+    font: var(--kui-text-sm); color: var(--kui-fg-muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--kui-n050);
+    border-bottom: 1px solid var(--kui-border-default);
+  }
+  table.spec tbody tr:last-child td { border-bottom: 0; }
+  table.spec tbody td.name { font-weight: var(--kui-fw-medium); }
+  table.spec .nm { color: var(--kui-fg-muted); font-style: italic; }
+  table.spec td .mono { font: var(--kui-code); }
+
+  /* ---------- Benchmark bars ---------- */
+  .bench-row { display: grid; grid-template-columns: 220px minmax(0,1fr) 80px; align-items: center; gap: var(--kui-space-md); padding: 10px 0; border-bottom: 1px dashed var(--kui-border-subtle); }
+  .bench-row:last-child { border-bottom: 0; }
+  .bench-row .lbl { font: var(--kui-text); color: var(--kui-fg-default); }
+  .bench-row .lbl small { display: block; color: var(--kui-fg-muted); font-size: 11px; margin-top: 2px; }
+  .bench-row .bar-track {
+    position: relative; height: 14px; background: var(--kui-n050);
+    border: 1px solid var(--kui-border-default);
+    border-radius: 2px;
+  }
+  .bench-row .bar-fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: var(--kui-brand-green);
+  }
+  .bench-row .bar-fill.muted { background: var(--kui-n300); }
+  .bench-row .bar-fill.teal { background: var(--kui-accent-teal); }
+  .bench-row .val { font: var(--kui-h4); color: var(--kui-fg-strong); text-align: right; letter-spacing: -0.25px; }
+  .bench-row .val small { display: block; font: var(--kui-text-sm); color: var(--kui-fg-muted); font-weight: var(--kui-fw-regular); margin-top: 2px; }
+
+  /* ---------- Caveat panel ---------- */
+  .caveat {
+    border: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    border-radius: var(--kui-radius-sm);
+    padding: var(--kui-space-md);
+    display: flex; gap: var(--kui-space-md);
+  }
+  .caveat .badge {
+    flex: 0 0 auto; width: 28px; height: 28px;
+    border-radius: var(--kui-radius-xs);
+    display: flex; align-items: center; justify-content: center;
+    background: var(--kui-warning-bg); color: var(--kui-warning);
+    font: var(--kui-h4); line-height: 1;
+  }
+  .caveat .badge.info { background: var(--kui-info-bg); color: var(--kui-info-text); }
+  .caveat .badge.danger { background: var(--kui-danger-bg); color: var(--kui-danger); }
+  .caveat-title { font: var(--kui-h4); margin: 0 0 4px 0; letter-spacing: var(--kui-tracking-heading); }
+  .caveat-body { font: var(--kui-body); color: var(--kui-fg-default); margin: 0; }
+
+  /* ---------- Variable chips ---------- */
+  .chip {
+    display: inline-flex; align-items: center;
+    padding: 4px 8px; margin: 0;
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-xs);
+    background: var(--kui-n050);
+    font: var(--kui-text-sm); color: var(--kui-fg-default);
+  }
+  .chip code { font: 11px/1 var(--kui-font-mono); color: var(--kui-fg-strong); margin-right: 6px; padding: 1px 4px; background: var(--kui-bg-mid); border-radius: 1px; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  /* ---------- Source row ---------- */
+  .src-list { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: var(--kui-space-sm) var(--kui-space-md); }
+  .src-list .src { display: flex; gap: var(--kui-space-sm); padding: 10px 12px; border: 1px solid var(--kui-border-default); border-radius: var(--kui-radius-xs); background: var(--kui-bg-mid); }
+  .src-list .src .idx { font: var(--kui-text-sm); color: var(--kui-fg-muted); font-family: var(--kui-font-mono); flex: 0 0 32px; }
+  .src-list .src .body { font: var(--kui-text); color: var(--kui-fg-strong); }
+  .src-list .src .body small { display: block; color: var(--kui-fg-muted); font-weight: var(--kui-fw-regular); margin-top: 2px; }
+
+  /* ---------- Helper labels ---------- */
+  .src-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    height: 18px; padding: 0 6px;
+    background: var(--kui-info-bg); color: var(--kui-info-text);
+    border-radius: 1px; font: 10px/1 var(--kui-font-mono);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    vertical-align: 1px;
+  }
+  .src-tag.unk { background: var(--kui-n050); color: var(--kui-fg-muted); }
+  .src-tag.warn { background: var(--kui-warning-bg); color: var(--kui-warning); }
+
+  ul.flat { list-style: none; padding: 0; margin: 0; }
+  ul.flat li { padding: 8px 0; border-bottom: 1px dashed var(--kui-border-subtle); font: var(--kui-body); display: flex; gap: var(--kui-space-sm); align-items: baseline; }
+  ul.flat li:last-child { border-bottom: 0; }
+  ul.flat li .k { flex: 0 0 180px; color: var(--kui-fg-muted); font: var(--kui-text); }
+  ul.flat li .v { color: var(--kui-fg-strong); }
+
+  /* ---------- Footer ---------- */
+  footer.page-footer {
+    border-top: 1px solid var(--kui-border-default);
+    margin-top: var(--kui-space-xxl);
+    padding: var(--kui-space-ml) var(--kui-space-xl);
+    background: var(--kui-bg-mid);
+    color: var(--kui-fg-muted); font: var(--kui-body);
+    display: flex; justify-content: space-between; gap: var(--kui-space-md);
+  }
+
+  /* Responsive */
+  @media (max-width: 1024px) {
+    .layout { grid-template-columns: 1fr; }
+    .rail { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--kui-border-default); }
+    .rail nav { flex-direction: row; overflow-x: auto; padding: 0 var(--kui-space-md) var(--kui-space-sm); }
+    .rail nav a { border-left: 0; border-bottom: 2px solid transparent; padding: 8px 10px; white-space: nowrap; }
+    .rail nav a.active { border-left: 0; border-bottom-color: var(--kui-brand-green); background: transparent; }
+    .rail h4, .rail .meta, .rail .accent { display: none; }
+    .hero { grid-template-columns: 1fr; }
+    .hero-r { border-left: 0; border-top: 1px solid var(--kui-border-default); }
+    main { padding: var(--kui-space-ml); }
+    .grid-3, .grid-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  }
+  @media (max-width: 640px) {
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    .hero-meta { grid-template-columns: 1fr; }
+    .bench-row { grid-template-columns: 1fr; }
+    .bench-row .val { text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     TOP APP BAR
+     ============================================================ -->
+<header class="appbar">
+  <div class="brand">
+    <!-- Generic globe mark, neutral to avoid co-branding Microsoft + NVIDIA.
+         This is a research-page header, not a product header. -->
+    <svg class="brand-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="12" cy="12" r="9"></circle>
+      <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"></path>
+    </svg>
+    <span class="brand-wordmark">Model&nbsp;Atlas</span>
+  </div>
+  <span class="sep"></span>
+  <span class="crumb">Earth system foundation models · <strong>Aurora</strong></span>
+  <span class="spacer"></span>
+  <span class="pill"><span class="dot teal"></span>Source-verified</span>
+  <span class="pill"><span class="dot"></span>Open source · weights + code</span>
+</header>
+
+<div class="layout">
+
+  <!-- ============================================================
+       LEFT NAV RAIL
+       ============================================================ -->
+  <aside class="rail">
+    <div class="accent"></div>
+    <h4>On this page</h4>
+    <a class="home-link" href="../../index.html">Atlas home</a>
+    <nav id="rail-nav">
+      <a href="#identity" data-target="identity"><span class="num">01</span>Identity &amp; specs</a>
+      <a href="#map"      data-target="map"><span class="num">02</span>End-to-end model map</a>
+      <a href="#inputs"   data-target="inputs"><span class="num">03</span>Input fields</a>
+      <a href="#encoder"  data-target="encoder"><span class="num">04</span>3D Perceiver encoder</a>
+      <a href="#backbone" data-target="backbone"><span class="num">05</span>Swin U-Net processor</a>
+      <a href="#decoder"  data-target="decoder"><span class="num">06</span>Decoder &amp; rollout</a>
+      <a href="#training" data-target="training"><span class="num">07</span>Training &amp; data</a>
+      <a href="#variants" data-target="variants"><span class="num">08</span>Fine-tuned variants</a>
+      <a href="#bench"    data-target="bench"><span class="num">09</span>Reported benchmarks</a>
+      <a href="#open"     data-target="open"><span class="num">10</span>Open phase, Nov 2025</a>
+      <a href="#caveats"  data-target="caveats"><span class="num">11</span>Unknowns &amp; caveats</a>
+      <a href="#sources"  data-target="sources"><span class="num">12</span>Sources</a>
+    </nav>
+    <dl class="meta">
+      <dt>Model</dt><dd>Aurora</dd>
+      <dt>Vendor / lab</dt><dd>Microsoft Research AI for Science</dd>
+      <dt>Reference paper</dt><dd>A foundation model for the Earth system, <em>Nature</em>, 2025</dd>
+      <dt>Open phase</dt><dd>13 November 2025</dd>
+      <dt>License</dt><dd>Code + weights described as open by Microsoft (exact license terms not reported in listed sources)</dd>
+    </dl>
+  </aside>
+
+  <!-- ============================================================
+       MAIN
+       ============================================================ -->
+  <main>
+
+    <!-- ===== 01. IDENTITY =================================== -->
+    <section id="identity">
+      <div class="hero">
+        <div class="hero-l">
+          <span class="accent"></span>
+          <div class="eyebrow">Earth system foundation model · Weather, air, ocean</div>
+          <h1>Aurora <span class="green">·</span> Weather and Climate Architecture</h1>
+          <div class="tag">A 1.3-billion-parameter 3D Swin Transformer with Perceiver-based atmospheric encoders and decoders.</div>
+          <p>Aurora is a single foundation model that ingests heterogeneous Earth-system fields &mdash; surface, multi-level atmospheric, static and source-specific variables &mdash; lifts them into a universal 3D latent representation, evolves that state in time with a U-Net Swin Transformer, and decodes back to forecasts at arbitrary resolution. The same pretrained backbone is fine-tuned for high-resolution weather, air quality, ocean waves and tropical-cyclone tracks.</p>
+          <dl class="hero-meta">
+            <div><dt>Parameters</dt><dd>1.3&nbsp;B<small>encoder &middot; processor &middot; decoder, dense Transformer</small></dd></div>
+            <div><dt>Backbone</dt><dd>3D Swin U-Net &middot; 48 layers<small>(6, 10, 8) encoder + (8, 10, 6) decoder stages</small></dd></div>
+            <div><dt>Native resolution</dt><dd>0.1&deg; &rarr; 0.25&deg; &rarr; 0.4&deg;<small>roughly 11 km at the equator at 0.1&deg;</small></dd></div>
+            <div><dt>Pretraining corpus</dt><dd>&gt; 1,000,000 hours<small>diverse Earth-system simulations, reanalyses &amp; analyses</small></dd></div>
+            <div><dt>Type</dt><dd>Weather / climate forecasting<small>encoder &ndash; processor &ndash; decoder, autoregressive rollout</small></dd></div>
+            <div><dt>Release path</dt><dd>Open source &mdash; code + weights<small>Microsoft + Univ. of Cambridge (Turner lab), Nov 2025</small></dd></div>
+          </dl>
+        </div>
+        <div class="hero-r" aria-hidden="true">
+          <div class="label">Native input domain</div>
+          <div class="globe">
+            <!-- Lat-lon grid globe diagram. Pure SVG, ~ 0.25 deg styling, 5 stacked pressure levels. -->
+            <svg viewBox="0 0 360 360" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <radialGradient id="globe" cx="40%" cy="38%" r="60%">
+                  <stop offset="0%"  stop-color="#1a1a1a"/>
+                  <stop offset="100%" stop-color="#050505"/>
+                </radialGradient>
+              </defs>
+
+              <!-- Stacked pressure-level discs -->
+              <g opacity="0.6" stroke="#76B900" fill="none" stroke-width="0.6">
+                <ellipse cx="180" cy="60"  rx="120" ry="20"/>
+                <ellipse cx="180" cy="90"  rx="125" ry="22"/>
+                <ellipse cx="180" cy="120" rx="130" ry="24"/>
+              </g>
+              <text x="310" y="62"  fill="#76B900" font-family="Roboto Mono, monospace" font-size="9">50 hPa</text>
+              <text x="310" y="92"  fill="#76B900" font-family="Roboto Mono, monospace" font-size="9">250 hPa</text>
+              <text x="310" y="122" fill="#76B900" font-family="Roboto Mono, monospace" font-size="9">500 hPa</text>
+
+              <!-- Globe -->
+              <circle cx="180" cy="210" r="120" fill="url(#globe)" stroke="#1FA18D" stroke-width="0.5"/>
+              <!-- Lat lines -->
+              <g stroke="#1FA18D" stroke-width="0.4" fill="none" opacity="0.55">
+                <ellipse cx="180" cy="210" rx="120" ry="20"/>
+                <ellipse cx="180" cy="210" rx="120" ry="50"/>
+                <ellipse cx="180" cy="210" rx="120" ry="80"/>
+                <ellipse cx="180" cy="210" rx="120" ry="105"/>
+                <ellipse cx="180" cy="210" rx="120" ry="120"/>
+              </g>
+              <!-- Long lines -->
+              <g stroke="#1FA18D" stroke-width="0.4" fill="none" opacity="0.55">
+                <ellipse cx="180" cy="210" rx="20"  ry="120"/>
+                <ellipse cx="180" cy="210" rx="50"  ry="120"/>
+                <ellipse cx="180" cy="210" rx="80"  ry="120"/>
+                <ellipse cx="180" cy="210" rx="105" ry="120"/>
+                <line x1="180" y1="90" x2="180" y2="330" />
+              </g>
+              <!-- A hurricane swirl -->
+              <g transform="translate(150 195)" stroke="#76B900" fill="none" stroke-width="1.2" opacity="0.95">
+                <path d="M0 0 a8 8 0 1 1 -2 -6 a14 14 0 1 1 -10 0 a20 20 0 1 1 -14 4"/>
+              </g>
+              <!-- Patch annotation -->
+              <g font-family="Roboto Mono, monospace" font-size="8" fill="#FFFFFF" opacity="0.85">
+                <rect x="240" y="180" width="22" height="22" fill="none" stroke="#76B900" stroke-width="0.8"/>
+                <text x="266" y="195">4 x 4 patch</text>
+                <text x="266" y="206" fill="#999">space token</text>
+              </g>
+            </svg>
+          </div>
+          <div class="stat-row">
+            <div class="stat"><span class="v">~5,000<span class="green">x</span></span><span class="k">vs IFS, est.</span></div>
+            <div class="stat"><span class="v">94<span class="green">%</span></span><span class="k">targets vs GraphCast</span></div>
+            <div class="stat"><span class="v">74<span class="green">%</span></span><span class="k">targets vs CAMS</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02. END-TO-END MODEL MAP ======================== -->
+    <section id="map">
+      <div class="section-head">
+        <span class="marker">02 &middot; Architecture</span>
+        <h2>End-to-end model map</h2>
+        <span class="sub">Native multi-source Earth-system fields &rarr; universal 3D latent &rarr; predicted state at <code class="mono">t + &Delta;t</code>, recursively rolled out for longer horizons.</span>
+      </div>
+
+      <p class="lede">Aurora has three parts: an <strong>encoder</strong> that converts heterogeneous inputs into a universal 3D latent representation, a <strong>processor</strong> that evolves that representation in time, and a <strong>decoder</strong> that translates the latent state back into specific predictions. <span class="src-tag">arxiv 2405.13063</span> The processor is a 3D Swin Transformer; the encoder and decoder are Perceiver-based modules. <span class="src-tag">MS Research blog, Nature</span></p>
+
+      <div class="card pipeline-card">
+        <div class="pipeline-head">
+          <div class="t">Aurora forward pass &middot; one <span class="mono">6 h</span> step</div>
+          <div class="legend">
+            <span><i style="background:var(--kui-accent-teal)"></i>Encoder (Perceiver)</span>
+            <span><i style="background:var(--kui-brand-green)"></i>Processor (Swin U-Net)</span>
+            <span><i style="background:var(--kui-info)"></i>Decoder (Perceiver)</span>
+            <span><i style="background:var(--kui-n300)"></i>Pre / post compute</span>
+          </div>
+        </div>
+        <div class="pipeline-svg-wrap">
+          <svg class="pipeline" viewBox="0 0 1180 460" xmlns="http://www.w3.org/2000/svg" font-family="DM Sans, system-ui, sans-serif">
+            <defs>
+              <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" fill="#5E5E5E"/>
+              </marker>
+              <marker id="argr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" fill="#76B900"/>
+              </marker>
+            </defs>
+            <style>
+              .b { fill:#FFFFFF; stroke:#D8D8D8; stroke-width:1; }
+              .b-grey { fill:#F2F2F2; stroke:#D8D8D8; stroke-width:1;}
+              .b-enc { fill:#FFFFFF; stroke:#1FA18D; stroke-width:1.5;}
+              .b-proc { fill:#FFFFFF; stroke:#76B900; stroke-width:1.5;}
+              .b-dec { fill:#FFFFFF; stroke:#0D69D4; stroke-width:1.5;}
+              .ttl { font-size:13px; font-weight:500; fill:#202020;}
+              .sub { font-size:10.5px; fill:#5E5E5E;}
+              .mono { font-family: "Roboto Mono", ui-monospace, monospace; font-size:10px; fill:#202020;}
+              .mono-mute { font-family: "Roboto Mono", ui-monospace, monospace; font-size:10px; fill:#5E5E5E;}
+              .tag { font-size:9px; fill:#1FA18D; font-family:"Roboto Mono", monospace; text-transform:uppercase; letter-spacing:0.5px;}
+              .tag-gr { fill:#5E9600; }
+              .tag-bl { fill:#0D69D4; }
+              .arrow  { stroke:#5E5E5E; stroke-width:1; fill:none; }
+              .arrow-gr { stroke:#76B900; stroke-width:1.5; fill:none;}
+              .hr { stroke:#E3E3E3; stroke-width:1; stroke-dasharray:3 3;}
+            </style>
+
+            <!-- Stage banners -->
+            <g>
+              <text x="20"   y="22" class="tag">Native inputs</text>
+              <text x="200"  y="22" class="tag">01 · Encoder (Perceiver)</text>
+              <text x="540"  y="22" class="tag tag-gr">02 · Processor (3D Swin U-Net)</text>
+              <text x="880"  y="22" class="tag tag-bl">03 · Decoder (Perceiver)</text>
+              <text x="1090" y="22" class="tag">Outputs</text>
+              <line x1="0" y1="32" x2="1180" y2="32" class="hr"/>
+            </g>
+
+            <!-- ============ INPUT COLUMN ============ -->
+            <g transform="translate(20 50)">
+              <rect class="b" x="0" y="0" width="160" height="56" rx="2"/>
+              <text x="10" y="18" class="ttl">Surface vars</text>
+              <text x="10" y="34" class="mono">2T · 10U · 10V · MSL</text>
+              <text x="10" y="48" class="sub">Tensor: H&times;W &middot; 4 channels</text>
+
+              <rect class="b" x="0" y="68" width="160" height="74" rx="2"/>
+              <text x="10" y="86" class="ttl">Atmospheric vars</text>
+              <text x="10" y="102" class="mono">T · U · V · Q · Z</text>
+              <text x="10" y="116" class="sub">at C variable-many pressure levels</text>
+              <text x="10" y="130" class="mono-mute">e.g. 50 ... 1000 hPa</text>
+
+              <rect class="b" x="0" y="154" width="160" height="56" rx="2"/>
+              <text x="10" y="172" class="ttl">Static fields</text>
+              <text x="10" y="188" class="mono">orography · land-sea · soil</text>
+              <text x="10" y="202" class="sub">time-invariant per cell</text>
+
+              <rect class="b-grey" x="0" y="222" width="160" height="56" rx="2"/>
+              <text x="10" y="240" class="ttl">Task-specific inputs</text>
+              <text x="10" y="256" class="mono">CAMS NO2 · waves · TC track</text>
+              <text x="10" y="270" class="sub">added at fine-tuning</text>
+
+              <!-- 32-bit note -->
+              <text x="0"  y="296" class="mono-mute">In/out compute: 32-bit float</text>
+              <text x="0"  y="310" class="mono-mute">(numerical stability)</text>
+            </g>
+
+            <!-- arrows in -->
+            <path class="arrow" d="M180,78  H200" marker-end="url(#ar)"/>
+            <path class="arrow" d="M180,105 H200" marker-end="url(#ar)"/>
+            <path class="arrow" d="M180,182 H200" marker-end="url(#ar)"/>
+            <path class="arrow" d="M180,250 H200" marker-end="url(#ar)"/>
+
+            <!-- ============ ENCODER ============ -->
+            <g transform="translate(200 50)">
+              <rect class="b-enc" x="0" y="0" width="320" height="320" rx="2"/>
+              <text x="14" y="18" class="ttl">3D Perceiver encoder</text>
+              <text x="14" y="32" class="sub">Converts heterogeneous inputs into a universal 3D latent</text>
+
+              <!-- Step 1: patch embed -->
+              <rect class="b" x="14" y="46" width="292" height="58" rx="2"/>
+              <text x="22" y="64" class="ttl">a · Patch embed (P&times;P spatial patches)</text>
+              <text x="22" y="80" class="mono">H/P &times; W/P &times; L_phys tokens</text>
+              <text x="22" y="94" class="sub">Pressure-level-specific linear weights per variable</text>
+
+              <!-- Step 2: Perceiver level aggregator -->
+              <rect class="b" x="14" y="114" width="292" height="78" rx="2"/>
+              <text x="22" y="132" class="ttl">b · Perceiver level aggregator</text>
+              <text x="22" y="148" class="mono">L_phys (variable many) &rarr; L_latent (fixed)</text>
+              <text x="22" y="164" class="sub">Cross-attends pressure-level tokens to fixed latent levels</text>
+              <text x="22" y="178" class="mono-mute">Enables variable input level counts</text>
+
+              <!-- Step 3: Encodings -->
+              <rect class="b" x="14" y="202" width="292" height="74" rx="2"/>
+              <text x="22" y="220" class="ttl">c · Additive Fourier encodings</text>
+              <text x="22" y="236" class="mono">patch position &middot; patch area &middot; abs. time</text>
+              <text x="22" y="250" class="sub">Patch-area encoding lets Aurora ingest 0.1&deg;, 0.25&deg;, 0.4&deg;</text>
+              <text x="22" y="265" class="mono-mute">Fourier expansion w/ tuned wavelengths</text>
+
+              <!-- Output spec -->
+              <rect class="b-grey" x="14" y="286" width="292" height="22" rx="2"/>
+              <text x="22" y="301" class="mono">latent: (H/P) &middot; (W/P) &middot; L_latent &middot; D_embed</text>
+            </g>
+
+            <!-- arrow enc->proc -->
+            <path class="arrow-gr" d="M520,210 H560" marker-end="url(#argr)"/>
+            <text x="525" y="200" class="mono-mute">3D latent</text>
+
+            <!-- ============ PROCESSOR ============ -->
+            <g transform="translate(560 50)">
+              <rect class="b-proc" x="0" y="0" width="300" height="320" rx="2"/>
+              <text x="14" y="18" class="ttl">3D Swin Transformer U-Net</text>
+              <text x="14" y="32" class="sub">Evolves the 3D latent in time. 48 layers total.</text>
+
+              <!-- U-Net schematic -->
+              <g transform="translate(0 46)">
+                <!-- encoder side -->
+                <rect class="b" x="14"  y="0"   width="120" height="22" rx="2"/>
+                <text x="22" y="15" class="mono">Swin3D stage 1 &middot; 6 layers</text>
+                <rect class="b" x="34"  y="30"  width="100" height="22" rx="2"/>
+                <text x="42" y="45" class="mono">stage 2 &middot; 10 layers</text>
+                <rect class="b" x="54"  y="60"  width="80"  height="22" rx="2"/>
+                <text x="62" y="75" class="mono">stage 3 &middot; 8 layers</text>
+
+                <!-- decoder side -->
+                <rect class="b" x="166" y="60"  width="80"  height="22" rx="2"/>
+                <text x="174" y="75" class="mono">stage 3 · 8 layers</text>
+                <rect class="b" x="166" y="30"  width="100" height="22" rx="2"/>
+                <text x="174" y="45" class="mono">stage 2 · 10 layers</text>
+                <rect class="b" x="166" y="0"   width="120" height="22" rx="2"/>
+                <text x="174" y="15" class="mono">stage 1 · 6 layers</text>
+
+                <!-- skip dashes -->
+                <line x1="134" y1="11" x2="166" y2="11" class="hr"/>
+                <line x1="134" y1="41" x2="166" y2="41" class="hr"/>
+                <line x1="134" y1="71" x2="166" y2="71" class="hr"/>
+
+                <!-- down/up arrows -->
+                <path class="arrow" d="M94,22 L114,30" marker-end="url(#ar)"/>
+                <path class="arrow" d="M94,52 L114,60" marker-end="url(#ar)"/>
+                <path class="arrow" d="M186,82 L166,82" marker-end="url(#ar)" transform="translate(0 -4)"/>
+                <path class="arrow" d="M236,52 L256,30" marker-end="url(#ar)"/>
+                <path class="arrow" d="M186,52 L166,30" marker-end="url(#ar)"/>
+              </g>
+
+              <!-- Window detail -->
+              <rect class="b-grey" x="14" y="184" width="272" height="48" rx="2"/>
+              <text x="22" y="202" class="ttl">Local 3D self-attention</text>
+              <text x="22" y="218" class="mono">window (depth, width, height) = (2, 4, 2)</text>
+              <text x="22" y="228" class="sub">Shifted between layers &mdash; cross-window mixing</text>
+
+              <!-- Resolution -->
+              <rect class="b-grey" x="14" y="240" width="272" height="36" rx="2"/>
+              <text x="22" y="258" class="ttl">Patch merge &uarr;&darr; halve / double resolution</text>
+              <text x="22" y="270" class="mono">multi-scale processing &middot; embed dim doubles</text>
+
+              <!-- output -->
+              <rect class="b" x="14" y="286" width="272" height="22" rx="2"/>
+              <text x="22" y="301" class="mono">latent at t + 6 h (same shape as input latent)</text>
+            </g>
+
+            <!-- arrow proc->dec -->
+            <path class="arrow" d="M860,210 H900" marker-end="url(#ar)"/>
+
+            <!-- ============ DECODER ============ -->
+            <g transform="translate(900 50)">
+              <rect class="b-dec" x="0" y="0" width="220" height="320" rx="2"/>
+              <text x="14" y="18" class="ttl">3D Perceiver decoder</text>
+              <text x="14" y="32" class="sub">Mirrors the encoder structure</text>
+
+              <rect class="b" x="14" y="46" width="192" height="64" rx="2"/>
+              <text x="22" y="64" class="ttl">a · Level de-aggregator</text>
+              <text x="22" y="80" class="mono">L_latent &rarr; target L_phys</text>
+              <text x="22" y="94" class="sub">Cross-attention back to physical pressure levels</text>
+
+              <rect class="b" x="14" y="120" width="192" height="74" rx="2"/>
+              <text x="22" y="138" class="ttl">b · Patch reconstruction</text>
+              <text x="22" y="154" class="mono">variable-specific linear layers</text>
+              <text x="22" y="168" class="sub">Dynamically constructed weights per output variable</text>
+              <text x="22" y="182" class="mono-mute">Each P&times;P patch &rarr; physical grid cell values</text>
+
+              <rect class="b" x="14" y="204" width="192" height="60" rx="2"/>
+              <text x="22" y="222" class="ttl">c · Air-quality head (optional)</text>
+              <text x="22" y="238" class="sub">Separate 3D Perceiver decoder for CAMS variant</text>
+              <text x="22" y="252" class="mono-mute">distinct features for sparse, skewed pollutants</text>
+
+              <rect class="b-grey" x="14" y="274" width="192" height="32" rx="2"/>
+              <text x="22" y="292" class="mono">predicted state at t + 6 h</text>
+            </g>
+
+            <!-- ============ OUTPUT ============ -->
+            <g transform="translate(1130 50)" text-anchor="end">
+              <text class="mono" x="0" y="22">future</text>
+              <text class="mono" x="0" y="36">state</text>
+            </g>
+
+            <!-- Rollout loop -->
+            <g>
+              <path class="arrow-gr" d="M1120,200 q40,40 0,80 q-40,40 -880,80 q-200,0 -200,-180" marker-end="url(#argr)" fill="none" stroke-dasharray="5 4"/>
+              <text x="610" y="430" class="tag tag-gr" text-anchor="middle">Autoregressive rollout &middot; recursively re-feed prediction as next input &middot; long-lead fine-tuning with LoRA</text>
+            </g>
+
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03. INPUT FIELDS ============================ -->
+    <section id="inputs">
+      <div class="section-head">
+        <span class="marker">03 &middot; Inputs</span>
+        <h2>Native input fields</h2>
+        <span class="sub">Aurora's encoder is variable-flexible: any subset of surface, atmospheric, static and source-specific fields can be ingested per training run or per fine-tune.</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-sub">Surface variables &middot; per (lat, lon)</div>
+          <div class="card-title">2D fields at the ground</div>
+          <div class="chip-row" style="margin-bottom: 12px;">
+            <span class="chip"><code>2T</code>2&nbsp;m temperature</span>
+            <span class="chip"><code>10U</code>10&nbsp;m zonal wind</span>
+            <span class="chip"><code>10V</code>10&nbsp;m meridional wind</span>
+            <span class="chip"><code>MSL</code>mean sea-level pressure</span>
+          </div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-muted); margin: 0;">These are the variables Aurora is most commonly evaluated against in the medium-range weather configuration. Concrete naming conventions follow ECMWF / ERA5. <span class="src-tag">arxiv 2405.13063</span></p>
+        </div>
+
+        <div class="card">
+          <div class="card-sub">Atmospheric variables &middot; per (lat, lon, level)</div>
+          <div class="card-title">3D fields at C pressure levels</div>
+          <div class="chip-row" style="margin-bottom: 12px;">
+            <span class="chip"><code>T</code>temperature</span>
+            <span class="chip"><code>U</code>zonal wind</span>
+            <span class="chip"><code>V</code>meridional wind</span>
+            <span class="chip"><code>Q</code>specific humidity</span>
+            <span class="chip"><code>Z</code>geopotential</span>
+          </div>
+          <p style="font: var(--kui-body); color: var(--kui-fg-muted); margin: 0;">The number of pressure levels is variable across the input datasets &mdash; the encoder's Perceiver module compresses them to a fixed latent depth. <span class="src-tag unk">exact level set: see paper</span></p>
+        </div>
+
+        <div class="card">
+          <div class="card-sub">Static fields</div>
+          <div class="card-title">Time-invariant per grid cell</div>
+          <ul class="flat">
+            <li><span class="k">Geometry</span><span class="v">Orography (surface elevation)</span></li>
+            <li><span class="k">Land mask</span><span class="v">Land &ndash; sea mask</span></li>
+            <li><span class="k">Surface type</span><span class="v">Soil type indicators</span></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-sub">Domain-specific inputs (added at fine-tune)</div>
+          <div class="card-title">Per-task channels</div>
+          <ul class="flat">
+            <li><span class="k">Air quality (CAMS)</span><span class="v">NO<sub>2</sub>, CO, SO<sub>2</sub>, O<sub>3</sub>, PM and other CAMS gases &amp; aerosols</span></li>
+            <li><span class="k">Ocean waves</span><span class="v">Wave-spectrum-derived variables (e.g. significant wave height)</span></li>
+            <li><span class="k">Tropical cyclones</span><span class="v">Initial-condition cyclone track context</span></li>
+            <li><span class="k">Reference</span><span class="v"><span class="src-tag">Nature 2025</span> exact variable lists per domain reported in paper Methods</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04. ENCODER DEEP DIVE ======================== -->
+    <section id="encoder">
+      <div class="section-head">
+        <span class="marker">04 &middot; Encoder</span>
+        <h2>3D Perceiver encoder &middot; how heterogeneous inputs become a universal latent</h2>
+        <span class="sub">The encoder is what makes Aurora a foundation model rather than a single-dataset forecaster: a Perceiver lets it accept inputs whose resolution, variables and pressure-level count differ from training pass to training pass.</span>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-sub">Step a</div>
+          <div class="card-title">Patch embed</div>
+          <p>Input fields are sliced into <span class="mono">P&times;P</span> spatial patches and projected into token embeddings with <strong>pressure-level-specific linear weights per variable</strong>, so the encoder can specialise representations by altitude.</p>
+          <div style="margin-top: 12px;">
+            <span class="src-tag">arxiv 2405.13063</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-sub">Step b</div>
+          <div class="card-title">Perceiver level aggregator</div>
+          <p>Pressure-level tokens cross-attend to a small set of <strong>latent levels</strong>. This collapses a variable, per-dataset number of physical levels into a fixed latent depth, so the processor sees a uniform 3D tensor regardless of input source.</p>
+          <div style="margin-top: 12px;">
+            <span class="mono mono-sm" style="display: block; padding: 6px 8px; background: var(--kui-n050); border-radius: 2px;">latent shape: (H/P, W/P, L_latent, D_embed)</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-sub">Step c</div>
+          <div class="card-title">Additive Fourier encodings</div>
+          <p>Three additive encodings are concatenated to every token: <strong>patch position</strong>, <strong>patch area</strong> and <strong>absolute time</strong>. The patch-area encoding is what lets a single trained Aurora switch between 0.1&deg;, 0.25&deg; and 0.4&deg; outputs.</p>
+        </div>
+      </div>
+
+      <div class="caveat" style="margin-top: var(--kui-space-md);">
+        <div class="badge info">i</div>
+        <div>
+          <h4 class="caveat-title">Why a Perceiver here</h4>
+          <p class="caveat-body">A flat ViT would require fixed shapes; Aurora's pretraining mixes ERA5, CMIP6 simulations (CMCC, IFS-HR), operational GFS analyses &mdash; each with different resolutions and pressure-level conventions. Perceiver cross-attention is the mechanism Microsoft Research credits for letting one set of weights ingest all of them.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05. SWIN U-NET BACKBONE ====================== -->
+    <section id="backbone">
+      <div class="section-head">
+        <span class="marker">05 &middot; Processor</span>
+        <h2>3D Swin U-Net &middot; the time-evolution backbone</h2>
+        <span class="sub">A U-Net of 3D Swin Transformer blocks with shifted local windows. Halves spatial resolution and doubles embedding dim at each merge stage, then symmetrically splits back up.</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="card pipeline-card">
+          <div class="pipeline-head">
+            <div class="t">U-Net layer schedule</div>
+            <div class="legend"><span class="mono mono-sm">48 layers total</span></div>
+          </div>
+          <div class="pipeline-svg-wrap" style="background: var(--kui-bg-mid);">
+            <svg viewBox="0 0 540 250" font-family="DM Sans, system-ui, sans-serif">
+              <style>
+                .stage { fill:#FFFFFF; stroke:#76B900; stroke-width:1.5; }
+                .stage-text { font-size:12px; font-family:"Roboto Mono", monospace; fill:#202020; }
+                .stage-num { font-size: 22px; font-weight: 500; font-family:"DM Sans", sans-serif; fill: #202020;}
+                .stage-lab { font-size: 10px; fill: #5E5E5E; }
+                .axis { stroke:#D8D8D8; stroke-width:1; }
+                .axis-tick { font-size:10px; fill:#5E5E5E; font-family: "Roboto Mono", monospace; }
+                .axis-title { font-size:10px; fill:#5E5E5E; text-transform: uppercase; letter-spacing:0.5px; }
+              </style>
+
+              <!-- vertical axis: spatial resolution -->
+              <line x1="40" y1="20" x2="40" y2="200" class="axis"/>
+              <line x1="40" y1="200" x2="510" y2="200" class="axis"/>
+
+              <text x="20" y="60"  class="axis-tick" text-anchor="end">1x</text>
+              <text x="20" y="110" class="axis-tick" text-anchor="end">1/2</text>
+              <text x="20" y="160" class="axis-tick" text-anchor="end">1/4</text>
+              <text x="35" y="15"  class="axis-title" text-anchor="end">spatial</text>
+
+              <!-- ENCODER stages -->
+              <rect x="60"  y="40" width="80" height="40" class="stage"/>
+              <text x="100" y="60" class="stage-num" text-anchor="middle">6</text>
+              <text x="100" y="92" class="stage-lab" text-anchor="middle">stage 1 (enc)</text>
+
+              <rect x="160" y="90" width="80" height="40" class="stage"/>
+              <text x="200" y="110" class="stage-num" text-anchor="middle">10</text>
+              <text x="200" y="142" class="stage-lab" text-anchor="middle">stage 2 (enc)</text>
+
+              <rect x="240" y="140" width="60" height="40" class="stage"/>
+              <text x="270" y="160" class="stage-num" text-anchor="middle">8</text>
+              <text x="270" y="192" class="stage-lab" text-anchor="middle">stage 3 (bottleneck)</text>
+
+              <!-- DECODER stages -->
+              <rect x="300" y="90" width="80" height="40" class="stage"/>
+              <text x="340" y="110" class="stage-num" text-anchor="middle">10</text>
+              <text x="340" y="142" class="stage-lab" text-anchor="middle">stage 2 (dec)</text>
+
+              <rect x="400" y="40" width="80" height="40" class="stage"/>
+              <text x="440" y="60" class="stage-num" text-anchor="middle">6+8</text>
+              <text x="440" y="92" class="stage-lab" text-anchor="middle">stage 1 (dec, 8)</text>
+
+              <!-- skip connections -->
+              <path d="M100,42 q170,-25 340,0" stroke="#1FA18D" stroke-width="0.8" fill="none" stroke-dasharray="4 3"/>
+              <path d="M200,92 q70,-15 140,0" stroke="#1FA18D" stroke-width="0.8" fill="none" stroke-dasharray="4 3"/>
+              <text x="270" y="28" class="axis-title" text-anchor="middle" fill="#1FA18D">skip connections</text>
+
+              <!-- axis bottom -->
+              <text x="540" y="215" class="axis-title" text-anchor="end">forward direction &rarr;</text>
+              <text x="60"  y="225" class="axis-tick">enc 6</text>
+              <text x="160" y="225" class="axis-tick">enc 10</text>
+              <text x="240" y="225" class="axis-tick">bot 8</text>
+              <text x="300" y="225" class="axis-tick">dec 10</text>
+              <text x="400" y="225" class="axis-tick">dec 8</text>
+              <text x="60"  y="237" class="axis-tick">+6 dec</text>
+            </svg>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-sub">Mechanism</div>
+          <div class="card-title">Shifted-window 3D self-attention</div>
+          <ul class="flat">
+            <li><span class="k">Window size</span><span class="v"><span class="mono">(depth, width, height) = (2, 4, 2)</span> tokens</span></li>
+            <li><span class="k">Window shifting</span><span class="v">Windows are shifted every other layer &mdash; provides information exchange between neighbouring regions</span></li>
+            <li><span class="k">Patch merging</span><span class="v">Halves spatial resolution of the 3D tensor; embedding dim is doubled in compensation</span></li>
+            <li><span class="k">Patch splitting</span><span class="v">Doubles spatial resolution back; embedding dim halves</span></li>
+            <li><span class="k">Multi-scale</span><span class="v">Lets the backbone simulate the underlying physics at multiple scales</span></li>
+            <li><span class="k">Source</span><span class="v"><span class="src-tag">arxiv 2405.13063</span> Aurora paper Methods, Appendix B</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06. DECODER & ROLLOUT ======================== -->
+    <section id="decoder">
+      <div class="section-head">
+        <span class="marker">06 &middot; Decoder &amp; rollout</span>
+        <h2>From latent back to physical fields, autoregressively</h2>
+        <span class="sub">The decoder mirrors the encoder: de-aggregate latent levels, then dynamically construct per-variable patch reconstructions.</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-sub">Decoder path</div>
+          <div class="card-title">3D Perceiver decoder</div>
+          <ul class="flat">
+            <li><span class="k">a · Level de-aggregator</span><span class="v">Perceiver-style cross-attention from L_latent back to the requested physical pressure levels L_phys</span></li>
+            <li><span class="k">b · Patch reconstruction</span><span class="v">Each P&times;P spatial patch is reconstructed via variable-specific linear layers whose weights are dynamically constructed per output variable</span></li>
+            <li><span class="k">c · Air-quality branch</span><span class="v">For CAMS, a <strong>separate</strong> 3D Perceiver decoder learns distinct features for sparse, skewed pollutant fields</span></li>
+            <li><span class="k">Numerics</span><span class="v">Computations before and after the backbone run in 32-bit float for sparse, low-magnitude pollutant values</span></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-sub">Forecast rollout</div>
+          <div class="card-title">Recursive autoregression</div>
+          <p>Aurora produces a forecast for a single lead time per forward pass. Longer-lead forecasts are produced by <strong>recursively feeding predictions back into the model as inputs</strong>. <span class="src-tag">arxiv 2405.13063</span></p>
+          <div style="margin-top: var(--kui-space-md);">
+            <svg viewBox="0 0 480 110" font-family="DM Sans, system-ui, sans-serif">
+              <defs>
+                <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+                  <path d="M0,0 L10,5 L0,10 z" fill="#76B900"/>
+                </marker>
+              </defs>
+              <g>
+                <rect x="0"   y="40" width="80" height="30" fill="#FFFFFF" stroke="#D8D8D8"/>
+                <text x="40"  y="60" font-size="12" text-anchor="middle" fill="#202020">state t</text>
+                <rect x="120" y="40" width="100" height="30" fill="#FFFFFF" stroke="#76B900" stroke-width="1.5"/>
+                <text x="170" y="60" font-size="12" text-anchor="middle" fill="#202020">Aurora · 1 step</text>
+                <rect x="260" y="40" width="80" height="30" fill="#FFFFFF" stroke="#D8D8D8"/>
+                <text x="300" y="60" font-size="12" text-anchor="middle" fill="#202020">t + 6 h</text>
+                <rect x="380" y="40" width="80" height="30" fill="#FFFFFF" stroke="#D8D8D8" stroke-dasharray="3 3"/>
+                <text x="420" y="60" font-size="12" text-anchor="middle" fill="#5E5E5E">t + N&middot;6 h</text>
+                <path d="M80,55 H120"   stroke="#5E5E5E" fill="none" marker-end="url(#ar)"/>
+                <path d="M220,55 H260" stroke="#5E5E5E" fill="none" marker-end="url(#ar)"/>
+                <path d="M340,55 H380" stroke="#5E5E5E" fill="none" marker-end="url(#ar)" stroke-dasharray="3 3"/>
+                <!-- loop -->
+                <path d="M300,40 q 0,-30 -130,-30 q -90,0 -50,30" stroke="#76B900" stroke-width="1.2" fill="none" marker-end="url(#ar2)"/>
+                <text x="200" y="20" font-size="10" fill="#5E9600" text-anchor="middle" font-family="Roboto Mono, monospace">re-feed prediction</text>
+                <text x="40"  y="90" font-size="10" fill="#5E5E5E" text-anchor="middle">initial</text>
+                <text x="300" y="90" font-size="10" fill="#5E5E5E" text-anchor="middle">first step</text>
+                <text x="420" y="90" font-size="10" fill="#5E5E5E" text-anchor="middle">5- to 10-day rollout</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07. TRAINING ================================ -->
+    <section id="training">
+      <div class="section-head">
+        <span class="marker">07 &middot; Training</span>
+        <h2>Pretraining and fine-tuning</h2>
+        <span class="sub">A single 1.3B-parameter set of weights is pretrained on heterogeneous Earth-system data, then fine-tuned twice per downstream domain &mdash; first for short lead times, then for long-lead rollouts using LoRA.</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-sub">01 · Pretraining</div>
+          <div class="card-title">Diverse Earth-system corpus</div>
+          <p style="margin-bottom: var(--kui-space-md);">Trained on <strong>more than one million hours</strong> of diverse geophysical data drawn from <em>climate simulations, reanalysis products and operational forecasts</em>. The objective is a forecast loss summed over multiple heterogeneous datasets with different resolutions, variables and pressure levels.</p>
+          <ul class="flat">
+            <li><span class="k">ERA5</span><span class="v">Reanalysis &middot; primary single-dataset baseline</span></li>
+            <li><span class="k">CMIP6 (CMCC, IFS-HR)</span><span class="v">Lower-fidelity climate simulations &middot; broaden distribution</span></li>
+            <li><span class="k">GFS analyses</span><span class="v">Operational analysis data &middot; covers full atmosphere best</span></li>
+            <li><span class="k">Objective</span><span class="v">Per-target weighted loss across all datasets simultaneously</span></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-sub">02 · Short-lead fine-tune</div>
+          <div class="card-title">All weights, single-step</div>
+          <p>The full pretrained model is fine-tuned for a target domain (e.g. high-resolution weather at 0.1&deg;, air quality, ocean waves) on its native data, optimising a single-step forecast loss.</p>
+          <div style="margin-top: var(--kui-space-md);">
+            <span class="src-tag">MS Research</span>
+            <span class="src-tag">Nature 2025</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-sub">03 · Long-lead fine-tune</div>
+          <div class="card-title">LoRA rollout fine-tuning</div>
+          <p>Long-lead-time fine-tuning uses <strong>Low-Rank Adaptation (LoRA)</strong> applied on top of the short-lead-tuned weights. Forecast is rolled out across multiple steps and the loss is back-propagated through the unrolled chain.</p>
+          <div style="margin-top: var(--kui-space-md);">
+            <span class="pill"><span class="dot info"></span>LoRA &middot; rank-r adapters</span>
+            <span class="pill"><span class="dot muted"></span>backbone frozen except for LoRA</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-sub">Scaling observations (paper)</div>
+          <div class="card-title">Data &amp; size both move the needle</div>
+          <ul class="flat">
+            <li><span class="k">Data diversity</span><span class="v">Adding CMIP6 (C2) lowers RMSE almost uniformly vs ERA5-only (C1)</span></li>
+            <li><span class="k">More sources</span><span class="v">Adding more simulation data + analyses (C3, C4) improves on most surface vars and pressure levels covered</span></li>
+            <li><span class="k">Model scaling</span><span class="v">Validation loss drops as a power law &mdash; reported as roughly 5% reduction per doubling of model size for fixed GPU-hours</span></li>
+            <li><span class="k">Reported on</span><span class="v">ERA5 2021, 6 h lead time, normalised vs ERA5-pretrained baseline <span class="src-tag">MS Research blog</span></span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 08. VARIANTS ================================== -->
+    <section id="variants">
+      <div class="section-head">
+        <span class="marker">08 &middot; Variants</span>
+        <h2>Fine-tuned variants of the same backbone</h2>
+        <span class="sub">One pretrained 1.3B backbone, four well-documented downstream forecasting variants. Each one differs only in fine-tuning data, resolution, and (for CAMS) a separate Perceiver decoder.</span>
+      </div>
+
+      <table class="spec" aria-label="Aurora variants">
+        <thead>
+          <tr>
+            <th style="width: 22%">Variant</th>
+            <th style="width: 16%">Domain</th>
+            <th style="width: 14%">Resolution</th>
+            <th style="width: 18%">Forecast target</th>
+            <th>Reported headline metric</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">Aurora · high-resolution weather<br><span class="nm">aurora_high_res</span></td>
+            <td>Atmospheric weather</td>
+            <td class="mono">0.1&deg;<br><small>~11 km eq.</small></td>
+            <td>Surface + 3D meteo vars, multi-day lead</td>
+            <td>State-of-the-art operational weather forecasts at higher resolution and lower cost than IFS HRES <span class="src-tag">MS Research</span></td>
+          </tr>
+          <tr>
+            <td class="name">Aurora · medium-range weather<br><span class="nm">aurora_0p25</span></td>
+            <td>Atmospheric weather</td>
+            <td class="mono">0.25&deg;</td>
+            <td>Surface + 3D meteo vars, 5+ day lead</td>
+            <td>Beats existing numerical &amp; AI models on <strong>91% of forecasting targets</strong> at 0.25&deg; <span class="src-tag">Nature 2025</span></td>
+          </tr>
+          <tr>
+            <td class="name">Aurora · air quality (CAMS)<br><span class="nm">aurora_air</span></td>
+            <td>Atmospheric chemistry</td>
+            <td class="mono">0.4&deg;</td>
+            <td>5-day global air pollution forecast (NO<sub>2</sub>, CO, SO<sub>2</sub>, O<sub>3</sub>, PM&hellip;)</td>
+            <td>Matches or outperforms operational CAMS on <strong>74% of targets</strong> over Jun&ndash;Nov 2022 <span class="src-tag">MS Research</span></td>
+          </tr>
+          <tr>
+            <td class="name">Aurora · ocean waves<br><span class="nm">aurora_waves</span></td>
+            <td>Ocean</td>
+            <td class="mono"><span class="src-tag unk">not reported</span></td>
+            <td>Wave-spectrum-derived variables (e.g. SWH)</td>
+            <td>Outperforms operational forecasts on ocean wave dynamics <span class="src-tag">Nature 2025</span></td>
+          </tr>
+          <tr>
+            <td class="name">Aurora · tropical cyclone tracks<br><span class="nm">aurora_tc</span></td>
+            <td>Severe weather</td>
+            <td class="mono"><span class="src-tag unk">not reported</span></td>
+            <td>Cyclone track prediction</td>
+            <td>Outperforms operational forecasts on tropical cyclone tracks <span class="src-tag">Nature 2025</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ===== 09. BENCHMARKS ================================ -->
+    <section id="bench">
+      <div class="section-head">
+        <span class="marker">09 &middot; Benchmarks</span>
+        <h2>Reported skill on listed evaluations</h2>
+        <span class="sub">All bars labelled <em>source-reported, not independently verified</em>. Bars show share of evaluation targets on which Aurora matches or outperforms the comparison system, as reported by Microsoft Research and Nature.</span>
+      </div>
+
+      <div class="card">
+        <div class="card-sub">Win rate &middot; share of evaluated targets where Aurora is at least as good as baseline</div>
+        <div class="card-title">Aurora vs operational and AI baselines</div>
+        <div style="margin-top: var(--kui-space-md);">
+
+          <div class="bench-row">
+            <div class="lbl">vs <strong>GraphCast</strong> at 0.25&deg;<small>Aurora matches or outperforms on 94% of targets</small></div>
+            <div class="bar-track"><div class="bar-fill" style="width: 94%;"></div></div>
+            <div class="val">94%<small>MS Research blog</small></div>
+          </div>
+
+          <div class="bench-row">
+            <div class="lbl"><strong>Medium-range weather</strong> at 0.25&deg;, all-baselines composite<small>Beats existing numerical and AI models on 91% of forecasting targets</small></div>
+            <div class="bar-track"><div class="bar-fill" style="width: 91%;"></div></div>
+            <div class="val">91%<small>Nature 2025</small></div>
+          </div>
+
+          <div class="bench-row">
+            <div class="lbl">vs <strong>CAMS</strong> &middot; air quality at 0.4&deg;<small>Latitude-weighted RMSE, Jun&ndash;Nov 2022</small></div>
+            <div class="bar-track"><div class="bar-fill teal" style="width: 74%;"></div></div>
+            <div class="val">74%<small>MS Research blog</small></div>
+          </div>
+
+          <div class="bench-row">
+            <div class="lbl">vs <strong>GraphCast</strong> &middot; upper atmosphere gain<small>Largest gain reported; absolute % RMSE improvement</small></div>
+            <div class="bar-track"><div class="bar-fill teal" style="width: 40%;"></div></div>
+            <div class="val">~40%<small>MS Research blog</small></div>
+          </div>
+
+          <div class="bench-row">
+            <div class="lbl">vs <strong>GraphCast</strong> &middot; short / long lead<small>Reported gain band at short and long lead times</small></div>
+            <div class="bar-track"><div class="bar-fill muted" style="width: 15%; left:0;"></div><div style="position:absolute; left:10%; top:-2px; bottom:-2px; width:5%; background:repeating-linear-gradient(45deg,#76B900,#76B900 2px,#FFFFFF 2px,#FFFFFF 4px); border-radius:2px;"></div></div>
+            <div class="val">10&ndash;15%<small>MS Research blog</small></div>
+          </div>
+
+          <div class="bench-row">
+            <div class="lbl"><strong>Compute speedup</strong> vs operational systems<small>Single-GPU inference; once trained</small></div>
+            <div class="bar-track"><div class="bar-fill" style="width: 100%;"></div></div>
+            <div class="val">~5,000x &mdash; 50,000x<small>vs IFS / on single GPU</small></div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="caveat" style="margin-top: var(--kui-space-md);">
+        <div class="badge">!</div>
+        <div>
+          <h4 class="caveat-title">Provenance &amp; framing</h4>
+          <p class="caveat-body">All numbers above are reported by Microsoft Research's Aurora blog post and the Nature paper "A foundation model for the Earth system" (2025). They have not been independently verified for this page. Where the blog and the paper disagree on a baseline (e.g. GraphCast vs IFS HRES comparisons), the more recent Nature value is used. WER, BLEU, FID, retrieval, robotics, and safety metrics are <strong>not applicable</strong> to Aurora and are therefore not shown.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 10. OPEN PHASE =============================== -->
+    <section id="open">
+      <div class="section-head">
+        <span class="marker">10 &middot; Open phase, Nov 2025</span>
+        <h2>The next phase: open and collaborative AI</h2>
+        <span class="sub">From the Microsoft On the Issues post, 13 November 2025: Aurora's source code and model weights are already open; the next phase puts training pipelines, future model releases and new models built on Aurora in the open.</span>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-sub">Openness</div>
+          <div class="card-title">Code + weights open</div>
+          <p>"Aurora's source code and model weights are already open" &mdash; the announcement extends this to <strong>future releases and training pipelines</strong>. Exact license text and checkpoint URLs are <span class="src-tag unk">not reported</span> in the listed Microsoft sources on this page.</p>
+        </div>
+        <div class="card">
+          <div class="card-sub">Stewardship</div>
+          <div class="card-title">Microsoft &times; Cambridge</div>
+          <p>Continued development is being run in partnership with <strong>Professor Rich Turner's group at the University of Cambridge</strong>, through a Microsoft AI for Good grant plus Microsoft research scientists. Originally developed by Microsoft Research AI for Science.</p>
+        </div>
+        <div class="card">
+          <div class="card-sub">Operational focus</div>
+          <div class="card-title">National meteorological services</div>
+          <p>Microsoft frames priority deployment as enabling national meteorological services &mdash; particularly across the Global South &mdash; to <strong>adapt, extend and innovate</strong> on top of Aurora for their local forecasting systems.</p>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top: var(--kui-space-md);">
+        <div class="card">
+          <div class="card-sub">Adjacent program</div>
+          <div class="card-title">SPARROW &middot; open weather stations</div>
+          <p>Built on the SPARROW biodiversity initiative, Microsoft is investing in research of <strong>open-source weather stations</strong> &mdash; community-deployable hardware to fill critical observation gaps that feed into Aurora-style models.</p>
+        </div>
+        <div class="card">
+          <div class="card-sub">Stated downstream uses</div>
+          <div class="card-title">Cross-industry ecosystem</div>
+          <ul class="flat">
+            <li><span class="k">Energy</span><span class="v">Renewable power generation forecasting; grid protection vs extreme weather</span></li>
+            <li><span class="k">Humanitarian</span><span class="v">Cyclones, air quality, flood &amp; extreme-event preparedness</span></li>
+            <li><span class="k">Commodity / financial</span><span class="v">Extreme-event anticipation in commodity trading (cited interest, no benchmarks)</span></li>
+            <li><span class="k">Sustainability</span><span class="v">Air pollution, atmospheric chemistry, Earth-system understanding</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 11. CAVEATS ================================ -->
+    <section id="caveats">
+      <div class="section-head">
+        <span class="marker">11 &middot; Caveats</span>
+        <h2>Unknowns &amp; things to verify</h2>
+        <span class="sub">Items that are either not reported in the listed sources for this page, or that require checking against the Nature paper Methods and supplementary material.</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="caveat">
+          <div class="badge">?</div>
+          <div>
+            <h4 class="caveat-title">Exact pressure-level set</h4>
+            <p class="caveat-body">The Microsoft blog says Aurora ingests a variable number of physical pressure levels and collapses them to a fixed latent count. The exact list of physical levels used at training (e.g. 13 ERA5 pressure levels) and the size of <span class="mono">L_latent</span> need to be checked against the Nature 2025 paper. <span class="src-tag unk">not reported here</span></p>
+          </div>
+        </div>
+        <div class="caveat">
+          <div class="badge">?</div>
+          <div>
+            <h4 class="caveat-title">Patch size P, embed dim D, window dims</h4>
+            <p class="caveat-body">The <span class="mono">(2, 4, 2)</span> 3D self-attention window is reported. Spatial patch size <span class="mono">P</span> and embedding dim <span class="mono">D</span> per stage need verification from the paper. <span class="src-tag unk">verify</span></p>
+          </div>
+        </div>
+        <div class="caveat">
+          <div class="badge">?</div>
+          <div>
+            <h4 class="caveat-title">Rollout horizon</h4>
+            <p class="caveat-body">Listed Microsoft sources describe 5-day air-quality forecasts and 5-day-plus medium-range weather forecasts; the long-lead LoRA fine-tune schedule and the maximum supported horizon are not reported on this page and should be read from the Nature paper. <span class="src-tag unk">verify</span></p>
+          </div>
+        </div>
+        <div class="caveat">
+          <div class="badge">?</div>
+          <div>
+            <h4 class="caveat-title">Released checkpoint URLs &amp; license text</h4>
+            <p class="caveat-body">The November 2025 blog post says "Aurora's source code and model weights are already open" and the Azure AI Foundry Labs project page lists Aurora. The exact open-source license, checkpoint download URLs and which variants are released as weights vs code-only must be verified at the official repository and Foundry Labs page. <span class="src-tag warn">verify before quoting</span></p>
+          </div>
+        </div>
+        <div class="caveat">
+          <div class="badge info">i</div>
+          <div>
+            <h4 class="caveat-title">Speedup figure: 5,000x vs ~50,000x</h4>
+            <p class="caveat-body">The Microsoft Research blog estimates a ~5,000x speedup over IFS. Secondary coverage of the Nature paper has reported "up to 50,000x faster on a single GPU." Both numbers are source-reported and the framing differs (vs IFS vs single-GPU). They are <strong>not contradictory but not interchangeable</strong>; use whichever the cited source uses.</p>
+          </div>
+        </div>
+        <div class="caveat">
+          <div class="badge danger">!</div>
+          <div>
+            <h4 class="caveat-title">Do not infer mechanisms not in sources</h4>
+            <p class="caveat-body">Aurora is <strong>not</strong> a diffusion model, <strong>not</strong> an ensemble model in the Nature paper as described (deterministic single forecast per init), and <strong>not</strong> trained with RLHF, retrieval, or distillation according to the listed sources. Do not annotate it with mechanisms it does not have.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 12. SOURCES ================================ -->
+    <section id="sources">
+      <div class="section-head">
+        <span class="marker">12 &middot; Sources</span>
+        <h2>Listed sources used for this page</h2>
+        <span class="sub">Every numbered fact on this page traces back to one of these. Other URLs encountered during research were not used as primary evidence.</span>
+      </div>
+
+      <div class="src-list">
+        <div class="src">
+          <div class="idx">[S1]</div>
+          <div class="body">
+            <strong>Microsoft On the Issues</strong> &middot; <em>The Next Phase of Aurora: Open and Collaborative AI for Weather and Climate Forecasting</em>, 13 November 2025
+            <small>blogs.microsoft.com/on-the-issues/2025/11/13/the-next-phase-of-aurora-&hellip; &middot; Juan Lavista Ferres, Chris Bishop. Open-source platform direction, Cambridge partnership, SPARROW, downstream use framing.</small>
+          </div>
+        </div>
+        <div class="src">
+          <div class="idx">[S2]</div>
+          <div class="body">
+            <strong>Microsoft Research Blog</strong> &middot; <em>Introducing Aurora: The first large-scale foundation model of the atmosphere</em>
+            <small>microsoft.com/en-us/research/blog/&hellip; &middot; 1.3 B parameter count, 3D Swin + Perceiver architecture, 0.1&deg; resolution, ~5,000x speedup, two-stage fine-tuning, LoRA, CAMS 74%, GraphCast 94%, scaling power law.</small>
+          </div>
+        </div>
+        <div class="src">
+          <div class="idx">[S3]</div>
+          <div class="body">
+            <strong>Nature, 2025</strong> &middot; <em>A foundation model for the Earth system</em>
+            <small>nature.com/articles/s41586-025-09005-y &middot; &gt; 1 million hours of geophysical data, air quality / waves / cyclone tracks / high-res weather outperformance, framing of foundation model for the Earth system.</small>
+          </div>
+        </div>
+        <div class="src">
+          <div class="idx">[S4]</div>
+          <div class="body">
+            <strong>arXiv 2405.13063</strong> &middot; <em>Aurora: A Foundation Model of the Atmosphere / Earth System</em>
+            <small>arxiv.org/abs/2405.13063 (v2, v3) &middot; Three-part encoder/processor/decoder. Swin U-Net (6,10,8)/(8,10,6) = 48 layers, (2,4,2) window. Perceiver level aggregation, patch-area / position / time Fourier encodings, recursive rollout, separate decoder for air-quality.</small>
+          </div>
+        </div>
+        <div class="src">
+          <div class="idx">[S5]</div>
+          <div class="body">
+            <strong>Microsoft On the Issues</strong> &middot; <em>From sea to sky: Microsoft's Aurora AI foundation model goes beyond weather forecasting</em>
+            <small>news.microsoft.com/source/features/ai/microsofts-aurora-ai-foundation-model-&hellip; &middot; 91% medium-range outperformance at 0.25&deg;, encoder architecture framing.</small>
+          </div>
+        </div>
+        <div class="src">
+          <div class="idx">[L1]</div>
+          <div class="body">
+            <strong>Local backlog row</strong> &middot; <em>oss-model-releases-2025-plus.md</em>
+            <small>1.3 B-class Earth-system / weather foundation model, open collaborative platform direction, 2025-11 open push. Source <em>lead</em> &mdash; numbers verified against S1&ndash;S5.</small>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer class="page-footer">
+  <div>
+    <span style="font-weight: var(--kui-fw-medium); color: var(--kui-fg-strong);">Aurora Weather And Climate Architecture</span> &middot; Model Atlas research briefing &middot; Source-backed only
+  </div>
+  <div>
+    Save this file as <code class="mono">index.html</code>. Works offline.
+  </div>
+</footer>
+
+<script>
+  // ============================================================
+  // Scroll spy — highlight the rail nav entry whose section is in view.
+  // Kaizen: behavior is a color/border swap, not motion.
+  // ============================================================
+  (function () {
+    var sections = Array.prototype.slice.call(document.querySelectorAll("main section[id]"));
+    var links = {};
+    document.querySelectorAll("#rail-nav a").forEach(function (a) {
+      links[a.dataset.target] = a;
+    });
+
+    function update() {
+      var pos = window.scrollY + 120;
+      var active = sections[0];
+      for (var i = 0; i < sections.length; i++) {
+        if (sections[i].offsetTop <= pos) active = sections[i];
+      }
+      Object.keys(links).forEach(function (k) {
+        links[k].classList.toggle("active", k === active.id);
+      });
+    }
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("load", update);
+    update();
+
+    // Smooth scroll handled natively via :target+scroll-margin-top.
+  })();
+</script>
+
+</body>
+</html>

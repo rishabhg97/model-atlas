@@ -1,0 +1,1808 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Discrete Diffusion VLA Architecture</title>
+<style>
+/* =========================================================
+   Kaizen tokens (subset, inlined for offline use)
+   ========================================================= */
+:root{
+  --kui-brand-green:#76B900; --kui-brand-green-darker:#5E9600;
+  --kui-n000:#FFFFFF; --kui-n050:#F2F2F2; --kui-n100:#E3E3E3; --kui-n150:#D8D8D8;
+  --kui-n200:#C6C6C6; --kui-n300:#8F8F8F; --kui-n400:#767676; --kui-n500:#6B6B6B;
+  --kui-n600:#5E5E5E; --kui-n700:#343434; --kui-n800:#202020; --kui-n900:#0D0D0D; --kui-n950:#050505;
+  --kui-fg-strong:#202020; --kui-fg-default:#343434; --kui-fg-muted:#5E5E5E; --kui-fg-subtle:#6B6B6B;
+  --kui-bg-canvas:#F2F2F2; --kui-bg-mid:#FFFFFF;
+  --kui-border-subtle:#E3E3E3; --kui-border-default:#D8D8D8; --kui-border-strong:#767676;
+  --kui-success:#007D00; --kui-success-bg:#E8F4D6;
+  --kui-info:#0D69D4; --kui-info-bg:#E9F4FB; --kui-info-text:#2378CA;
+  --kui-warning:#C54600; --kui-warning-bg:#FDEFE6;
+  --kui-danger:#DC3528; --kui-danger-bg:#FCE9E8;
+  --kui-accent-teal:#1FA18D; --kui-accent-teal-dk:#006B5E; --kui-accent-teal-bg:#E3F2EF;
+  --kui-accent-magenta:#851F41; --kui-accent-purple:#A05AB4;
+  --kui-accent-violet:#9747FF; --kui-accent-pink-bg:#FBEEFE; --kui-accent-blue-bg:#E9F4FB;
+  --kui-accent-sky:#9ACCF2;
+  --kui-radius-xs:2px; --kui-radius-sm:4px; --kui-radius-lg:8px;
+  --kui-font-sans:"NVIDIA Sans","DM Sans",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --kui-font-display:"Inter","NVIDIA Sans","DM Sans",system-ui,sans-serif;
+  --kui-font-mono:"Roboto Mono",ui-monospace,"SF Mono",Consolas,monospace;
+
+  /* semantic accents for this page */
+  --c-mask:#1FA18D;        /* teal — masked positions / diffusion */
+  --c-mask-dk:#006B5E;
+  --c-mask-bg:#E3F2EF;
+  --c-commit:#76B900;      /* green — committed / high-confidence */
+  --c-commit-dk:#5E9600;
+  --c-remask:#C54600;      /* orange — re-masked / uncertain */
+  --c-remask-bg:#FDEFE6;
+  --c-vision:#0D69D4;      /* blue — vision tokens */
+  --c-vision-bg:#E9F4FB;
+  --c-lang:#9747FF;        /* violet — language tokens */
+  --c-lang-bg:#F2E9FE;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font:400 14px/1.5 var(--kui-font-sans);
+  color:var(--kui-fg-strong);background:var(--kui-bg-canvas);
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+}
+h1,h2,h3,h4,p{margin:0}
+a{color:var(--kui-info);text-decoration:none}
+a:hover{text-decoration:underline}
+code,kbd,.mono{font-family:var(--kui-font-mono);font-size:12px}
+sup{font-size:9px;vertical-align:top;color:var(--kui-fg-muted);font-family:var(--kui-font-mono);letter-spacing:.2px}
+
+/* =========================================================
+   Layout
+   ========================================================= */
+.page{max-width:1320px;margin:0 auto;padding:24px 32px 96px}
+
+/* Top bar */
+.topbar{
+  display:flex;align-items:center;gap:16px;
+  padding:10px 0 18px;border-bottom:1px solid var(--kui-border-default);
+  margin-bottom:24px;
+}
+.home-link{
+  display:inline-flex;align-items:center;gap:6px;
+  min-height:32px;padding:0 10px;
+  border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);
+  background:var(--kui-bg-mid);
+  color:var(--kui-fg-default);
+  font-size:12px;font-weight:700;
+}
+.home-link:hover{border-color:var(--kui-brand-green);text-decoration:none}
+.topbar .nvlogo{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.5px}
+.topbar .nvlogo svg{display:block}
+.topbar .crumb{color:var(--kui-fg-muted);font-size:11px;letter-spacing:.4px;text-transform:uppercase;font-family:var(--kui-font-mono)}
+.topbar .crumb .sep{margin:0 8px;color:var(--kui-n200)}
+.topbar .spacer{flex:1}
+.topbar .meta{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--kui-fg-muted)}
+.topbar .meta .dot{width:6px;height:6px;background:var(--kui-brand-green);border-radius:50%}
+
+/* =========================================================
+   Hero
+   ========================================================= */
+.hero{
+  display:grid;grid-template-columns:1fr 1.05fr;gap:24px;margin-bottom:40px;
+}
+.hero .left{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:30px 32px;position:relative;overflow:hidden;
+}
+.hero .left::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--kui-brand-green)}
+.hero .eyebrow{
+  font-size:10.5px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--kui-fg-muted);margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+}
+.hero .eyebrow .tag{background:var(--kui-n900);color:#fff;padding:3px 7px;border-radius:2px;font-size:10px;letter-spacing:1px}
+.hero h1{
+  font:700 38px/1.05 var(--kui-font-display);letter-spacing:-1px;
+  color:var(--kui-fg-strong);margin-bottom:14px;
+}
+.hero h1 .accent{color:var(--kui-brand-green-darker)}
+.hero .lede{font:400 15.5px/1.55 var(--kui-font-sans);color:var(--kui-fg-default);max-width:54ch}
+.hero .lede strong{font-weight:500;color:var(--kui-fg-strong)}
+.hero .keyfacts{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;
+  margin-top:22px;border-top:1px solid var(--kui-border-default);
+}
+.hero .keyfacts .kf{
+  border-bottom:1px solid var(--kui-border-default);
+  border-right:1px solid var(--kui-border-default);
+  padding:12px 16px;
+}
+.hero .keyfacts .kf:nth-child(2n){border-right:none}
+.hero .keyfacts .kf:nth-last-child(-n+2){border-bottom:none}
+.hero .keyfacts .label{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--kui-fg-muted);margin-bottom:4px;font-family:var(--kui-font-mono)}
+.hero .keyfacts .value{font:700 21px/1.1 var(--kui-font-display);color:var(--kui-fg-strong);font-variant-numeric:tabular-nums}
+.hero .keyfacts .value .unit{font-size:13px;color:var(--kui-fg-muted);font-weight:500}
+.hero .keyfacts .value.unk{font:500 14px/1.3 var(--kui-font-sans);color:var(--kui-fg-muted);font-style:italic}
+.hero .keyfacts .sub{font-size:11px;color:var(--kui-fg-muted);margin-top:2px;line-height:1.4}
+
+/* Hero right — the headline diagram */
+.hero .right{
+  background:var(--kui-n950);color:#E3E3E3;
+  border:1px solid var(--kui-n800);border-radius:var(--kui-radius-sm);
+  padding:22px;display:flex;flex-direction:column;gap:14px;position:relative;
+}
+.hero .right .ribbon{
+  font:500 10px/1 var(--kui-font-mono);letter-spacing:1.5px;text-transform:uppercase;
+  color:#C6C6C6;display:flex;align-items:center;gap:8px;
+}
+.hero .right .ribbon::before{content:"";width:8px;height:8px;background:var(--kui-brand-green);display:inline-block}
+.hero .right h3{font:500 16px/1.3 var(--kui-font-sans);color:#fff;letter-spacing:-.2px}
+
+/* the headline diagram — single transformer with action chunk under it */
+.hero-diagram{
+  flex:1;border:1px solid #1a1a1a;background:#0d0d0d;border-radius:2px;padding:16px;
+  display:flex;flex-direction:column;gap:14px;
+}
+.hd-row{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:nowrap}
+.hd-row .lbl{
+  font:500 9.5px/1 var(--kui-font-mono);letter-spacing:1.2px;text-transform:uppercase;
+  color:#767676;writing-mode:vertical-rl;transform:rotate(180deg);
+  padding:0 4px;align-self:stretch;display:flex;align-items:center;
+}
+.hd-tok{
+  width:22px;height:22px;border:1px solid;border-radius:2px;
+  display:inline-flex;align-items:center;justify-content:center;
+  font:500 10px/1 var(--kui-font-mono);
+}
+.hd-tok.v{background:rgba(13,105,212,0.18);border-color:var(--c-vision);color:#9ACCF2}
+.hd-tok.l{background:rgba(151,71,255,0.18);border-color:var(--c-lang);color:#D2B4FF}
+.hd-tok.m{background:rgba(31,161,141,0.16);border-color:var(--c-mask);color:#7ED4C6}
+.hd-tok.c{background:rgba(118,185,0,0.18);border-color:var(--c-commit);color:#B7E36A}
+.hd-tok.r{background:rgba(197,70,0,0.22);border-color:var(--c-remask);color:#F0A877}
+.hd-tok.dim{opacity:.6}
+.hd-tok .glyph{}
+
+/* transformer block */
+.hd-tx{
+  background:#181818;border:1px solid #2a2a2a;border-radius:2px;
+  padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:14px;
+}
+.hd-tx .tx-name{font:500 12px/1.2 var(--kui-font-sans);color:#fff;letter-spacing:-.1px}
+.hd-tx .tx-name .sub{display:block;font:400 10px/1.3 var(--kui-font-mono);color:#767676;margin-top:3px;letter-spacing:.2px}
+.hd-tx .tx-bars{display:flex;gap:3px}
+.hd-tx .tx-bars .bar{width:5px;background:#343434}
+.hd-tx .tx-bars .bar.on{background:var(--kui-brand-green)}
+.hd-arrow{
+  height:18px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--kui-font-mono);font-size:11px;color:#5E5E5E;letter-spacing:.4px;
+}
+.hd-arrow .vline{
+  display:inline-block;width:1px;height:18px;background:linear-gradient(180deg,#2a2a2a,#5E5E5E);
+}
+
+.hero-legend{
+  margin-top:auto;padding-top:12px;border-top:1px solid #1a1a1a;
+  display:flex;gap:14px;flex-wrap:wrap;font:400 11px/1 var(--kui-font-sans);color:#8F8F8F;
+}
+.hero-legend .item{display:inline-flex;align-items:center;gap:6px}
+.hero-legend .sw{width:9px;height:9px;border:1px solid;display:inline-block}
+.hero-legend .sw.v{background:rgba(13,105,212,0.22);border-color:var(--c-vision)}
+.hero-legend .sw.l{background:rgba(151,71,255,0.22);border-color:var(--c-lang)}
+.hero-legend .sw.m{background:rgba(31,161,141,0.22);border-color:var(--c-mask)}
+.hero-legend .sw.c{background:rgba(118,185,0,0.28);border-color:var(--c-commit)}
+.hero-legend .sw.r{background:rgba(197,70,0,0.28);border-color:var(--c-remask)}
+
+/* =========================================================
+   Sections
+   ========================================================= */
+.section{margin-bottom:48px}
+.section-head{
+  display:flex;align-items:baseline;justify-content:space-between;gap:24px;
+  margin-bottom:18px;padding-bottom:10px;border-bottom:1px solid var(--kui-border-default);
+}
+.section-head .label{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.section-head .num{
+  font:500 11px/1 var(--kui-font-mono);letter-spacing:1.2px;color:var(--kui-fg-muted);
+  border:1px solid var(--kui-border-default);padding:5px 7px;border-radius:2px;
+}
+.section-head h2{font:500 22px/1.2 var(--kui-font-sans);letter-spacing:-.2px}
+.section-head .lede{color:var(--kui-fg-muted);font-size:13px;max-width:56ch;text-align:right;line-height:1.55}
+
+.card{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:20px;
+}
+.card .title{font:500 14px/1.25 var(--kui-font-sans);letter-spacing:-.2px;margin-bottom:4px}
+.card .sub{font-size:12px;color:var(--kui-fg-muted);margin-bottom:14px;line-height:1.5}
+
+.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  font:500 11px/1.2 var(--kui-font-sans);letter-spacing:.2px;
+  padding:3px 8px;border-radius:2px;border:1px solid var(--kui-border-default);
+  color:var(--kui-fg-default);background:var(--kui-bg-mid);
+}
+.chip.green{background:var(--kui-success-bg);border-color:#bfd99a;color:#3e5b07}
+.chip.info{background:var(--kui-info-bg);border-color:#bfd9f4;color:var(--kui-info-text)}
+.chip.warn{background:var(--kui-warning-bg);border-color:#f3c7a4;color:var(--kui-warning)}
+.chip.teal{background:var(--kui-accent-teal-bg);border-color:#9fd6c9;color:var(--kui-accent-teal-dk)}
+.chip.violet{background:var(--c-lang-bg,#F2E9FE);border-color:#d8b8f4;color:#6A2EBC}
+.chip.solid{background:var(--kui-n900);color:#fff;border-color:var(--kui-n900)}
+.chip.code{font-family:var(--kui-font-mono);font-weight:400}
+
+/* =========================================================
+   §01 — End-to-end pipeline
+   ========================================================= */
+.pipe{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:0;overflow:hidden;
+}
+.pipe-head{
+  border-top:3px solid var(--kui-brand-green);
+  display:flex;align-items:baseline;gap:16px;padding:16px 22px;border-bottom:1px solid var(--kui-border-default);
+}
+.pipe-head .lp-tag{
+  font:500 10px/1 var(--kui-font-mono);letter-spacing:1.4px;text-transform:uppercase;
+  padding:4px 8px;border-radius:2px;background:var(--kui-success-bg);color:#3e5b07;
+}
+.pipe-head .lp-name{font:500 17px/1.2 var(--kui-font-sans);letter-spacing:-.2px}
+.pipe-head .lp-eq{margin-left:auto;font-family:var(--kui-font-mono);font-size:12px;color:var(--kui-fg-muted)}
+
+.pipe-body{
+  display:grid;grid-template-columns: 1fr 1fr 1.2fr 1fr;gap:0;align-items:stretch;
+}
+.ps{
+  padding:18px 18px 16px;border-right:1px dashed var(--kui-border-default);
+  display:flex;flex-direction:column;gap:10px;position:relative;
+}
+.ps:last-child{border-right:none}
+.ps .idx{font:500 10px/1 var(--kui-font-mono);letter-spacing:1.2px;color:var(--kui-fg-muted)}
+.ps .name{font:500 14px/1.2 var(--kui-font-sans);letter-spacing:-.15px}
+.ps .desc{font-size:12px;line-height:1.55;color:var(--kui-fg-muted)}
+.ps .vis{
+  margin-top:4px;border:1px solid var(--kui-border-subtle);background:var(--kui-n050);
+  border-radius:2px;padding:10px;min-height:118px;
+  display:flex;flex-direction:column;justify-content:center;gap:6px;
+}
+
+/* camera stack */
+.cam-stack{display:flex;flex-direction:column;gap:5px;align-items:center}
+.cam{
+  border:1px solid var(--kui-border-default);background:#fff;padding:5px 8px;
+  border-radius:2px;display:flex;align-items:center;gap:7px;width:100%;
+  font:500 11px/1 var(--kui-font-sans);
+}
+.cam .cam-thumb{
+  width:22px;height:16px;border-radius:1px;
+  background:
+    linear-gradient(135deg,#5E5E5E 0 35%,#8F8F8F 35% 70%,#C6C6C6 70%);
+}
+.cam.opt{border-style:dashed;color:var(--kui-fg-muted)}
+.cam.opt .cam-thumb{background:linear-gradient(135deg,#C6C6C6,#E3E3E3)}
+.cam .req{
+  margin-left:auto;font:500 9px/1 var(--kui-font-mono);letter-spacing:.8px;text-transform:uppercase;
+  color:var(--kui-fg-muted);
+}
+.cam.req-cam .req{color:var(--kui-brand-green-darker)}
+
+/* encoder pair */
+.enc-pair{display:flex;flex-direction:column;gap:6px}
+.enc{
+  border:1px solid var(--kui-border-default);background:#fff;
+  padding:7px 9px;display:flex;align-items:center;justify-content:space-between;
+  border-radius:2px;font-family:var(--kui-font-mono);font-size:11px;
+}
+.enc .nm{color:var(--kui-fg-strong);font-weight:500}
+.enc .ty{color:var(--kui-fg-muted);font-size:10px;letter-spacing:.2px}
+.enc-join{
+  border:1px dashed var(--kui-border-default);padding:5px 8px;border-radius:2px;
+  font:500 10px/1 var(--kui-font-mono);letter-spacing:.4px;color:var(--kui-fg-muted);text-align:center;
+}
+
+/* token sequence (input to transformer) */
+.tok-seq{display:flex;gap:3px;align-items:center;flex-wrap:wrap;justify-content:center}
+.tok-seq .grp{display:flex;gap:2px}
+.tok-seq .sep{
+  width:1px;height:18px;background:var(--kui-border-default);margin:0 2px;
+}
+.tk{
+  width:16px;height:16px;border:1px solid;border-radius:1px;
+}
+.tk.v{background:rgba(13,105,212,0.18);border-color:var(--c-vision)}
+.tk.l{background:rgba(151,71,255,0.18);border-color:var(--c-lang)}
+.tk.m{background:rgba(31,161,141,0.20);border-color:var(--c-mask)}
+.tk.c{background:rgba(118,185,0,0.25);border-color:var(--c-commit)}
+.tk.r{background:rgba(197,70,0,0.25);border-color:var(--c-remask)}
+.tk.lg{width:18px;height:18px}
+.tk.sm{width:12px;height:12px}
+
+/* transformer "block" mini */
+.tx-mini{
+  background:#181818;color:#fff;border:1px solid #2a2a2a;border-radius:2px;
+  padding:10px 12px;
+}
+.tx-mini .tx-name{font:500 12px/1.2 var(--kui-font-sans);letter-spacing:-.1px}
+.tx-mini .tx-sub{font:400 10px/1.3 var(--kui-font-mono);color:#8F8F8F;margin-top:3px}
+.tx-mini .tx-attn{
+  margin-top:8px;display:grid;grid-template-columns:repeat(6,1fr);gap:1px;
+  background:#0d0d0d;padding:2px;border-radius:1px;
+}
+.tx-mini .tx-attn .cell{height:6px;background:#343434}
+.tx-mini .tx-attn .cell.on{background:var(--kui-brand-green)}
+.tx-mini .tx-attn .cell.mid{background:#5E9600}
+
+/* action chunk output */
+.act-out{display:flex;flex-direction:column;gap:6px;align-items:stretch}
+.act-row{display:flex;gap:3px;align-items:center}
+.act-row .step{
+  font:500 9px/1 var(--kui-font-mono);color:var(--kui-fg-muted);width:22px;letter-spacing:.4px;
+}
+.act-row .cells{display:flex;gap:2px}
+.act-row .cell{
+  width:10px;height:14px;border:1px solid var(--c-commit);background:rgba(118,185,0,0.25);
+  border-radius:1px;
+}
+.act-row .cell.grip{background:var(--c-commit);}
+.pipe-foot{
+  padding:12px 22px;border-top:1px solid var(--kui-border-default);
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+  font:400 12px/1.4 var(--kui-font-sans);color:var(--kui-fg-muted);
+}
+
+/* =========================================================
+   §02 — Tokenization
+   ========================================================= */
+.tk-card{padding:0;overflow:hidden;background:var(--kui-bg-mid);
+  border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm)}
+.tk-head{
+  display:grid;grid-template-columns:1.05fr .95fr;border-bottom:1px solid var(--kui-border-default);
+}
+.tk-head .blurb{padding:22px 24px;border-right:1px solid var(--kui-border-default)}
+.tk-head .blurb h3{font:500 17px/1.25 var(--kui-font-sans);letter-spacing:-.2px;margin-bottom:6px}
+.tk-head .blurb p{font-size:13px;color:var(--kui-fg-default);line-height:1.6;margin-bottom:10px;max-width:54ch}
+.tk-head .blurb .chips{display:flex;gap:6px;flex-wrap:wrap}
+.tk-head .specs{padding:22px 24px}
+.tk-head .specs .h{font:500 10px/1 var(--kui-font-mono);letter-spacing:1.2px;color:var(--kui-fg-muted);text-transform:uppercase;margin-bottom:12px}
+.tk-spec-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.tk-spec{
+  border:1px solid var(--kui-border-default);border-radius:2px;padding:10px 12px;
+  display:flex;flex-direction:column;gap:2px;background:var(--kui-bg-mid);
+}
+.tk-spec .lbl{font:500 10px/1.2 var(--kui-font-mono);color:var(--kui-fg-muted);letter-spacing:.4px;text-transform:uppercase}
+.tk-spec .v{font:500 16px/1.1 var(--kui-font-display);color:var(--kui-fg-strong);font-variant-numeric:tabular-nums}
+.tk-spec .desc{font-size:11px;color:var(--kui-fg-muted);margin-top:2px}
+.tk-spec.unk .v{font:500 12px/1.3 var(--kui-font-sans);color:var(--kui-fg-muted);font-style:italic}
+.tk-spec.featured{border-left:3px solid var(--kui-brand-green)}
+
+/* Action-chunk anatomy */
+.chunk-viz{padding:24px}
+.chunk-viz h4{font:500 13px/1.2 var(--kui-font-sans);letter-spacing:-.1px;margin-bottom:14px}
+.chunk-grid{
+  display:grid;
+  grid-template-columns: 80px repeat(8, 1fr);
+  gap:4px;align-items:center;
+}
+.chunk-grid .col-head{
+  font:500 10px/1 var(--kui-font-mono);color:var(--kui-fg-muted);letter-spacing:.6px;text-transform:uppercase;
+  text-align:center;padding:6px 0;
+}
+.chunk-grid .row-head{
+  font:500 10px/1.1 var(--kui-font-mono);color:var(--kui-fg-strong);letter-spacing:.4px;
+  display:flex;align-items:center;gap:6px;
+}
+.chunk-grid .row-head .axis{
+  width:6px;height:6px;border-radius:50%;background:var(--c-commit);display:inline-block;
+}
+.chunk-grid .row-head.rot .axis{background:var(--kui-info)}
+.chunk-grid .row-head.grip .axis{background:var(--kui-warning)}
+.chunk-cell{
+  height:34px;border:1px solid var(--kui-border-default);border-radius:2px;
+  background:var(--kui-bg-mid);
+  display:flex;align-items:center;justify-content:center;
+  font:500 10px/1 var(--kui-font-mono);color:var(--kui-fg-muted);
+  position:relative;
+}
+.chunk-cell .bin{
+  position:absolute;left:3px;right:3px;bottom:3px;height:4px;background:var(--kui-n100);border-radius:1px;
+}
+.chunk-cell .bin::after{
+  content:"";position:absolute;top:0;left:0;height:100%;background:var(--c-commit);border-radius:1px;
+}
+/* per-cell fill — set via inline width style */
+.chunk-cell.trans .bin::after{background:var(--c-commit)}
+.chunk-cell.rot .bin::after{background:var(--kui-info)}
+.chunk-cell.grip{background:var(--kui-warning-bg);border-color:#f3c7a4;color:var(--kui-warning)}
+.chunk-cell.grip .bin{display:none}
+.chunk-grid .ts-axis{
+  grid-column: 2 / -1;
+  height:18px;margin-top:4px;border-top:1px solid var(--kui-border-default);
+  display:flex;align-items:center;justify-content:space-between;
+  font:500 10px/1 var(--kui-font-mono);color:var(--kui-fg-muted);letter-spacing:.5px;
+  padding-top:6px;
+}
+.chunk-grid .ts-axis .arr{flex:1;height:1px;background:var(--kui-border-default);margin:0 8px}
+.chunk-foot{
+  padding:14px 24px;border-top:1px solid var(--kui-border-default);
+  display:flex;flex-wrap:wrap;gap:16px;
+  font:400 12px/1.5 var(--kui-font-sans);color:var(--kui-fg-muted);
+}
+.chunk-foot .item{display:inline-flex;align-items:center;gap:8px}
+.chunk-foot .item .sw{width:10px;height:10px;border:1px solid;display:inline-block}
+.chunk-foot .sw.t{background:rgba(118,185,0,0.25);border-color:var(--c-commit)}
+.chunk-foot .sw.r{background:rgba(13,105,212,0.18);border-color:var(--kui-info)}
+.chunk-foot .sw.g{background:var(--kui-warning-bg);border-color:#f3c7a4}
+
+/* mask vocab */
+.vocab-strip{
+  display:flex;align-items:center;gap:10px;padding:12px 24px;
+  border-top:1px solid var(--kui-border-default);background:var(--kui-n050);
+  font:400 12px/1.4 var(--kui-font-mono);color:var(--kui-fg-default);
+}
+.vocab-strip .v-pill{
+  background:#fff;border:1px solid var(--kui-border-default);border-radius:2px;
+  padding:4px 8px;font:500 11px/1 var(--kui-font-mono);color:var(--kui-fg-strong);
+}
+.vocab-strip .v-pill.mask{border-color:var(--c-mask);background:var(--c-mask-bg);color:var(--c-mask-dk)}
+
+/* =========================================================
+   §03 — Adaptive decoding rounds
+   ========================================================= */
+.rounds{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:0;overflow:hidden;
+}
+.rounds-head{
+  border-top:3px solid var(--c-mask);
+  padding:16px 22px;border-bottom:1px solid var(--kui-border-default);
+  display:flex;align-items:center;gap:16px;
+}
+.rounds-head .tag{
+  font:500 10px/1 var(--kui-font-mono);letter-spacing:1.4px;text-transform:uppercase;
+  padding:4px 8px;border-radius:2px;background:var(--c-mask-bg);color:var(--c-mask-dk);
+}
+.rounds-head h3{font:500 16px/1.2 var(--kui-font-sans);letter-spacing:-.2px}
+.rounds-head .eq{margin-left:auto;font:500 12px/1 var(--kui-font-mono);color:var(--kui-fg-muted)}
+
+.rounds-grid{
+  display:grid;grid-template-columns:repeat(5,1fr);
+}
+.round{
+  padding:16px 14px;border-right:1px solid var(--kui-border-default);
+  display:flex;flex-direction:column;gap:10px;position:relative;
+}
+.round:last-child{border-right:none}
+.round .r-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.round .r-idx{
+  font:500 11px/1 var(--kui-font-mono);letter-spacing:1.2px;color:var(--c-mask-dk);
+  background:var(--c-mask-bg);padding:4px 7px;border-radius:2px;
+}
+.round .r-gamma{
+  font:500 11px/1 var(--kui-font-mono);color:var(--kui-fg-muted);font-variant-numeric:tabular-nums;
+}
+.round .r-title{font:500 12px/1.3 var(--kui-font-sans);color:var(--kui-fg-strong);letter-spacing:-.1px}
+.round .r-desc{font-size:11px;color:var(--kui-fg-muted);line-height:1.5;min-height:30px}
+
+/* Token grid 8x4 = 32 cells representing action chunk positions */
+.tok-grid{
+  display:grid;grid-template-columns:repeat(8,1fr);gap:2px;
+  padding:6px;background:var(--kui-n050);border:1px solid var(--kui-border-subtle);
+  border-radius:2px;
+}
+.tok-cell{
+  aspect-ratio:1/1;border:1px solid var(--c-mask);background:var(--c-mask-bg);
+  display:flex;align-items:center;justify-content:center;
+  font:500 8px/1 var(--kui-font-mono);color:var(--c-mask-dk);
+  position:relative;
+}
+.tok-cell.commit{border-color:var(--c-commit);background:rgba(118,185,0,0.22);color:var(--c-commit-dk)}
+.tok-cell.commit.fresh{
+  background:rgba(118,185,0,0.45);
+  box-shadow:inset 0 0 0 1px var(--c-commit);
+}
+.tok-cell.remask{
+  border-color:var(--c-remask);background:rgba(197,70,0,0.22);color:var(--kui-warning);
+}
+.tok-cell .conf{
+  position:absolute;left:1px;right:1px;bottom:1px;height:2px;background:rgba(0,0,0,0.05);
+}
+.tok-cell .conf::after{
+  content:"";position:absolute;left:0;top:0;height:100%;background:var(--c-commit);
+}
+
+/* cosine schedule sparkline */
+.schedule{
+  margin-top:6px;border-top:1px solid var(--kui-border-subtle);padding-top:10px;
+  display:flex;align-items:center;gap:8px;
+}
+.schedule svg{display:block}
+.schedule .lbl{font:500 9.5px/1.2 var(--kui-font-mono);color:var(--kui-fg-muted);letter-spacing:.3px;text-transform:uppercase}
+
+.rounds-foot{
+  padding:14px 22px;border-top:1px solid var(--kui-border-default);
+  display:flex;flex-wrap:wrap;gap:18px;font:400 12px/1.5 var(--kui-font-sans);color:var(--kui-fg-muted);
+}
+.rounds-foot .item{display:inline-flex;align-items:center;gap:8px}
+.rounds-foot .sw{width:11px;height:11px;border:1px solid;display:inline-block}
+.rounds-foot .sw.m{background:var(--c-mask-bg);border-color:var(--c-mask)}
+.rounds-foot .sw.c{background:rgba(118,185,0,0.45);border-color:var(--c-commit)}
+.rounds-foot .sw.r{background:rgba(197,70,0,0.22);border-color:var(--c-remask)}
+
+/* =========================================================
+   §04 — Secondary remasking heatmap + checks
+   ========================================================= */
+.rm-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.rm-card{background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:0;overflow:hidden}
+.rm-card .rm-head{
+  padding:16px 20px;border-bottom:1px solid var(--kui-border-default);
+  border-top:3px solid var(--c-remask);
+  display:flex;align-items:baseline;gap:12px;
+}
+.rm-card .rm-head .ix{
+  font:500 10px/1 var(--kui-font-mono);letter-spacing:1.4px;text-transform:uppercase;
+  padding:4px 8px;border-radius:2px;background:var(--c-remask-bg);color:var(--kui-warning);
+}
+.rm-card .rm-head h3{font:500 15px/1.2 var(--kui-font-sans);letter-spacing:-.2px}
+.rm-card .rm-body{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.rm-card .rm-body p{font-size:12.5px;line-height:1.55;color:var(--kui-fg-default);margin:0}
+.rm-card .rm-body p .kw{color:var(--kui-fg-strong);font-weight:500}
+
+/* threshold curve */
+.threshold-vis{
+  border:1px solid var(--kui-border-subtle);background:var(--kui-n050);
+  padding:12px;border-radius:2px;
+}
+.threshold-vis svg{display:block;width:100%;height:auto}
+
+/* residual drop bar pairs */
+.residual-vis{
+  border:1px solid var(--kui-border-subtle);background:var(--kui-n050);
+  padding:12px 14px;border-radius:2px;
+  display:flex;flex-direction:column;gap:7px;
+}
+.res-row{display:grid;grid-template-columns:60px 1fr 60px;gap:8px;align-items:center}
+.res-row .pos{font:500 10px/1 var(--kui-font-mono);color:var(--kui-fg-muted);letter-spacing:.3px}
+.res-row .bars{position:relative;height:14px;background:var(--kui-bg-mid);border:1px solid var(--kui-border-subtle);border-radius:1px;overflow:hidden}
+.res-row .bars .prev{position:absolute;left:0;top:0;height:100%;background:var(--kui-n200);opacity:.6}
+.res-row .bars .now{position:absolute;left:0;top:0;height:100%;}
+.res-row .bars .now.ok{background:var(--c-commit)}
+.res-row .bars .now.drop{background:var(--c-remask)}
+.res-row .verdict{font:500 10px/1.1 var(--kui-font-mono);letter-spacing:.4px}
+.res-row .verdict.keep{color:var(--c-commit-dk)}
+.res-row .verdict.remask{color:var(--kui-warning)}
+
+/* heatmap across rounds */
+.heatmap-card{grid-column:1 / -1}
+.heatmap-card .rm-body{gap:18px}
+.heatmap{
+  display:grid;grid-template-columns:90px 1fr;gap:12px;align-items:center;
+}
+.heatmap .h-row-lbl{
+  font:500 10px/1.2 var(--kui-font-mono);color:var(--kui-fg-muted);letter-spacing:.3px;
+  text-align:right;padding-right:6px;
+}
+.heatmap .h-cells{display:grid;grid-template-columns:repeat(24,1fr);gap:2px}
+.h-cell{
+  aspect-ratio:1/1;border:1px solid;border-radius:1px;
+}
+.h-cell.mask{background:var(--c-mask-bg);border-color:var(--c-mask)}
+.h-cell.commit{background:rgba(118,185,0,0.30);border-color:var(--c-commit)}
+.h-cell.commit.strong{background:rgba(118,185,0,0.65)}
+.h-cell.remask{background:rgba(197,70,0,0.35);border-color:var(--c-remask)}
+.h-cell.empty{background:#fff;border-color:var(--kui-border-subtle)}
+
+/* =========================================================
+   §05 — Paradigm comparison
+   ========================================================= */
+.compare{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:16px;
+}
+.cmp{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:0;overflow:hidden;display:flex;flex-direction:column;
+}
+.cmp.ar{border-top:3px solid var(--kui-n700)}
+.cmp.cd{border-top:3px solid var(--c-lang)}
+.cmp.dd{border-top:3px solid var(--kui-brand-green)}
+.cmp .top{padding:16px 18px 14px;border-bottom:1px solid var(--kui-border-default)}
+.cmp .top .badge{
+  font:500 10px/1 var(--kui-font-mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--kui-fg-muted);
+}
+.cmp.ar .badge{color:var(--kui-n700)}
+.cmp.cd .badge{color:#6A2EBC}
+.cmp.dd .badge{color:var(--kui-brand-green-darker)}
+.cmp .top .name{font:600 17px/1.2 var(--kui-font-display);letter-spacing:-.3px;margin-top:6px}
+.cmp .top .ex{font-size:11.5px;color:var(--kui-fg-muted);margin-top:6px;font-style:italic}
+.cmp .vis{padding:18px;border-bottom:1px solid var(--kui-border-default);background:var(--kui-n050);min-height:140px;
+  display:flex;flex-direction:column;justify-content:center;gap:10px}
+
+/* AR — left to right strip */
+.ar-strip{display:flex;align-items:center;gap:3px;justify-content:center}
+.ar-strip .ar-tok{
+  width:16px;height:16px;border-radius:2px;border:1px solid;display:inline-flex;align-items:center;justify-content:center;
+  font:500 9px/1 var(--kui-font-mono);
+}
+.ar-strip .ar-tok.done{background:var(--kui-n700);color:#fff;border-color:var(--kui-n700)}
+.ar-strip .ar-tok.now{background:var(--kui-brand-green);color:#fff;border-color:var(--kui-brand-green-darker)}
+.ar-strip .ar-tok.todo{background:#fff;color:var(--kui-fg-muted);border-color:var(--kui-border-default)}
+.ar-arrow{height:14px;display:flex;align-items:center;justify-content:center;color:var(--kui-fg-muted);font-size:10px;font-family:var(--kui-font-mono);letter-spacing:.4px}
+
+/* Continuous diffusion — noise → clean trajectory */
+.cd-traj{display:flex;flex-direction:column;gap:5px;align-items:stretch}
+.cd-row{display:flex;align-items:center;gap:8px}
+.cd-row .lbl{font:500 9.5px/1 var(--kui-font-mono);color:var(--kui-fg-muted);width:28px;letter-spacing:.3px}
+.cd-row .traj{flex:1;height:14px;border:1px solid var(--kui-border-subtle);border-radius:1px;position:relative;background:#fff;overflow:hidden}
+.cd-row .traj.n5{background:repeating-linear-gradient(45deg,#5E5E5E 0 2px,#767676 2px 4px)}
+.cd-row .traj.n3{background:repeating-linear-gradient(45deg,#C6C6C6 0 2px,#D8D8D8 2px 4px)}
+.cd-row .traj.n1{background:linear-gradient(90deg,var(--c-lang) 0%,var(--c-lang) 100%);opacity:.85}
+.cd-row .traj.n0{background:linear-gradient(90deg,#6A2EBC 0,#A05AB4 100%)}
+
+/* Discrete diffusion — masked → committed with re-mask */
+.dd-vis{display:flex;flex-direction:column;gap:6px}
+.dd-row{display:flex;align-items:center;gap:6px;justify-content:center}
+.dd-row .lbl{font:500 9.5px/1 var(--kui-font-mono);color:var(--kui-fg-muted);width:24px;letter-spacing:.3px}
+.dd-row .cells{display:flex;gap:2px}
+.dd-c{width:11px;height:11px;border:1px solid;border-radius:1px}
+.dd-c.m{background:var(--c-mask-bg);border-color:var(--c-mask)}
+.dd-c.c{background:rgba(118,185,0,0.45);border-color:var(--c-commit)}
+.dd-c.r{background:rgba(197,70,0,0.40);border-color:var(--c-remask)}
+
+.cmp .props{padding:14px 18px;display:flex;flex-direction:column;gap:8px;flex:1}
+.cmp .props .row{display:flex;justify-content:space-between;gap:10px;font-size:12px;align-items:baseline;border-bottom:1px dashed var(--kui-border-subtle);padding-bottom:6px}
+.cmp .props .row:last-child{border-bottom:none;padding-bottom:0}
+.cmp .props .k{color:var(--kui-fg-muted);font-size:11px;letter-spacing:.2px;text-transform:uppercase;font-family:var(--kui-font-mono)}
+.cmp .props .v{color:var(--kui-fg-strong);text-align:right;font-weight:500;font-size:12px}
+.cmp .props .v.bad{color:var(--kui-warning)}
+.cmp .props .v.ok{color:var(--c-commit-dk)}
+
+/* =========================================================
+   §06 — Benchmarks
+   ========================================================= */
+.bench-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.bench{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:0;overflow:hidden;display:flex;flex-direction:column;
+}
+.bench .b-top{padding:18px 20px;border-bottom:1px solid var(--kui-border-default)}
+.bench .b-top .b-name{font:600 18px/1.2 var(--kui-font-display);letter-spacing:-.3px}
+.bench .b-top .b-meta{font-size:11px;color:var(--kui-fg-muted);margin-top:5px;letter-spacing:.2px}
+.bench .b-headline{padding:18px 20px;border-bottom:1px solid var(--kui-border-default);background:var(--kui-n050)}
+.bench .b-headline .num{
+  font:700 42px/1 var(--kui-font-display);color:var(--kui-fg-strong);
+  font-variant-numeric:tabular-nums;letter-spacing:-1.5px;
+}
+.bench .b-headline .num .pct{font-size:24px;color:var(--kui-fg-muted);font-weight:600;margin-left:2px}
+.bench .b-headline .lbl{font:500 10.5px/1 var(--kui-font-mono);letter-spacing:1.1px;text-transform:uppercase;color:var(--kui-fg-muted);margin-top:6px}
+.bench .b-headline .delta{
+  margin-top:8px;font-size:11.5px;display:flex;align-items:center;gap:6px;color:var(--c-commit-dk);
+}
+.bench .b-headline .delta .arr{font-family:var(--kui-font-mono);font-weight:700}
+.bench .b-rows{padding:14px 20px;flex:1;display:flex;flex-direction:column;gap:8px}
+.bench .b-rows .r{
+  display:flex;justify-content:space-between;align-items:baseline;
+  font-size:12px;border-bottom:1px dashed var(--kui-border-subtle);padding-bottom:6px;
+}
+.bench .b-rows .r:last-child{border-bottom:none}
+.bench .b-rows .k{color:var(--kui-fg-muted)}
+.bench .b-rows .v{font-family:var(--kui-font-mono);color:var(--kui-fg-strong);font-variant-numeric:tabular-nums}
+.bench .b-foot{
+  padding:10px 20px;background:var(--kui-n050);border-top:1px solid var(--kui-border-default);
+  font:400 11px/1.5 var(--kui-font-sans);color:var(--kui-fg-muted);
+  display:flex;align-items:center;gap:8px;
+}
+.bench .b-foot .robot{
+  font:500 10.5px/1 var(--kui-font-mono);letter-spacing:.5px;color:var(--kui-fg-default);
+  background:#fff;border:1px solid var(--kui-border-default);padding:4px 7px;border-radius:2px;
+}
+
+/* =========================================================
+   §07 — Caveats
+   ========================================================= */
+.caveats{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:0;overflow:hidden;
+}
+.caveats .c-head{
+  border-top:3px solid var(--kui-warning);padding:14px 22px;border-bottom:1px solid var(--kui-border-default);
+  display:flex;align-items:baseline;gap:12px;
+}
+.caveats .c-head .ix{
+  font:500 10px/1 var(--kui-font-mono);letter-spacing:1.4px;text-transform:uppercase;
+  padding:4px 8px;border-radius:2px;background:var(--kui-warning-bg);color:var(--kui-warning);
+}
+.caveats .c-head h3{font:500 15px/1.2 var(--kui-font-sans);letter-spacing:-.2px}
+.caveats .c-head .sub{margin-left:auto;font-size:12px;color:var(--kui-fg-muted)}
+.cv-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+.cv{
+  padding:16px 20px;border-right:1px solid var(--kui-border-default);
+  border-bottom:1px solid var(--kui-border-default);
+}
+.cv:nth-child(3n){border-right:none}
+.cv:nth-last-child(-n+3){border-bottom:none}
+.cv .cv-h{
+  font:500 12px/1.2 var(--kui-font-sans);letter-spacing:-.1px;
+  display:flex;align-items:center;gap:8px;margin-bottom:6px;color:var(--kui-fg-strong);
+}
+.cv .cv-h .pill{
+  font:500 9px/1 var(--kui-font-mono);letter-spacing:.5px;text-transform:uppercase;
+  color:var(--kui-warning);background:var(--kui-warning-bg);
+  border:1px solid #f3c7a4;padding:3px 6px;border-radius:2px;
+}
+.cv .cv-p{font-size:11.5px;line-height:1.55;color:var(--kui-fg-muted)}
+
+/* =========================================================
+   Footer
+   ========================================================= */
+.foot{
+  margin-top:48px;padding:18px 0 0;border-top:1px solid var(--kui-border-default);
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  font:400 11.5px/1.4 var(--kui-font-sans);color:var(--kui-fg-muted);
+}
+.foot .dot{width:5px;height:5px;background:var(--kui-n300);border-radius:50%}
+.foot a{color:var(--kui-fg-default)}
+.foot a:hover{color:var(--kui-info)}
+
+@media (max-width: 1100px){
+  .hero{grid-template-columns:1fr}
+  .pipe-body{grid-template-columns:1fr 1fr}
+  .ps{border-bottom:1px dashed var(--kui-border-default)}
+  .rounds-grid{grid-template-columns:repeat(2,1fr)}
+  .round{border-bottom:1px solid var(--kui-border-default)}
+  .compare,.bench-grid,.cv-grid{grid-template-columns:1fr}
+  .rm-grid{grid-template-columns:1fr}
+  .tk-head{grid-template-columns:1fr}
+  .tk-head .blurb{border-right:none;border-bottom:1px solid var(--kui-border-default)}
+}
+</style>
+</head>
+<body>
+<main class="page">
+
+  <!-- ===================================================
+       Topbar
+       =================================================== -->
+  <header class="topbar">
+    <a class="home-link" href="../../index.html">Atlas home</a>
+    <div class="nvlogo">
+      <svg width="100" height="18" viewBox="0 0 100 18" aria-hidden="true">
+        <rect x="0" y="2" width="14" height="14" fill="#76B900"/>
+        <text x="20" y="14" font-family="NVIDIA Sans,DM Sans,system-ui,sans-serif" font-size="13" font-weight="700" letter-spacing="1.2" fill="#202020">NVIDIA</text>
+      </svg>
+    </div>
+    <span class="crumb">Model Atlas <span class="sep">/</span> Vision–Language–Action <span class="sep">/</span> Discrete Diffusion VLA</span>
+    <span class="spacer"></span>
+    <span class="meta"><span class="dot"></span> arXiv:2508.20072 · v1 Aug 27, 2025 · v3 Dec 22, 2025</span>
+  </header>
+
+  <!-- ===================================================
+       HERO
+       =================================================== -->
+  <section class="hero">
+    <div class="left">
+      <div class="eyebrow">
+        <span class="tag">VLA · Action Decoder</span>
+        <span>Liang et al. · HKU · Shanghai AI Lab · SJTU</span>
+      </div>
+      <h1>Discrete Diffusion VLA <span class="accent">Architecture</span></h1>
+      <p class="lede">
+        A <strong>single-transformer policy</strong> that models discretized action chunks
+        with discrete diffusion and is trained with the <strong>same cross-entropy objective</strong>
+        as its VLM backbone. Action generation runs <em>inside</em> the unified transformer rather
+        than through a bolted-on diffusion/flow head, while preserving diffusion's progressive
+        refinement via iterative re-masking.
+      </p>
+
+      <div class="keyfacts">
+        <div class="kf">
+          <div class="label">Representative Backbone</div>
+          <div class="value" style="font-size:18px">OpenVLA <span class="unit">/ Prismatic-7B</span></div>
+          <div class="sub">SigLIP + DINOv2 ViTs · Llama 2 LM<sup>1</sup></div>
+        </div>
+        <div class="kf">
+          <div class="label">Action Discretization</div>
+          <div class="value">256 <span class="unit">bins / dim</span></div>
+          <div class="sub">Quantile 1<sup>st</sup>–99<sup>th</sup> + binary gripper</div>
+        </div>
+        <div class="kf">
+          <div class="label">Action Tokens / Step</div>
+          <div class="value">7 <span class="unit">D<sub style="font-size:10px">act</sub></span></div>
+          <div class="sub">3 translation · 3 rotation · 1 gripper</div>
+        </div>
+        <div class="kf">
+          <div class="label">Decoding</div>
+          <div class="value" style="font-size:18px">Parallel · adaptive</div>
+          <div class="sub">Bidirectional attention on action tokens</div>
+        </div>
+        <div class="kf">
+          <div class="label">Loss</div>
+          <div class="value" style="font-size:18px">Masked CE</div>
+          <div class="sub">Cosine mask schedule γ<sub>t</sub>=cos(πt/2)</div>
+        </div>
+        <div class="kf">
+          <div class="label">Total Parameters</div>
+          <div class="value unk">Not stated in paper<sup>2</sup></div>
+          <div class="sub">Backbone derives from 7B-scale Prismatic VLM</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: headline diagram -->
+    <aside class="right">
+      <div class="ribbon">Headline mechanism · single transformer + discrete-diffusion action chunks</div>
+      <h3>Vision–Language–Action tokens share one transformer; action positions are denoised in parallel.</h3>
+
+      <div class="hero-diagram">
+        <!-- input sequence -->
+        <div class="hd-row" style="gap:2px;justify-content:space-between">
+          <div class="hd-row" style="gap:3px"><span class="hd-tok v"></span><span class="hd-tok v"></span><span class="hd-tok v"></span><span class="hd-tok v"></span><span class="hd-tok v"></span><span class="hd-tok v"></span></div>
+          <div style="width:1px;height:22px;background:#343434"></div>
+          <div class="hd-row" style="gap:3px"><span class="hd-tok l"></span><span class="hd-tok l"></span><span class="hd-tok l"></span><span class="hd-tok l"></span></div>
+          <div style="width:1px;height:22px;background:#343434"></div>
+          <div class="hd-row" style="gap:3px"><span class="hd-tok m">M</span><span class="hd-tok m">M</span><span class="hd-tok m">M</span><span class="hd-tok m">M</span><span class="hd-tok m">M</span><span class="hd-tok m">M</span><span class="hd-tok m">M</span></div>
+        </div>
+        <div class="hd-row" style="font:500 9px/1 var(--kui-font-mono);color:#5E5E5E;letter-spacing:.6px;text-transform:uppercase;justify-content:space-between;padding:0 4px">
+          <span>vision · SigLIP + DINOv2</span><span>language · LM tokens</span><span>action · [MASK] × L</span>
+        </div>
+
+        <div class="hd-arrow"><span class="vline"></span></div>
+
+        <!-- unified transformer -->
+        <div class="hd-tx">
+          <div class="tx-name">Unified transformer
+            <span class="sub">bidirectional attention over action positions; causal/standard for V/L</span>
+          </div>
+          <div class="tx-bars" aria-hidden="true">
+            <span class="bar" style="height:8px"></span><span class="bar on" style="height:14px"></span>
+            <span class="bar" style="height:10px"></span><span class="bar on" style="height:18px"></span>
+            <span class="bar on" style="height:12px"></span><span class="bar" style="height:9px"></span>
+            <span class="bar on" style="height:16px"></span><span class="bar" style="height:11px"></span>
+          </div>
+        </div>
+
+        <div class="hd-arrow"><span class="vline"></span></div>
+
+        <!-- iterative output: 4 rounds collapsed -->
+        <div class="hd-row" style="gap:14px;justify-content:space-between;align-items:flex-start">
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+            <span style="font:500 9px/1 var(--kui-font-mono);color:#5E5E5E;letter-spacing:.6px;text-transform:uppercase">round 1</span>
+            <div class="hd-row" style="gap:2px">
+              <span class="hd-tok m" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok m" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok m" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok m" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok m" style="width:16px;height:16px;font-size:8px"></span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+            <span style="font:500 9px/1 var(--kui-font-mono);color:#5E5E5E;letter-spacing:.6px;text-transform:uppercase">round 2</span>
+            <div class="hd-row" style="gap:2px">
+              <span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok m" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok m" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+            <span style="font:500 9px/1 var(--kui-font-mono);color:#5E5E5E;letter-spacing:.6px;text-transform:uppercase">round 3</span>
+            <div class="hd-row" style="gap:2px">
+              <span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok r" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+            <span style="font:500 9px/1 var(--kui-font-mono);color:#5E5E5E;letter-spacing:.6px;text-transform:uppercase">round T</span>
+            <div class="hd-row" style="gap:2px">
+              <span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span><span class="hd-tok c" style="width:16px;height:16px;font-size:8px"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-legend">
+        <span class="item"><span class="sw v"></span> vision tokens</span>
+        <span class="item"><span class="sw l"></span> language tokens</span>
+        <span class="item"><span class="sw m"></span> [MASK]</span>
+        <span class="item"><span class="sw c"></span> committed</span>
+        <span class="item"><span class="sw r"></span> re-masked</span>
+      </div>
+    </aside>
+  </section>
+
+  <!-- ===================================================
+       §01 — End-to-end VLA map
+       =================================================== -->
+  <section class="section">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§01</span>
+        <h2>End-to-end VLA pipeline</h2>
+        <span class="chip code">[ vision tokens ; language tokens ; action tokens ]</span>
+      </div>
+      <p class="lede">
+        All three modalities are concatenated into one sequence consumed by a single transformer.
+        The action segment is bidirectionally attended and decoded with discrete diffusion.
+      </p>
+    </div>
+
+    <div class="pipe">
+      <div class="pipe-head">
+        <span class="lp-tag">OpenVLA backbone · single-transformer policy</span>
+        <span class="lp-name">RGB observations + instruction → discretized future action chunk</span>
+        <span class="lp-eq">π<sub>θ</sub>(<strong>a</strong>₀ | images, instruction, proprio)</span>
+      </div>
+
+      <div class="pipe-body">
+
+        <!-- step 1: observations -->
+        <div class="ps">
+          <span class="idx">STEP 01 · OBSERVATIONS</span>
+          <div class="name">Multi-view RGB + instruction</div>
+          <div class="desc">Mandatory third-person view; optional left/right wrist cameras. Language instruction is plain text. Optional proprioception (EE pose, joint angles).</div>
+          <div class="vis">
+            <div class="cam-stack">
+              <div class="cam req-cam"><span class="cam-thumb"></span><span>3rd-person RGB</span><span class="req">req</span></div>
+              <div class="cam opt"><span class="cam-thumb"></span><span>L wrist RGB</span><span class="req">opt</span></div>
+              <div class="cam opt"><span class="cam-thumb"></span><span>R wrist RGB</span><span class="req">opt</span></div>
+            </div>
+            <div style="font:500 10px/1.3 var(--kui-font-mono);color:var(--kui-fg-muted);text-align:center;letter-spacing:.3px">
+              "put the bowl on the plate"
+            </div>
+          </div>
+        </div>
+
+        <!-- step 2: encoders -->
+        <div class="ps">
+          <span class="idx">STEP 02 · ENCODERS</span>
+          <div class="name">Per-view visual features</div>
+          <div class="desc">Each view is encoded by <strong>SigLIP + DINOv2</strong> ViTs in parallel. Concatenated features are projected into the LM embedding space; instruction is tokenized directly by the LM.</div>
+          <div class="vis">
+            <div class="enc-pair">
+              <div class="enc"><span class="nm">SigLIP</span><span class="ty">ViT-SO400M</span></div>
+              <div class="enc"><span class="nm">DINOv2</span><span class="ty">ViT-L/14</span></div>
+              <div class="enc-join">↓ concat · projector MLP ↓</div>
+              <div class="enc"><span class="nm">LM tokenizer</span><span class="ty">Llama 2</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- step 3: unified transformer -->
+        <div class="ps">
+          <span class="idx">STEP 03 · UNIFIED TRANSFORMER</span>
+          <div class="name">Single backbone, all modalities</div>
+          <div class="desc">One transformer attends across <strong>vision · language · action</strong> tokens. Action positions use a <strong>bidirectional</strong> mask so each masked slot sees the full V/L context and every other action token.</div>
+          <div class="vis">
+            <div class="tok-seq" style="margin-bottom:8px">
+              <div class="grp"><span class="tk v"></span><span class="tk v"></span><span class="tk v"></span><span class="tk v"></span><span class="tk v"></span></div>
+              <span class="sep"></span>
+              <div class="grp"><span class="tk l"></span><span class="tk l"></span><span class="tk l"></span></div>
+              <span class="sep"></span>
+              <div class="grp"><span class="tk m"></span><span class="tk m"></span><span class="tk m"></span><span class="tk m"></span><span class="tk m"></span><span class="tk m"></span><span class="tk m"></span></div>
+            </div>
+            <div class="tx-mini">
+              <div class="tx-name">Prismatic-7B transformer</div>
+              <div class="tx-sub">L stacked blocks · bidirectional over action span</div>
+              <div class="tx-attn" aria-hidden="true">
+                <span class="cell on"></span><span class="cell mid"></span><span class="cell on"></span><span class="cell"></span><span class="cell mid"></span><span class="cell on"></span>
+                <span class="cell mid"></span><span class="cell on"></span><span class="cell"></span><span class="cell on"></span><span class="cell mid"></span><span class="cell"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- step 4: action chunk + robot -->
+        <div class="ps">
+          <span class="idx">STEP 04 · ACTION CHUNK</span>
+          <div class="name">Diffusion-refined action tokens → robot</div>
+          <div class="desc">Hidden states at action positions are projected to <strong>256-way logits</strong>. Iterative re-masking commits high-confidence tokens; the final chunk decodes into H future robot actions.</div>
+          <div class="vis">
+            <div class="act-out">
+              <div class="act-row"><span class="step">t+1</span><div class="cells"><span class="cell" style="width:11px"></span><span class="cell"></span><span class="cell"></span><span class="cell" style="border-color:var(--kui-info);background:rgba(13,105,212,0.22)"></span><span class="cell" style="border-color:var(--kui-info);background:rgba(13,105,212,0.22)"></span><span class="cell" style="border-color:var(--kui-info);background:rgba(13,105,212,0.22)"></span><span class="cell grip"></span></div></div>
+              <div class="act-row"><span class="step">t+2</span><div class="cells"><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell" style="border-color:var(--kui-info);background:rgba(13,105,212,0.22)"></span><span class="cell" style="border-color:var(--kui-info);background:rgba(13,105,212,0.22)"></span><span class="cell" style="border-color:var(--kui-info);background:rgba(13,105,212,0.22)"></span><span class="cell grip"></span></div></div>
+              <div class="act-row"><span class="step">t+3</span><div class="cells"><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell" style="border-color:var(--kui-info);background:rgba(13,105,212,0.22)"></span><span class="cell" style="border-color:var(--kui-info);background:rgba(13,105,212,0.22)"></span><span class="cell" style="border-color:var(--kui-info);background:rgba(13,105,212,0.22)"></span><span class="cell grip"></span></div></div>
+              <div class="act-row"><span class="step">t+H</span><div class="cells"><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell" style="border-color:var(--kui-info);background:rgba(13,105,212,0.22)"></span><span class="cell" style="border-color:var(--kui-info);background:rgba(13,105,212,0.22)"></span><span class="cell" style="border-color:var(--kui-info);background:rgba(13,105,212,0.22)"></span><span class="cell grip"></span></div></div>
+            </div>
+            <div style="font:500 10px/1.3 var(--kui-font-mono);color:var(--kui-fg-muted);margin-top:6px;text-align:center;letter-spacing:.3px">
+              7 tokens × H steps = L action positions
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pipe-foot">
+        <span class="chip green">single transformer · single CE loss</span>
+        <span class="chip teal">discrete tokens compatible with LM head</span>
+        <span class="chip info">bidirectional on action span</span>
+        <span class="chip warn">no separate diffusion/flow head</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+       §02 — Action discretization + chunk anatomy
+       =================================================== -->
+  <section class="section">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§02</span>
+        <h2>Action discretization &amp; chunk anatomy</h2>
+      </div>
+      <p class="lede">
+        Each continuous control dimension is binned, then H future timesteps are packed into a
+        fixed-length token chunk. The vocabulary is extended with a single mask symbol M for the
+        diffusion forward process.
+      </p>
+    </div>
+
+    <div class="tk-card">
+      <div class="tk-head">
+        <div class="blurb">
+          <h3>OpenVLA-style binning, extended for masked-diffusion</h3>
+          <p>
+            Per-dimension <strong>quantile bins from the 1<sup>st</sup>–99<sup>th</sup> percentile</strong>
+            of the training data avoid outlier saturation. A single timestep emits
+            <strong>D<sub>act</sub>&nbsp;=&nbsp;7</strong> tokens (xyz translation · rpy rotation · binary
+            gripper). H future timesteps stack into a fixed-length sequence of <strong>L = H × D<sub>act</sub></strong>
+            positions — so every action chunk has identical length and needs no [EOS] padding.
+          </p>
+          <p>
+            For the discrete-diffusion forward process, the action vocabulary <strong>V = K + 1</strong>
+            adds a special mask symbol M = [MASK] used to corrupt action positions during training and to
+            initialize them at inference.
+          </p>
+          <div class="chips">
+            <span class="chip code">K = 256 bins</span>
+            <span class="chip code">V = K + 1</span>
+            <span class="chip code">D<sub>act</sub> = 7</span>
+            <span class="chip code">L = H · D<sub>act</sub></span>
+          </div>
+        </div>
+        <div class="specs">
+          <div class="h">Per-dimension layout</div>
+          <div class="tk-spec-grid">
+            <div class="tk-spec featured">
+              <div class="lbl">Bins per dim</div>
+              <div class="v">256</div>
+              <div class="desc">quantile, 1<sup>st</sup>–99<sup>th</sup> pct</div>
+            </div>
+            <div class="tk-spec">
+              <div class="lbl">Tokens / timestep</div>
+              <div class="v">7</div>
+              <div class="desc">3 trans · 3 rot · 1 grip</div>
+            </div>
+            <div class="tk-spec">
+              <div class="lbl">Mask symbol</div>
+              <div class="v">[MASK]</div>
+              <div class="desc">added to vocab → V = 257</div>
+            </div>
+            <div class="tk-spec unk">
+              <div class="lbl">Chunk horizon H</div>
+              <div class="v">Not specified for all settings<sup>3</sup></div>
+              <div class="desc">paper denotes generic H</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- chunk anatomy grid -->
+      <div class="chunk-viz">
+        <h4>Action chunk layout — H timesteps × 7 tokens</h4>
+        <div class="chunk-grid">
+          <span></span>
+          <span class="col-head">t+1</span><span class="col-head">t+2</span><span class="col-head">t+3</span>
+          <span class="col-head">t+4</span><span class="col-head">t+5</span><span class="col-head">t+6</span>
+          <span class="col-head">…</span><span class="col-head">t+H</span>
+
+          <span class="row-head"><span class="axis"></span>Δx</span>
+          <span class="chunk-cell trans">142<span class="bin" style="--w:55%"></span></span>
+          <span class="chunk-cell trans">147<span class="bin" style="--w:58%"></span></span>
+          <span class="chunk-cell trans">151<span class="bin" style="--w:60%"></span></span>
+          <span class="chunk-cell trans">156<span class="bin" style="--w:62%"></span></span>
+          <span class="chunk-cell trans">160<span class="bin" style="--w:64%"></span></span>
+          <span class="chunk-cell trans">164<span class="bin" style="--w:66%"></span></span>
+          <span class="chunk-cell trans">…<span class="bin" style="--w:68%"></span></span>
+          <span class="chunk-cell trans">175<span class="bin" style="--w:70%"></span></span>
+
+          <span class="row-head"><span class="axis"></span>Δy</span>
+          <span class="chunk-cell trans">98<span class="bin" style="--w:38%"></span></span>
+          <span class="chunk-cell trans">102<span class="bin" style="--w:40%"></span></span>
+          <span class="chunk-cell trans">107<span class="bin" style="--w:42%"></span></span>
+          <span class="chunk-cell trans">110<span class="bin" style="--w:43%"></span></span>
+          <span class="chunk-cell trans">112<span class="bin" style="--w:44%"></span></span>
+          <span class="chunk-cell trans">115<span class="bin" style="--w:45%"></span></span>
+          <span class="chunk-cell trans">…<span class="bin" style="--w:46%"></span></span>
+          <span class="chunk-cell trans">119<span class="bin" style="--w:47%"></span></span>
+
+          <span class="row-head"><span class="axis"></span>Δz</span>
+          <span class="chunk-cell trans">202<span class="bin" style="--w:79%"></span></span>
+          <span class="chunk-cell trans">198<span class="bin" style="--w:77%"></span></span>
+          <span class="chunk-cell trans">191<span class="bin" style="--w:75%"></span></span>
+          <span class="chunk-cell trans">183<span class="bin" style="--w:71%"></span></span>
+          <span class="chunk-cell trans">176<span class="bin" style="--w:69%"></span></span>
+          <span class="chunk-cell trans">170<span class="bin" style="--w:66%"></span></span>
+          <span class="chunk-cell trans">…<span class="bin" style="--w:60%"></span></span>
+          <span class="chunk-cell trans">155<span class="bin" style="--w:61%"></span></span>
+
+          <span class="row-head rot"><span class="axis"></span>r</span>
+          <span class="chunk-cell rot">128<span class="bin" style="--w:50%"></span></span>
+          <span class="chunk-cell rot">129<span class="bin" style="--w:50%"></span></span>
+          <span class="chunk-cell rot">131<span class="bin" style="--w:51%"></span></span>
+          <span class="chunk-cell rot">130<span class="bin" style="--w:51%"></span></span>
+          <span class="chunk-cell rot">128<span class="bin" style="--w:50%"></span></span>
+          <span class="chunk-cell rot">127<span class="bin" style="--w:49%"></span></span>
+          <span class="chunk-cell rot">…<span class="bin" style="--w:50%"></span></span>
+          <span class="chunk-cell rot">128<span class="bin" style="--w:50%"></span></span>
+
+          <span class="row-head rot"><span class="axis"></span>p</span>
+          <span class="chunk-cell rot">88<span class="bin" style="--w:34%"></span></span>
+          <span class="chunk-cell rot">86<span class="bin" style="--w:33%"></span></span>
+          <span class="chunk-cell rot">82<span class="bin" style="--w:32%"></span></span>
+          <span class="chunk-cell rot">80<span class="bin" style="--w:31%"></span></span>
+          <span class="chunk-cell rot">79<span class="bin" style="--w:30%"></span></span>
+          <span class="chunk-cell rot">78<span class="bin" style="--w:30%"></span></span>
+          <span class="chunk-cell rot">…<span class="bin" style="--w:30%"></span></span>
+          <span class="chunk-cell rot">79<span class="bin" style="--w:30%"></span></span>
+
+          <span class="row-head rot"><span class="axis"></span>y</span>
+          <span class="chunk-cell rot">132<span class="bin" style="--w:51%"></span></span>
+          <span class="chunk-cell rot">134<span class="bin" style="--w:52%"></span></span>
+          <span class="chunk-cell rot">137<span class="bin" style="--w:53%"></span></span>
+          <span class="chunk-cell rot">140<span class="bin" style="--w:54%"></span></span>
+          <span class="chunk-cell rot">142<span class="bin" style="--w:55%"></span></span>
+          <span class="chunk-cell rot">144<span class="bin" style="--w:56%"></span></span>
+          <span class="chunk-cell rot">…<span class="bin" style="--w:57%"></span></span>
+          <span class="chunk-cell rot">147<span class="bin" style="--w:57%"></span></span>
+
+          <span class="row-head grip"><span class="axis"></span>g</span>
+          <span class="chunk-cell grip">0</span>
+          <span class="chunk-cell grip">0</span>
+          <span class="chunk-cell grip">0</span>
+          <span class="chunk-cell grip">1</span>
+          <span class="chunk-cell grip">1</span>
+          <span class="chunk-cell grip">1</span>
+          <span class="chunk-cell grip">…</span>
+          <span class="chunk-cell grip">1</span>
+
+          <span></span>
+          <span class="ts-axis">
+            <span>future timesteps →</span><span class="arr"></span><span>chunk horizon H</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- mask vocab strip -->
+      <div class="chunk-foot">
+        <span class="item"><span class="sw t"></span>translation bins (256)</span>
+        <span class="item"><span class="sw r"></span>rotation bins (256)</span>
+        <span class="item"><span class="sw g"></span>binary gripper</span>
+        <span style="margin-left:auto;font-family:var(--kui-font-mono);font-size:11px">cell value = bin index ∈ {0..255}</span>
+      </div>
+
+      <div class="vocab-strip">
+        <span style="font-weight:500;color:var(--kui-fg-strong)">Action vocabulary:</span>
+        <span class="v-pill">0</span><span class="v-pill">1</span><span class="v-pill">2</span>
+        <span style="color:var(--kui-fg-muted)">···</span>
+        <span class="v-pill">254</span><span class="v-pill">255</span>
+        <span style="color:var(--kui-fg-muted);margin:0 4px">+</span>
+        <span class="v-pill mask">M = [MASK]</span>
+        <span style="margin-left:auto;color:var(--kui-fg-muted);font-size:11px">|V| = 256 + 1</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+       §03 — Adaptive decoding (easy first)
+       =================================================== -->
+  <section class="section">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§03</span>
+        <h2>Adaptive decoding · easy-first parallel refinement</h2>
+        <span class="chip code">γ<sub>t</sub> = cos(πt/2)</span>
+      </div>
+      <p class="lede">
+        Inference starts with all action positions masked. Each round predicts every position in
+        parallel, then commits the highest-confidence subset. The remaining positions stay masked
+        for the next round following a cosine schedule.
+      </p>
+    </div>
+
+    <div class="rounds">
+      <div class="rounds-head">
+        <span class="tag">parallel refinement · T rounds</span>
+        <h3>Confidence-ranked commits anneal the keep ratio along a cosine schedule.</h3>
+        <span class="eq">scored by max-conf or top-1 / top-2 gap</span>
+      </div>
+
+      <div class="rounds-grid">
+
+        <!-- round 1: all masked -->
+        <div class="round">
+          <div class="r-head">
+            <span class="r-idx">ROUND 1</span>
+            <span class="r-gamma">γ ≈ 1.0</span>
+          </div>
+          <div class="r-title">All [MASK]</div>
+          <div class="r-desc">Action span initialized fully masked. Model emits logits for every position.</div>
+          <div class="tok-grid" aria-label="round 1 token state">
+            <span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span>
+            <span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span>
+            <span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span>
+            <span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span>
+            <span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span>
+            <span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span>
+            <span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span>
+            <span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span>
+          </div>
+          <div class="schedule">
+            <svg viewBox="0 0 80 24" width="80" height="24">
+              <path d="M 2 4 L 2 4" stroke="none"/>
+              <path d="M 2 4 Q 30 5 40 12 T 78 22" stroke="var(--c-mask)" stroke-width="1.5" fill="none"/>
+              <circle cx="2" cy="4" r="3" fill="var(--c-mask)"/>
+              <line x1="0" y1="22" x2="80" y2="22" stroke="var(--kui-border-default)" stroke-width="0.5"/>
+            </svg>
+            <span class="lbl">γ = 1.0</span>
+          </div>
+        </div>
+
+        <!-- round 2 -->
+        <div class="round">
+          <div class="r-head">
+            <span class="r-idx">ROUND 2</span>
+            <span class="r-gamma">γ ≈ 0.81</span>
+          </div>
+          <div class="r-title">Commit easiest ~19%</div>
+          <div class="r-desc">Top-confidence positions commit first; gripper bits and dominant axes typically resolve early.</div>
+          <div class="tok-grid">
+            <span class="tok-cell">M</span><span class="tok-cell commit fresh">87</span><span class="tok-cell">M</span><span class="tok-cell">M</span>
+            <span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell commit fresh">1</span>
+            <span class="tok-cell commit fresh">142</span><span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span>
+            <span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell commit fresh">0</span>
+            <span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell commit fresh">128</span><span class="tok-cell">M</span>
+            <span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span>
+            <span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell commit fresh">1</span>
+            <span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span><span class="tok-cell">M</span>
+          </div>
+          <div class="schedule">
+            <svg viewBox="0 0 80 24" width="80" height="24">
+              <path d="M 2 4 Q 30 5 40 12 T 78 22" stroke="var(--c-mask)" stroke-width="1.5" fill="none"/>
+              <circle cx="15" cy="5.5" r="3" fill="var(--c-mask)"/>
+              <line x1="0" y1="22" x2="80" y2="22" stroke="var(--kui-border-default)" stroke-width="0.5"/>
+            </svg>
+            <span class="lbl">γ = 0.81</span>
+          </div>
+        </div>
+
+        <!-- round 3 -->
+        <div class="round">
+          <div class="r-head">
+            <span class="r-idx">ROUND 3</span>
+            <span class="r-gamma">γ ≈ 0.50</span>
+          </div>
+          <div class="r-title">Bulk commit</div>
+          <div class="r-desc">More than half of positions are now committed; remaining masks concentrate on ambiguous fine-grained bins.</div>
+          <div class="tok-grid">
+            <span class="tok-cell commit fresh">147</span><span class="tok-cell commit">87</span><span class="tok-cell">M</span><span class="tok-cell commit fresh">198</span>
+            <span class="tok-cell">M</span><span class="tok-cell commit fresh">102</span><span class="tok-cell commit fresh">183</span><span class="tok-cell commit">1</span>
+            <span class="tok-cell commit">142</span><span class="tok-cell">M</span><span class="tok-cell commit fresh">202</span><span class="tok-cell">M</span>
+            <span class="tok-cell commit fresh">131</span><span class="tok-cell">M</span><span class="tok-cell commit fresh">86</span><span class="tok-cell commit">0</span>
+            <span class="tok-cell commit fresh">156</span><span class="tok-cell">M</span><span class="tok-cell commit">128</span><span class="tok-cell">M</span>
+            <span class="tok-cell">M</span><span class="tok-cell commit fresh">115</span><span class="tok-cell">M</span><span class="tok-cell commit fresh">137</span>
+            <span class="tok-cell">M</span><span class="tok-cell commit fresh">79</span><span class="tok-cell">M</span><span class="tok-cell commit">1</span>
+            <span class="tok-cell commit fresh">170</span><span class="tok-cell">M</span><span class="tok-cell commit fresh">144</span><span class="tok-cell">M</span>
+          </div>
+          <div class="schedule">
+            <svg viewBox="0 0 80 24" width="80" height="24">
+              <path d="M 2 4 Q 30 5 40 12 T 78 22" stroke="var(--c-mask)" stroke-width="1.5" fill="none"/>
+              <circle cx="40" cy="12" r="3" fill="var(--c-mask)"/>
+              <line x1="0" y1="22" x2="80" y2="22" stroke="var(--kui-border-default)" stroke-width="0.5"/>
+            </svg>
+            <span class="lbl">γ = 0.50</span>
+          </div>
+        </div>
+
+        <!-- round 4 -->
+        <div class="round">
+          <div class="r-head">
+            <span class="r-idx">ROUND 4</span>
+            <span class="r-gamma">γ ≈ 0.19</span>
+          </div>
+          <div class="r-title">Hard tokens remain</div>
+          <div class="r-desc">Stragglers are the "hard" positions — typically subtle rotation deltas near task transitions. Some prior commits get re-masked.</div>
+          <div class="tok-grid">
+            <span class="tok-cell commit">147</span><span class="tok-cell commit">87</span><span class="tok-cell commit fresh">151</span><span class="tok-cell commit">198</span>
+            <span class="tok-cell commit fresh">107</span><span class="tok-cell commit">102</span><span class="tok-cell commit">183</span><span class="tok-cell commit">1</span>
+            <span class="tok-cell commit">142</span><span class="tok-cell remask">↺</span><span class="tok-cell commit">202</span><span class="tok-cell commit fresh">191</span>
+            <span class="tok-cell commit">131</span><span class="tok-cell commit fresh">134</span><span class="tok-cell commit">86</span><span class="tok-cell commit">0</span>
+            <span class="tok-cell commit">156</span><span class="tok-cell commit fresh">160</span><span class="tok-cell commit">128</span><span class="tok-cell commit fresh">129</span>
+            <span class="tok-cell remask">↺</span><span class="tok-cell commit">115</span><span class="tok-cell commit fresh">82</span><span class="tok-cell commit">137</span>
+            <span class="tok-cell commit fresh">112</span><span class="tok-cell commit">79</span><span class="tok-cell commit fresh">140</span><span class="tok-cell commit">1</span>
+            <span class="tok-cell commit">170</span><span class="tok-cell commit fresh">119</span><span class="tok-cell commit">144</span><span class="tok-cell commit fresh">155</span>
+          </div>
+          <div class="schedule">
+            <svg viewBox="0 0 80 24" width="80" height="24">
+              <path d="M 2 4 Q 30 5 40 12 T 78 22" stroke="var(--c-mask)" stroke-width="1.5" fill="none"/>
+              <circle cx="62" cy="18" r="3" fill="var(--c-mask)"/>
+              <line x1="0" y1="22" x2="80" y2="22" stroke="var(--kui-border-default)" stroke-width="0.5"/>
+            </svg>
+            <span class="lbl">γ = 0.19</span>
+          </div>
+        </div>
+
+        <!-- round T -->
+        <div class="round">
+          <div class="r-head">
+            <span class="r-idx">ROUND T</span>
+            <span class="r-gamma">γ → 0.0</span>
+          </div>
+          <div class="r-title">Chunk decoded</div>
+          <div class="r-desc">All positions committed. The chunk is de-tokenized into H continuous actions and streamed to the controller.</div>
+          <div class="tok-grid">
+            <span class="tok-cell commit">147</span><span class="tok-cell commit">87</span><span class="tok-cell commit">151</span><span class="tok-cell commit">198</span>
+            <span class="tok-cell commit">107</span><span class="tok-cell commit">102</span><span class="tok-cell commit">183</span><span class="tok-cell commit">1</span>
+            <span class="tok-cell commit">142</span><span class="tok-cell commit">156</span><span class="tok-cell commit">202</span><span class="tok-cell commit">191</span>
+            <span class="tok-cell commit">131</span><span class="tok-cell commit">134</span><span class="tok-cell commit">86</span><span class="tok-cell commit">0</span>
+            <span class="tok-cell commit">156</span><span class="tok-cell commit">160</span><span class="tok-cell commit">128</span><span class="tok-cell commit">129</span>
+            <span class="tok-cell commit">98</span><span class="tok-cell commit">115</span><span class="tok-cell commit">82</span><span class="tok-cell commit">137</span>
+            <span class="tok-cell commit">112</span><span class="tok-cell commit">79</span><span class="tok-cell commit">140</span><span class="tok-cell commit">1</span>
+            <span class="tok-cell commit">170</span><span class="tok-cell commit">119</span><span class="tok-cell commit">144</span><span class="tok-cell commit">155</span>
+          </div>
+          <div class="schedule">
+            <svg viewBox="0 0 80 24" width="80" height="24">
+              <path d="M 2 4 Q 30 5 40 12 T 78 22" stroke="var(--c-mask)" stroke-width="1.5" fill="none"/>
+              <circle cx="78" cy="22" r="3" fill="var(--c-commit)"/>
+              <line x1="0" y1="22" x2="80" y2="22" stroke="var(--kui-border-default)" stroke-width="0.5"/>
+            </svg>
+            <span class="lbl">γ = 0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounds-foot">
+        <span class="item"><span class="sw m"></span>[MASK] — still uncertain</span>
+        <span class="item"><span class="sw c"></span>committed bin index</span>
+        <span class="item"><span class="sw r"></span>re-masked by secondary check (§04)</span>
+        <span style="margin-left:auto"><span class="chip code">arg-top<sub style="font-size:9px">(1−γ<sub style="font-size:8px">t+1</sub>)L</sub> m<sub style="font-size:9px">t,i</sub></span></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+       §04 — Secondary re-masking
+       =================================================== -->
+  <section class="section">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§04</span>
+        <h2>Secondary re-masking · uncertainty revisited</h2>
+      </div>
+      <p class="lede">
+        Beyond the schedule-driven keep ratio, two lightweight checks scan previously committed
+        tokens every round. A failed check sends a position back to [MASK] so the next round
+        can revise it.
+      </p>
+    </div>
+
+    <div class="rm-grid">
+
+      <!-- Threshold check -->
+      <div class="rm-card">
+        <div class="rm-head">
+          <span class="ix">CHECK · I</span>
+          <h3>Absolute-confidence threshold η<sub>t</sub><sup>abs</sup></h3>
+        </div>
+        <div class="rm-body">
+          <p>
+            If a previously committed token's current max-confidence falls below a
+            <span class="kw">monotonically increasing step-dependent threshold</span> η<sub>t</sub><sup>abs</sup>,
+            the token is re-masked. Later rounds demand higher confidence before a commit can stand.
+          </p>
+          <div class="threshold-vis">
+            <svg viewBox="0 0 320 140" width="100%" preserveAspectRatio="xMidYMid meet">
+              <!-- grid -->
+              <line x1="30" y1="120" x2="310" y2="120" stroke="#D8D8D8" stroke-width="1"/>
+              <line x1="30" y1="20" x2="30" y2="120" stroke="#D8D8D8" stroke-width="1"/>
+              <!-- ticks -->
+              <text x="30" y="135" font-size="9" font-family="Roboto Mono, monospace" fill="#8F8F8F" text-anchor="middle">t=1</text>
+              <text x="310" y="135" font-size="9" font-family="Roboto Mono, monospace" fill="#8F8F8F" text-anchor="middle">t=T</text>
+              <text x="22" y="124" font-size="9" font-family="Roboto Mono, monospace" fill="#8F8F8F" text-anchor="end">0</text>
+              <text x="22" y="24" font-size="9" font-family="Roboto Mono, monospace" fill="#8F8F8F" text-anchor="end">1.0</text>
+
+              <!-- threshold curve: rising -->
+              <path d="M 30 95 Q 130 85 200 55 T 310 28" stroke="#C54600" stroke-width="2" fill="none" stroke-dasharray="0"/>
+              <text x="240" y="48" font-size="10" font-family="Roboto Mono, monospace" fill="#C54600" font-weight="500">η<tspan baseline-shift="super" font-size="7">abs</tspan><tspan baseline-shift="sub" font-size="7">t</tspan></text>
+
+              <!-- example confidence dots -->
+              <circle cx="80" cy="60" r="3.5" fill="#76B900"/>
+              <text x="80" y="52" font-size="8" font-family="Roboto Mono, monospace" fill="#5E5E5E" text-anchor="middle">keep</text>
+
+              <circle cx="160" cy="75" r="3.5" fill="#76B900"/>
+              <text x="160" y="67" font-size="8" font-family="Roboto Mono, monospace" fill="#5E5E5E" text-anchor="middle">keep</text>
+
+              <circle cx="225" cy="68" r="3.5" fill="#C54600" stroke="#fff" stroke-width="1.5"/>
+              <text x="225" y="86" font-size="8" font-family="Roboto Mono, monospace" fill="#C54600" text-anchor="middle">re-mask</text>
+
+              <circle cx="285" cy="35" r="3.5" fill="#76B900"/>
+              <text x="285" y="27" font-size="8" font-family="Roboto Mono, monospace" fill="#5E5E5E" text-anchor="middle">keep</text>
+
+              <text x="170" y="14" font-size="9" font-family="NVIDIA Sans, DM Sans, sans-serif" fill="#202020" text-anchor="middle">confidence vs. step-dependent threshold</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Residual-drop check -->
+      <div class="rm-card">
+        <div class="rm-head">
+          <span class="ix">CHECK · II</span>
+          <h3>Residual-drop check</h3>
+        </div>
+        <div class="rm-body">
+          <p>
+            If a committed position's confidence
+            <span class="kw">drops sharply</span> relative to its previous round, the prediction is
+            unstable across rounds and is re-masked. Together with the threshold check, this enforces
+            cross-step consistency and corrects early errors.
+          </p>
+          <div class="residual-vis">
+            <div class="res-row">
+              <span class="pos">pos 04</span>
+              <div class="bars" title="prev 0.74 → now 0.81">
+                <span class="prev" style="width:74%"></span><span class="now ok" style="width:81%"></span>
+              </div>
+              <span class="verdict keep">+0.07 · keep</span>
+            </div>
+            <div class="res-row">
+              <span class="pos">pos 09</span>
+              <div class="bars" title="prev 0.81 → now 0.83">
+                <span class="prev" style="width:81%"></span><span class="now ok" style="width:83%"></span>
+              </div>
+              <span class="verdict keep">+0.02 · keep</span>
+            </div>
+            <div class="res-row">
+              <span class="pos">pos 13</span>
+              <div class="bars" title="prev 0.69 → now 0.41">
+                <span class="prev" style="width:69%"></span><span class="now drop" style="width:41%"></span>
+              </div>
+              <span class="verdict remask">−0.28 · re-mask</span>
+            </div>
+            <div class="res-row">
+              <span class="pos">pos 17</span>
+              <div class="bars" title="prev 0.88 → now 0.90">
+                <span class="prev" style="width:88%"></span><span class="now ok" style="width:90%"></span>
+              </div>
+              <span class="verdict keep">+0.02 · keep</span>
+            </div>
+            <div class="res-row">
+              <span class="pos">pos 22</span>
+              <div class="bars" title="prev 0.76 → now 0.49">
+                <span class="prev" style="width:76%"></span><span class="now drop" style="width:49%"></span>
+              </div>
+              <span class="verdict remask">−0.27 · re-mask</span>
+            </div>
+            <div class="res-row">
+              <span class="pos">pos 25</span>
+              <div class="bars" title="prev 0.79 → now 0.82">
+                <span class="prev" style="width:79%"></span><span class="now ok" style="width:82%"></span>
+              </div>
+              <span class="verdict keep">+0.03 · keep</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Heatmap across rounds -->
+      <div class="rm-card heatmap-card">
+        <div class="rm-head">
+          <span class="ix">HEATMAP</span>
+          <h3>Per-position state across refinement rounds</h3>
+          <span style="margin-left:auto;font-size:11.5px;color:var(--kui-fg-muted)">L = 32 example positions · 6 rounds</span>
+        </div>
+        <div class="rm-body">
+          <div class="heatmap">
+            <span class="h-row-lbl">round 1<br><span style="color:var(--c-mask-dk)">γ=1.00</span></span>
+            <div class="h-cells">
+              <!-- all masked -->
+              <span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span>
+              <span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span>
+              <span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span>
+              <span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span>
+            </div>
+
+            <span class="h-row-lbl">round 2<br><span style="color:var(--c-mask-dk)">γ=0.81</span></span>
+            <div class="h-cells">
+              <span class="h-cell mask"></span><span class="h-cell commit"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span>
+              <span class="h-cell mask"></span><span class="h-cell commit"></span><span class="h-cell commit"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span>
+              <span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell commit"></span><span class="h-cell mask"></span><span class="h-cell mask"></span>
+              <span class="h-cell mask"></span><span class="h-cell commit"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell mask"></span><span class="h-cell commit"></span>
+            </div>
+
+            <span class="h-row-lbl">round 3<br><span style="color:var(--c-mask-dk)">γ=0.50</span></span>
+            <div class="h-cells">
+              <span class="h-cell commit"></span><span class="h-cell commit strong"></span><span class="h-cell mask"></span><span class="h-cell commit"></span><span class="h-cell mask"></span><span class="h-cell commit"></span>
+              <span class="h-cell mask"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell mask"></span><span class="h-cell commit"></span><span class="h-cell mask"></span>
+              <span class="h-cell commit"></span><span class="h-cell mask"></span><span class="h-cell commit"></span><span class="h-cell commit strong"></span><span class="h-cell mask"></span><span class="h-cell commit"></span>
+              <span class="h-cell mask"></span><span class="h-cell commit strong"></span><span class="h-cell mask"></span><span class="h-cell commit"></span><span class="h-cell mask"></span><span class="h-cell commit strong"></span>
+            </div>
+
+            <span class="h-row-lbl">round 4<br><span style="color:var(--c-remask)">re-mask</span></span>
+            <div class="h-cells">
+              <span class="h-cell commit"></span><span class="h-cell commit strong"></span><span class="h-cell commit"></span><span class="h-cell commit"></span><span class="h-cell commit"></span><span class="h-cell commit"></span>
+              <span class="h-cell commit"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell remask"></span><span class="h-cell commit"></span><span class="h-cell commit"></span>
+              <span class="h-cell commit"></span><span class="h-cell remask"></span><span class="h-cell commit"></span><span class="h-cell commit strong"></span><span class="h-cell commit"></span><span class="h-cell commit"></span>
+              <span class="h-cell commit"></span><span class="h-cell commit strong"></span><span class="h-cell commit"></span><span class="h-cell commit"></span><span class="h-cell commit"></span><span class="h-cell commit strong"></span>
+            </div>
+
+            <span class="h-row-lbl">round 5<br><span style="color:var(--c-mask-dk)">γ=0.10</span></span>
+            <div class="h-cells">
+              <span class="h-cell commit"></span><span class="h-cell commit strong"></span><span class="h-cell commit"></span><span class="h-cell commit strong"></span><span class="h-cell commit"></span><span class="h-cell commit"></span>
+              <span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit"></span><span class="h-cell commit"></span><span class="h-cell commit"></span>
+              <span class="h-cell commit"></span><span class="h-cell commit strong"></span><span class="h-cell commit"></span><span class="h-cell commit strong"></span><span class="h-cell commit"></span><span class="h-cell commit"></span>
+              <span class="h-cell commit"></span><span class="h-cell commit strong"></span><span class="h-cell commit"></span><span class="h-cell commit strong"></span><span class="h-cell commit"></span><span class="h-cell commit strong"></span>
+            </div>
+
+            <span class="h-row-lbl">round T<br><span style="color:var(--c-commit-dk)">γ=0</span></span>
+            <div class="h-cells">
+              <span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span>
+              <span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span>
+              <span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span>
+              <span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span><span class="h-cell commit strong"></span>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;gap:18px;font:400 11.5px/1.4 var(--kui-font-sans);color:var(--kui-fg-muted);border-top:1px dashed var(--kui-border-subtle);padding-top:10px">
+            <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:11px;height:11px;background:var(--c-mask-bg);border:1px solid var(--c-mask);display:inline-block"></span>masked</span>
+            <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:11px;height:11px;background:rgba(118,185,0,0.30);border:1px solid var(--c-commit);display:inline-block"></span>committed (medium confidence)</span>
+            <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:11px;height:11px;background:rgba(118,185,0,0.65);border:1px solid var(--c-commit);display:inline-block"></span>committed (high confidence)</span>
+            <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:11px;height:11px;background:rgba(197,70,0,0.35);border:1px solid var(--c-remask);display:inline-block"></span>re-masked by secondary check</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+       §05 — Paradigm comparison
+       =================================================== -->
+  <section class="section">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§05</span>
+        <h2>vs. AR &amp; continuous-diffusion action heads</h2>
+      </div>
+      <p class="lede">
+        Distinctions follow the paper's own framing. AR heads predict tokens left-to-right;
+        continuous-diffusion heads denoise a continuous trajectory outside the backbone;
+        discrete diffusion stays inside one transformer with the LM training objective.
+      </p>
+    </div>
+
+    <div class="compare">
+
+      <!-- AR -->
+      <div class="cmp ar">
+        <div class="top">
+          <span class="badge">PARADIGM A</span>
+          <div class="name">Autoregressive action tokens</div>
+          <div class="ex">e.g. RT-1/RT-2, OpenVLA, π<sub>0</sub>-FAST</div>
+        </div>
+        <div class="vis">
+          <div style="font:500 9.5px/1 var(--kui-font-mono);color:var(--kui-fg-muted);text-align:center;letter-spacing:.3px">left-to-right token by token</div>
+          <div class="ar-strip">
+            <span class="ar-tok done">142</span><span class="ar-tok done">98</span><span class="ar-tok done">202</span>
+            <span class="ar-tok now">128</span>
+            <span class="ar-tok todo">·</span><span class="ar-tok todo">·</span><span class="ar-tok todo">·</span>
+          </div>
+          <div class="ar-arrow">→ predict next · repeat L times</div>
+        </div>
+        <div class="props">
+          <div class="row"><span class="k">Decode order</span><span class="v bad">Fixed L→R</span></div>
+          <div class="row"><span class="k">NFEs / chunk</span><span class="v bad">≈ L sequential</span></div>
+          <div class="row"><span class="k">Inter-action context</span><span class="v">Causal only</span></div>
+          <div class="row"><span class="k">Error correction</span><span class="v bad">None mid-decode</span></div>
+          <div class="row"><span class="k">Training objective</span><span class="v ok">Cross-entropy</span></div>
+          <div class="row"><span class="k">VLM-native interface</span><span class="v ok">Yes</span></div>
+        </div>
+      </div>
+
+      <!-- Continuous diffusion -->
+      <div class="cmp cd">
+        <div class="top">
+          <span class="badge">PARADIGM B</span>
+          <div class="name">Continuous diffusion / flow head</div>
+          <div class="ex">e.g. π<sub>0</sub>, π<sub>0.5</sub>, CogACT, RDT-1B, Diffusion Policy</div>
+        </div>
+        <div class="vis">
+          <div style="font:500 9.5px/1 var(--kui-font-mono);color:var(--kui-fg-muted);text-align:center;letter-spacing:.3px">noise → clean trajectory</div>
+          <div class="cd-traj">
+            <div class="cd-row"><span class="lbl">τ=1</span><div class="traj n5"></div></div>
+            <div class="cd-row"><span class="lbl">τ=…</span><div class="traj n3"></div></div>
+            <div class="cd-row"><span class="lbl">τ=ε</span><div class="traj n1"></div></div>
+            <div class="cd-row"><span class="lbl">τ=0</span><div class="traj n0"></div></div>
+          </div>
+        </div>
+        <div class="props">
+          <div class="row"><span class="k">Decode order</span><span class="v">All-at-once denoise</span></div>
+          <div class="row"><span class="k">NFEs / chunk</span><span class="v bad">Many ODE/SDE steps</span></div>
+          <div class="row"><span class="k">Inter-action context</span><span class="v ok">Full (continuous)</span></div>
+          <div class="row"><span class="k">Error correction</span><span class="v">Via denoising loop</span></div>
+          <div class="row"><span class="k">Training objective</span><span class="v bad">Diffusion / flow-matching</span></div>
+          <div class="row"><span class="k">VLM-native interface</span><span class="v bad">Separate head</span></div>
+        </div>
+      </div>
+
+      <!-- Discrete diffusion (this work) -->
+      <div class="cmp dd">
+        <div class="top">
+          <span class="badge">PARADIGM C · THIS WORK</span>
+          <div class="name">Discrete diffusion w/ re-masking</div>
+          <div class="ex">Single transformer + masked-token denoising</div>
+        </div>
+        <div class="vis">
+          <div style="font:500 9.5px/1 var(--kui-font-mono);color:var(--kui-fg-muted);text-align:center;letter-spacing:.3px">parallel masked-token refinement</div>
+          <div class="dd-vis">
+            <div class="dd-row"><span class="lbl">r1</span><div class="cells"><span class="dd-c m"></span><span class="dd-c m"></span><span class="dd-c m"></span><span class="dd-c m"></span><span class="dd-c m"></span><span class="dd-c m"></span><span class="dd-c m"></span></div></div>
+            <div class="dd-row"><span class="lbl">r2</span><div class="cells"><span class="dd-c m"></span><span class="dd-c c"></span><span class="dd-c m"></span><span class="dd-c c"></span><span class="dd-c m"></span><span class="dd-c m"></span><span class="dd-c c"></span></div></div>
+            <div class="dd-row"><span class="lbl">r3</span><div class="cells"><span class="dd-c c"></span><span class="dd-c c"></span><span class="dd-c r"></span><span class="dd-c c"></span><span class="dd-c c"></span><span class="dd-c m"></span><span class="dd-c c"></span></div></div>
+            <div class="dd-row"><span class="lbl">rT</span><div class="cells"><span class="dd-c c"></span><span class="dd-c c"></span><span class="dd-c c"></span><span class="dd-c c"></span><span class="dd-c c"></span><span class="dd-c c"></span><span class="dd-c c"></span></div></div>
+          </div>
+        </div>
+        <div class="props">
+          <div class="row"><span class="k">Decode order</span><span class="v ok">Adaptive · easy-first</span></div>
+          <div class="row"><span class="k">NFEs / chunk</span><span class="v ok">Small fixed T &lt; L</span></div>
+          <div class="row"><span class="k">Inter-action context</span><span class="v ok">Bidirectional</span></div>
+          <div class="row"><span class="k">Error correction</span><span class="v ok">Secondary re-mask</span></div>
+          <div class="row"><span class="k">Training objective</span><span class="v ok">Cross-entropy (= VLM)</span></div>
+          <div class="row"><span class="k">VLM-native interface</span><span class="v ok">Yes · in-backbone</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+       §06 — Benchmarks
+       =================================================== -->
+  <section class="section">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§06</span>
+        <h2>Reported benchmark results</h2>
+      </div>
+      <p class="lede">
+        RGB-only evaluation (no depth, no affordances) across three embodiments.
+        Numbers as reported in the paper; only baselines named in the source are quoted.
+      </p>
+    </div>
+
+    <div class="bench-grid">
+
+      <!-- LIBERO -->
+      <div class="bench">
+        <div class="b-top">
+          <div class="b-name">LIBERO</div>
+          <div class="b-meta">Franka Panda · 4 task suites</div>
+        </div>
+        <div class="b-headline">
+          <div class="num">96.3<span class="pct">%</span></div>
+          <div class="lbl">Average success rate</div>
+          <div class="delta"><span class="arr">▲</span> +0.9 vs. OpenVLA-OFT (Discrete)</div>
+        </div>
+        <div class="b-rows">
+          <div class="r"><span class="k">Suite</span><span class="v">avg over 4</span></div>
+          <div class="r"><span class="k">Inputs</span><span class="v">RGB · lang · EE pos</span></div>
+          <div class="r"><span class="k">Best AR baseline</span><span class="v">OpenVLA-OFT (Disc.)</span></div>
+        </div>
+        <div class="b-foot">
+          <span class="robot">Franka Panda</span>
+          <span>tabletop manipulation</span>
+        </div>
+      </div>
+
+      <!-- SimplerEnv Fractal -->
+      <div class="bench">
+        <div class="b-top">
+          <div class="b-name">SimplerEnv · Fractal</div>
+          <div class="b-meta">Google Robot · sim-to-real benchmark</div>
+        </div>
+        <div class="b-headline">
+          <div class="num">71.2<span class="pct">%</span></div>
+          <div class="lbl">Visual matching</div>
+          <div class="delta"><span class="arr">●</span> 64.1% overall reported</div>
+        </div>
+        <div class="b-rows">
+          <div class="r"><span class="k">Metric</span><span class="v">visual-matching SR</span></div>
+          <div class="r"><span class="k">Overall</span><span class="v">64.1%</span></div>
+          <div class="r"><span class="k">Compared to</span><span class="v">AR + cont. diffusion</span></div>
+        </div>
+        <div class="b-foot">
+          <span class="robot">Google Robot</span>
+          <span>pick &amp; place / drawer</span>
+        </div>
+      </div>
+
+      <!-- SimplerEnv Bridge -->
+      <div class="bench">
+        <div class="b-top">
+          <div class="b-name">SimplerEnv · Bridge</div>
+          <div class="b-meta">WidowX · diverse manipulation</div>
+        </div>
+        <div class="b-headline">
+          <div class="num">49.3<span class="pct">%</span></div>
+          <div class="lbl">Overall success</div>
+          <div class="delta"><span class="arr">▲</span> ≈ +9.8 vs. π<sub>0</sub> and π<sub>0</sub>-FAST</div>
+        </div>
+        <div class="b-rows">
+          <div class="r"><span class="k">Metric</span><span class="v">overall SR</span></div>
+          <div class="r"><span class="k">Baselines</span><span class="v">π<sub>0</sub>, π<sub>0</sub>-FAST</span></div>
+          <div class="r"><span class="k">Inputs</span><span class="v">RGB · lang · EE pos</span></div>
+        </div>
+        <div class="b-foot">
+          <span class="robot">WidowX Arm</span>
+          <span>cross-embodiment generalization</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+       §07 — Caveats
+       =================================================== -->
+  <section class="section">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§07</span>
+        <h2>Caveats &amp; unverified specifics</h2>
+      </div>
+      <p class="lede">
+        Items below are either not stated by arXiv:2508.20072 or are documented only as
+        "follows OpenVLA / Prismatic-7B" without a concrete value in the version reviewed here.
+      </p>
+    </div>
+
+    <div class="caveats">
+      <div class="c-head">
+        <span class="ix">caveats</span>
+        <h3>Treat as inherited-from-OpenVLA unless the paper states otherwise</h3>
+        <span class="sub">verify against current arXiv revision before citing exact numbers</span>
+      </div>
+      <div class="cv-grid">
+        <div class="cv">
+          <div class="cv-h">Parameter count<span class="pill">unstated</span></div>
+          <div class="cv-p">The paper does not give a single "total parameters" number for Discrete Diffusion VLA. The OpenVLA / Prismatic-7B backbone it builds on is a 7B-scale VLM, but the precise count for this work (incl. projector, action head) is not enumerated in the version reviewed.</div>
+        </div>
+        <div class="cv">
+          <div class="cv-h">Context length<span class="pill">unstated</span></div>
+          <div class="cv-p">Total input sequence length depends on chosen image resolution, number of camera views, instruction length, and L = H · 7 action positions. No single max-context figure is reported.</div>
+        </div>
+        <div class="cv">
+          <div class="cv-h">Action chunk horizon H<span class="pill">varies</span></div>
+          <div class="cv-p">The paper denotes a generic chunk horizon H and notes settings per benchmark; the exact H used for LIBERO / Fractal / Bridge should be confirmed from the experiments section of the latest arXiv version.</div>
+        </div>
+        <div class="cv">
+          <div class="cv-h">Action bins K<span class="pill">stated</span></div>
+          <div class="cv-p">K = 256 per dimension, quantile bins over the 1<sup>st</sup>–99<sup>th</sup> percentile, plus a binary gripper. Vocabulary V = 257 (adds [MASK]). Inherited tokenization scheme from RT-1 / OpenVLA.</div>
+        </div>
+        <div class="cv">
+          <div class="cv-h">Visual encoders<span class="pill">inherited</span></div>
+          <div class="cv-p">SigLIP and DINOv2 ViTs as in OpenVLA / Prismatic-7B — not novel to this work. Specific ViT sizes follow the Prismatic-7B recipe; treat them as backbone-derived, not contributions of the discrete-diffusion method.</div>
+        </div>
+        <div class="cv">
+          <div class="cv-h">Robot embodiment<span class="pill">benchmark-bound</span></div>
+          <div class="cv-p">Evaluations cover Franka Panda (LIBERO), Google Robot (SimplerEnv-Fractal), and WidowX (SimplerEnv-Bridge). Generalization beyond these embodiments is not demonstrated in the reviewed version.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+       Footer
+       =================================================== -->
+  <footer class="foot">
+    <span><strong>Sources.</strong></span>
+    <span class="dot"></span>
+    <a href="https://arxiv.org/abs/2508.20072" target="_blank" rel="noopener">arXiv:2508.20072</a>
+    <span>· Liang et al., "Discrete Diffusion VLA: Bringing Discrete Diffusion to Action Decoding in VLA Policies" (Aug 27 2025, v1; latest v3 Dec 22 2025).</span>
+    <span class="dot"></span>
+    <span><sup>1</sup>OpenVLA / Prismatic-7B components (SigLIP, DINOv2, Llama 2) are inherited from prior work, not novel to this paper.</span>
+    <span class="dot"></span>
+    <span><sup>2</sup>Total parameter count for Discrete Diffusion VLA is not enumerated in the version reviewed.</span>
+    <span class="dot"></span>
+    <span><sup>3</sup>Exact chunk horizon H per benchmark should be verified against the latest arXiv revision.</span>
+  </footer>
+
+</main>
+</body>
+</html>

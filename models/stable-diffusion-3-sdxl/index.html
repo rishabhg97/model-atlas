@@ -1,0 +1,1574 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Stable Diffusion 3 and SDXL Architecture</title>
+<link rel="stylesheet" href="kaizen/colors_and_type.css" />
+<style>
+/* ============================================================
+   Page-local styles. All tokens come from kaizen/colors_and_type.css.
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--kui-bg-canvas);
+  color: var(--kui-fg-strong);
+  font: var(--kui-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a { color: var(--kui-info); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ─── Top bar ───────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--kui-space-md);
+  padding: var(--kui-space-ms) var(--kui-space-ml);
+  background: var(--kui-bg-mid);
+  border-bottom: 1px solid var(--kui-border-default);
+  position: sticky; top: 0; z-index: 10;
+}
+.home-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--kui-space-sm);
+  border: 1px solid var(--kui-border-default);
+  border-radius: var(--kui-radius-sm);
+  background: var(--kui-bg-mid);
+  color: var(--kui-fg-default);
+  font: var(--kui-text-sm);
+  font-weight: 700;
+}
+.home-link:hover { border-color: var(--kui-brand-green); text-decoration: none; }
+.topbar .eye {
+  width: 22px; height: 22px;
+  background: var(--kui-brand-green);
+  position: relative;
+  -webkit-mask: radial-gradient(circle at 50% 50%, transparent 0 5px, #000 6px) ;
+          mask: radial-gradient(circle at 50% 50%, transparent 0 5px, #000 6px) ;
+}
+.topbar .wordmark {
+  font: 700 14px/1 var(--kui-font-sans);
+  letter-spacing: 0.5px;
+  color: var(--kui-fg-strong);
+}
+.topbar .divider {
+  width: 1px; height: 16px; background: var(--kui-border-default);
+}
+.topbar .crumbs {
+  font: var(--kui-text-sm);
+  color: var(--kui-fg-muted);
+  display: flex; gap: var(--kui-space-sm); align-items: center;
+}
+.topbar .crumbs .sep { color: var(--kui-fg-disabled); }
+.topbar .spacer { flex: 1; }
+.topbar .meta {
+  font: var(--kui-text-sm);
+  color: var(--kui-fg-muted);
+  display: flex; gap: var(--kui-space-ml);
+}
+
+/* ─── Layout shell ──────────────────────────────────────── */
+.shell {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: var(--kui-space-xl) var(--kui-space-ml) var(--kui-space-xxl);
+}
+
+/* ─── Page header ───────────────────────────────────────── */
+.page-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--kui-space-ml);
+  align-items: end;
+  padding-bottom: var(--kui-space-md);
+  border-bottom: 1px solid var(--kui-border-default);
+  margin-bottom: var(--kui-space-xl);
+}
+.page-head .overline {
+  font: var(--kui-overline);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--kui-fg-muted);
+  margin-bottom: var(--kui-space-sm);
+}
+.page-head h1 {
+  font: 500 36px/1.1 var(--kui-font-sans);
+  letter-spacing: -0.5px;
+  margin: 0;
+  color: var(--kui-fg-strong);
+}
+.page-head .summary {
+  font: var(--kui-body-md);
+  color: var(--kui-fg-default);
+  max-width: 56ch;
+  margin-top: var(--kui-space-ms);
+}
+.page-head .meta-grid {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px var(--kui-space-md);
+  font: var(--kui-text-sm);
+  align-items: baseline;
+}
+.page-head .meta-grid dt {
+  color: var(--kui-fg-muted);
+  font-weight: 500;
+}
+.page-head .meta-grid dd {
+  margin: 0;
+  color: var(--kui-fg-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Section blocks ────────────────────────────────────── */
+.section { margin-top: var(--kui-space-xxl); }
+.section:first-of-type { margin-top: 0; }
+.section-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--kui-space-md);
+  margin-bottom: var(--kui-space-ml);
+  padding-bottom: var(--kui-space-sm);
+  border-bottom: 1px solid var(--kui-border-default);
+}
+.section-head h2 {
+  font: 500 22px/1.2 var(--kui-font-sans);
+  letter-spacing: -0.25px;
+  margin: 0;
+}
+.section-head .num {
+  font: var(--kui-text-sm);
+  color: var(--kui-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.section-head .lede {
+  color: var(--kui-fg-muted);
+  font: var(--kui-text-sm);
+  max-width: 52ch;
+  text-align: right;
+}
+
+/* ─── Architecture cards (hero) ─────────────────────────── */
+.dual {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--kui-space-md);
+}
+.arch-card {
+  background: var(--kui-bg-mid);
+  border: 1px solid var(--kui-border-default);
+  border-radius: var(--kui-radius-sm);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.arch-card .head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--kui-space-md);
+  padding: var(--kui-space-md) var(--kui-space-ml);
+  border-bottom: 1px solid var(--kui-border-default);
+  background: var(--kui-bg-mid);
+}
+.arch-card .badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: var(--kui-text-sm);
+  font-weight: 500;
+  color: var(--kui-fg-muted);
+  margin-bottom: 4px;
+}
+.arch-card .badge .dot {
+  width: 8px; height: 8px; border-radius: var(--kui-radius-pill);
+  background: var(--kui-brand-green);
+}
+.arch-card.sdxl .badge .dot { background: var(--kui-accent-teal); }
+.arch-card.sd3 .badge .dot { background: var(--kui-brand-green); }
+.arch-card .title {
+  font: 500 24px/1.15 var(--kui-font-sans);
+  letter-spacing: -0.25px;
+  color: var(--kui-fg-strong);
+  margin: 0;
+}
+.arch-card .subtitle {
+  font: var(--kui-caption);
+  color: var(--kui-fg-muted);
+  margin-top: var(--kui-space-xs);
+  max-width: 36ch;
+}
+.arch-card .tag-row {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  margin-top: var(--kui-space-sm);
+}
+.tag {
+  display: inline-flex; align-items: center;
+  font: 500 11px/1 var(--kui-font-sans);
+  padding: 4px 6px;
+  border-radius: var(--kui-radius-xs);
+  background: var(--kui-n050);
+  color: var(--kui-fg-default);
+  border: 1px solid var(--kui-border-subtle);
+}
+.tag.solid-info {
+  background: var(--kui-info-bg);
+  color: var(--kui-info-text);
+  border-color: transparent;
+}
+.tag.solid-green {
+  background: var(--kui-success-bg);
+  color: var(--kui-success);
+  border-color: transparent;
+}
+.tag.solid-teal {
+  background: #DDEEEC;
+  color: var(--kui-accent-teal-dk);
+  border-color: transparent;
+}
+
+.arch-card .head .release {
+  text-align: right;
+  font: var(--kui-text-sm);
+  color: var(--kui-fg-muted);
+  white-space: nowrap;
+}
+.arch-card .head .release .v {
+  display: block;
+  font: 500 14px/1.2 var(--kui-font-sans);
+  color: var(--kui-fg-strong);
+}
+
+.arch-card .body {
+  padding: var(--kui-space-ml);
+  display: grid; gap: var(--kui-space-ml);
+}
+
+/* Mini-pipeline (in hero card) */
+.mini-pipe {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+.mini-pipe .row {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: var(--kui-space-sm);
+  align-items: stretch;
+}
+.mini-pipe .row .stage {
+  font: 500 10px/1.2 var(--kui-font-sans);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--kui-fg-muted);
+  padding: 8px 6px;
+  background: var(--kui-n050);
+  border: 1px solid var(--kui-border-subtle);
+  border-radius: var(--kui-radius-xs);
+  display: flex; align-items: center;
+}
+.mini-pipe .row .box {
+  border: 1px solid var(--kui-border-default);
+  background: var(--kui-bg-mid);
+  border-radius: var(--kui-radius-sm);
+  padding: var(--kui-space-sm) var(--kui-space-ms);
+  display: flex; flex-direction: column; justify-content: center;
+}
+.mini-pipe .row .box .name {
+  font: 500 13px/1.25 var(--kui-font-sans);
+  color: var(--kui-fg-strong);
+}
+.mini-pipe .row .box .desc {
+  font: var(--kui-text-sm);
+  color: var(--kui-fg-muted);
+  margin-top: 2px;
+}
+.mini-pipe .row .box.accent-green { border-left: 3px solid var(--kui-brand-green); padding-left: 9px; }
+.mini-pipe .row .box.accent-teal  { border-left: 3px solid var(--kui-accent-teal); padding-left: 9px; }
+.mini-pipe .row .box.accent-info  { border-left: 3px solid var(--kui-info); padding-left: 9px; }
+
+.arrow-down {
+  font: var(--kui-text-sm);
+  color: var(--kui-fg-disabled);
+  text-align: center;
+  height: 12px; line-height: 12px;
+  user-select: none;
+}
+
+/* Key stats strip on card */
+.kv {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--kui-border-subtle);
+  border: 1px solid var(--kui-border-subtle);
+  border-radius: var(--kui-radius-sm);
+  overflow: hidden;
+}
+.kv .cell {
+  background: var(--kui-bg-mid);
+  padding: var(--kui-space-sm) var(--kui-space-ms);
+}
+.kv .cell .k {
+  font: var(--kui-text-sm);
+  font-size: 11px;
+  color: var(--kui-fg-muted);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.kv .cell .v {
+  font: 500 16px/1.2 var(--kui-font-sans);
+  color: var(--kui-fg-strong);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.kv .cell .v.muted { color: var(--kui-fg-muted); font-weight: 400; }
+
+/* ─── Pipeline diagram (full) ───────────────────────────── */
+.pipe-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--kui-space-md);
+}
+.pipe-card {
+  background: var(--kui-bg-mid);
+  border: 1px solid var(--kui-border-default);
+  border-radius: var(--kui-radius-sm);
+  padding: var(--kui-space-ml);
+}
+.pipe-card .pipe-title {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: var(--kui-space-ms);
+}
+.pipe-card .pipe-title h3 {
+  font: 500 16px/1.25 var(--kui-font-sans);
+  letter-spacing: -0.25px;
+  margin: 0;
+}
+.pipe-card .pipe-title .h-note {
+  font: var(--kui-text-sm);
+  color: var(--kui-fg-muted);
+}
+.pipe-svg {
+  width: 100%;
+  height: 560px;
+  display: block;
+}
+
+/* ─── Block internals ───────────────────────────────────── */
+.blocks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--kui-space-md);
+}
+.block-card {
+  background: var(--kui-bg-mid);
+  border: 1px solid var(--kui-border-default);
+  border-radius: var(--kui-radius-sm);
+  padding: var(--kui-space-ml);
+}
+.block-card h3 {
+  font: 500 16px/1.25 var(--kui-font-sans);
+  letter-spacing: -0.25px;
+  margin: 0 0 var(--kui-space-ms);
+}
+.block-card .desc {
+  font: var(--kui-body);
+  color: var(--kui-fg-default);
+  margin-bottom: var(--kui-space-md);
+  max-width: 52ch;
+}
+.block-svg { width: 100%; height: 380px; display: block; }
+
+/* ─── Tables ────────────────────────────────────────────── */
+.table-wrap {
+  border: 1px solid var(--kui-border-default);
+  border-radius: var(--kui-radius-sm);
+  background: var(--kui-bg-mid);
+  overflow: hidden;
+}
+table.kui {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--kui-body);
+}
+table.kui th, table.kui td {
+  text-align: left;
+  padding: var(--kui-space-ms) var(--kui-space-md);
+  border-bottom: 1px solid var(--kui-border-subtle);
+  vertical-align: top;
+}
+table.kui th {
+  background: var(--kui-n050);
+  font: 500 12px/1 var(--kui-font-sans);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--kui-fg-muted);
+}
+table.kui tbody tr:last-child td { border-bottom: 0; }
+table.kui td.dim { color: var(--kui-fg-muted); }
+table.kui td.num { font-variant-numeric: tabular-nums; }
+table.kui td.label { font-weight: 500; color: var(--kui-fg-strong); width: 24%; }
+table.kui .col-sdxl, table.kui .col-sd3 { width: 38%; }
+table.kui .pill {
+  display: inline-block;
+  font: 500 11px/1 var(--kui-font-sans);
+  padding: 3px 6px;
+  border-radius: var(--kui-radius-xs);
+  background: var(--kui-n050);
+  color: var(--kui-fg-default);
+  border: 1px solid var(--kui-border-subtle);
+  margin-right: 4px;
+}
+table.kui .pill.green { background: var(--kui-success-bg); color: var(--kui-success); border-color: transparent; }
+table.kui .pill.teal { background: #DDEEEC; color: var(--kui-accent-teal-dk); border-color: transparent; }
+table.kui .pill.muted { background: transparent; color: var(--kui-fg-muted); }
+
+/* ─── What changed ──────────────────────────────────────── */
+.changed {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--kui-space-md);
+}
+.change-card {
+  background: var(--kui-bg-mid);
+  border: 1px solid var(--kui-border-default);
+  border-radius: var(--kui-radius-sm);
+  padding: var(--kui-space-ml);
+}
+.change-card .lhs {
+  font: var(--kui-overline);
+  letter-spacing: 1.2px;
+  color: var(--kui-fg-muted);
+  text-transform: uppercase;
+}
+.change-card h4 {
+  font: 500 16px/1.25 var(--kui-font-sans);
+  letter-spacing: -0.25px;
+  margin: var(--kui-space-sm) 0 var(--kui-space-sm);
+}
+.change-card .swap {
+  display: flex; align-items: center; gap: var(--kui-space-sm);
+  margin: var(--kui-space-sm) 0 var(--kui-space-md);
+  font: var(--kui-text);
+}
+.change-card .from {
+  background: var(--kui-n050);
+  border: 1px solid var(--kui-border-default);
+  border-radius: var(--kui-radius-xs);
+  padding: 6px 10px;
+  font: 500 13px/1 var(--kui-font-sans);
+  color: var(--kui-fg-default);
+}
+.change-card .to {
+  background: var(--kui-success-bg);
+  border-radius: var(--kui-radius-xs);
+  padding: 6px 10px;
+  font: 500 13px/1 var(--kui-font-sans);
+  color: var(--kui-success);
+}
+.change-card .to.info {
+  background: var(--kui-info-bg);
+  color: var(--kui-info-text);
+}
+.change-card .arrow {
+  color: var(--kui-fg-disabled);
+}
+.change-card p {
+  margin: 0;
+  font: var(--kui-body);
+  color: var(--kui-fg-default);
+}
+
+/* ─── Numbers strip (benchmarks/exact values) ───────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--kui-space-md);
+}
+.stat {
+  background: var(--kui-bg-mid);
+  border: 1px solid var(--kui-border-default);
+  border-radius: var(--kui-radius-sm);
+  padding: var(--kui-space-md) var(--kui-space-ml);
+}
+.stat .k {
+  font: var(--kui-text-sm);
+  color: var(--kui-fg-muted);
+}
+.stat .v {
+  font: 500 28px/1.1 var(--kui-font-sans);
+  letter-spacing: -0.5px;
+  margin: 6px 0 4px;
+  font-variant-numeric: tabular-nums;
+  color: var(--kui-fg-strong);
+}
+.stat .src {
+  font: 11px/1.4 var(--kui-font-sans);
+  color: var(--kui-fg-muted);
+}
+
+/* ─── Caveats ───────────────────────────────────────────── */
+.caveats {
+  background: var(--kui-bg-mid);
+  border: 1px solid var(--kui-border-default);
+  border-left: 3px solid var(--kui-warning);
+  border-radius: var(--kui-radius-sm);
+  padding: var(--kui-space-ml);
+}
+.caveats h3 {
+  font: 500 16px/1.25 var(--kui-font-sans);
+  letter-spacing: -0.25px;
+  margin: 0 0 var(--kui-space-sm);
+  color: var(--kui-fg-strong);
+}
+.caveats ul {
+  margin: 0; padding: 0; list-style: none;
+  display: grid; gap: var(--kui-space-sm);
+}
+.caveats li {
+  display: grid; grid-template-columns: 160px 1fr;
+  gap: var(--kui-space-md);
+  font: var(--kui-body);
+  color: var(--kui-fg-default);
+}
+.caveats li .topic {
+  font-weight: 500;
+  color: var(--kui-fg-strong);
+}
+.caveats li .nr {
+  display: inline-block;
+  font: 500 10px/1 var(--kui-font-sans);
+  letter-spacing: 0.6px;
+  padding: 3px 5px;
+  margin-left: 6px;
+  border-radius: var(--kui-radius-xs);
+  background: var(--kui-warning-bg);
+  color: var(--kui-warning);
+  text-transform: uppercase;
+}
+
+/* ─── Sources ───────────────────────────────────────────── */
+.sources {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--kui-space-md);
+}
+.src-card {
+  background: var(--kui-bg-mid);
+  border: 1px solid var(--kui-border-default);
+  border-radius: var(--kui-radius-sm);
+  padding: var(--kui-space-md);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.src-card .kind {
+  font: var(--kui-overline);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--kui-fg-muted);
+}
+.src-card .t { font: 500 14px/1.3 var(--kui-font-sans); color: var(--kui-fg-strong); }
+.src-card .id { font: var(--kui-code); font-size: 11px; color: var(--kui-fg-muted); }
+.src-card a { font: var(--kui-text-sm); color: var(--kui-info); margin-top: 4px; word-break: break-all; }
+
+/* ─── Footer ────────────────────────────────────────────── */
+.footer {
+  margin-top: var(--kui-space-xxl);
+  padding-top: var(--kui-space-ml);
+  border-top: 1px solid var(--kui-border-default);
+  display: flex; justify-content: space-between;
+  font: var(--kui-text-sm);
+  color: var(--kui-fg-muted);
+}
+
+@media (max-width: 1024px) {
+  .dual, .pipe-pair, .blocks { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .changed { grid-template-columns: 1fr; }
+  .sources { grid-template-columns: repeat(2, 1fr); }
+  .page-head { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body class="kui">
+
+<!-- ============================================================
+     TOP BAR
+============================================================ -->
+<header class="topbar">
+  <a class="home-link" href="../../index.html">Atlas home</a>
+  <div class="eye" aria-hidden="true"></div>
+  <span class="wordmark">NVIDIA</span>
+  <span class="divider" aria-hidden="true"></span>
+  <nav class="crumbs">
+    <span>Atlas</span>
+    <span class="sep">/</span>
+    <span>Image Generation</span>
+    <span class="sep">/</span>
+    <span style="color:var(--kui-fg-strong)">Stability AI · Stable Diffusion family</span>
+  </nav>
+  <div class="spacer"></div>
+  <div class="meta">
+    <span>Sources: 2 papers · 1 research post · 1 code repo</span>
+    <span>Updated May 22, 2026</span>
+  </div>
+</header>
+
+<main class="shell">
+
+  <!-- ============================================================
+       PAGE HEAD
+  ============================================================ -->
+  <section class="page-head">
+    <div>
+      <div class="overline">Architecture Atlas · Image Generation</div>
+      <h1>Stable Diffusion 3 and SDXL Architecture</h1>
+      <p class="summary">
+        Two generations of Stability AI's latent image generation models, side by side.
+        SDXL keeps the U-Net diffusion backbone and adds a refiner; Stable Diffusion 3 replaces
+        the U-Net entirely with a Multimodal Diffusion Transformer trained with rectified flow.
+      </p>
+    </div>
+    <dl class="meta-grid">
+      <dt>Vendor</dt><dd>Stability AI</dd>
+      <dt>Modality</dt><dd>Text → Image (latent)</dd>
+      <dt>SDXL release</dt><dd>July 2023</dd>
+      <dt>SD3 research</dt><dd>March 2024</dd>
+      <dt>Code</dt><dd><a href="https://github.com/Stability-AI/generative-models" target="_blank" rel="noopener">generative-models</a></dd>
+    </dl>
+  </section>
+
+  <!-- ============================================================
+       SECTION 1 — HERO: SIDE-BY-SIDE ARCHITECTURE CARDS
+  ============================================================ -->
+  <section class="section" id="overview">
+    <div class="section-head">
+      <div style="display:flex; gap:var(--kui-space-md); align-items:baseline;">
+        <span class="num">01</span>
+        <h2>Architecture overview</h2>
+      </div>
+      <p class="lede">A latent diffusion U-Net with a refiner (SDXL) versus a multimodal diffusion transformer trained with rectified flow (SD3). Both operate in latent space and share an encoder/decoder shape, but the denoising backbone is fundamentally different.</p>
+    </div>
+
+    <div class="dual">
+      <!-- ────────────── SDXL CARD ────────────── -->
+      <article class="arch-card sdxl">
+        <header class="head">
+          <div>
+            <div class="badge"><span class="dot"></span>Stability AI</div>
+            <h3 class="title">SDXL</h3>
+            <p class="subtitle">Latent diffusion model with a roughly 3× larger U-Net than prior Stable Diffusion and a separate refinement model.</p>
+            <div class="tag-row">
+              <span class="tag solid-teal">U-Net diffusion</span>
+              <span class="tag">Base + refiner</span>
+              <span class="tag">Dual text encoders</span>
+              <span class="tag">Multi-aspect training</span>
+            </div>
+          </div>
+          <div class="release">
+            <span class="v">v1.0</span>
+            <span>arXiv 2307.01952</span><br/>
+            <span>Jul 4, 2023</span>
+          </div>
+        </header>
+
+        <div class="body">
+          <div class="mini-pipe" aria-label="SDXL high-level pipeline">
+            <div class="row">
+              <span class="stage">01 · Input</span>
+              <div class="box accent-teal">
+                <span class="name">Text prompt</span>
+                <span class="desc">Free-form caption; optional negative prompt</span>
+              </div>
+            </div>
+            <div class="arrow-down">↓</div>
+            <div class="row">
+              <span class="stage">02 · Encode</span>
+              <div class="box accent-teal">
+                <span class="name">Dual text encoders</span>
+                <span class="desc">OpenCLIP ViT-bigG + CLIP ViT-L (concatenated; larger cross-attention context)</span>
+              </div>
+            </div>
+            <div class="arrow-down">↓</div>
+            <div class="row">
+              <span class="stage">03 · Latents</span>
+              <div class="box">
+                <span class="name">VAE encoder → 4-ch latent grid</span>
+                <span class="desc">Operates on latents, not pixels</span>
+              </div>
+            </div>
+            <div class="arrow-down">↓</div>
+            <div class="row">
+              <span class="stage">04 · Denoise</span>
+              <div class="box accent-teal">
+                <span class="name">Enlarged U-Net (base)</span>
+                <span class="desc">More attention blocks; cross-attention to dual text embeddings; size & crop conditioning</span>
+              </div>
+            </div>
+            <div class="arrow-down">↓</div>
+            <div class="row">
+              <span class="stage">05 · Refine</span>
+              <div class="box accent-teal">
+                <span class="name">Refiner U-Net (optional)</span>
+                <span class="desc">Post-hoc image-to-image on the base latent; trained at high noise / detail regime</span>
+              </div>
+            </div>
+            <div class="arrow-down">↓</div>
+            <div class="row">
+              <span class="stage">06 · Decode</span>
+              <div class="box">
+                <span class="name">VAE decoder → RGB image</span>
+                <span class="desc">Latent → pixel space</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="kv" aria-label="SDXL key facts">
+            <div class="cell"><div class="k">Backbone</div><div class="v">U-Net</div></div>
+            <div class="cell"><div class="k">Objective</div><div class="v">ε-prediction</div></div>
+            <div class="cell"><div class="k">Refiner</div><div class="v">Yes</div></div>
+            <div class="cell"><div class="k">Text encoders</div><div class="v">2</div></div>
+            <div class="cell"><div class="k">Aspect ratios</div><div class="v">Multiple</div></div>
+            <div class="cell"><div class="k">Parameters</div><div class="v muted">By variant — see model card</div></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ────────────── SD3 CARD ────────────── -->
+      <article class="arch-card sd3">
+        <header class="head">
+          <div>
+            <div class="badge"><span class="dot"></span>Stability AI</div>
+            <h3 class="title">Stable Diffusion 3</h3>
+            <p class="subtitle">Multimodal Diffusion Transformer (MMDiT) trained with rectified flow. Replaces the U-Net entirely.</p>
+            <div class="tag-row">
+              <span class="tag solid-green">MMDiT transformer</span>
+              <span class="tag solid-green">Rectified flow</span>
+              <span class="tag">Triple text encoders</span>
+              <span class="tag">Dual-stream attention</span>
+            </div>
+          </div>
+          <div class="release">
+            <span class="v">Research</span>
+            <span>arXiv 2403.03206</span><br/>
+            <span>Mar 2024</span>
+          </div>
+        </header>
+
+        <div class="body">
+          <div class="mini-pipe" aria-label="Stable Diffusion 3 high-level pipeline">
+            <div class="row">
+              <span class="stage">01 · Input</span>
+              <div class="box accent-green">
+                <span class="name">Text prompt</span>
+                <span class="desc">Single caption; T5 optional at inference</span>
+              </div>
+            </div>
+            <div class="arrow-down">↓</div>
+            <div class="row">
+              <span class="stage">02 · Encode</span>
+              <div class="box accent-green">
+                <span class="name">Three text embedders</span>
+                <span class="desc">Two CLIP models + T5 (T5 may be dropped at inference for memory)</span>
+              </div>
+            </div>
+            <div class="arrow-down">↓</div>
+            <div class="row">
+              <span class="stage">03 · Latents</span>
+              <div class="box">
+                <span class="name">Improved autoencoder → image tokens</span>
+                <span class="desc">Latent grid is patchified into tokens for the transformer</span>
+              </div>
+            </div>
+            <div class="arrow-down">↓</div>
+            <div class="row">
+              <span class="stage">04 · Denoise</span>
+              <div class="box accent-green">
+                <span class="name">MMDiT stack</span>
+                <span class="desc">Separate weights per modality; sequences joined for attention so both streams attend to each other</span>
+              </div>
+            </div>
+            <div class="arrow-down">↓</div>
+            <div class="row">
+              <span class="stage">05 · Sample</span>
+              <div class="box accent-info">
+                <span class="name">Rectified-flow ODE</span>
+                <span class="desc">Linear trajectory between data and noise; re-weighted training schedule favors middle of trajectory</span>
+              </div>
+            </div>
+            <div class="arrow-down">↓</div>
+            <div class="row">
+              <span class="stage">06 · Decode</span>
+              <div class="box">
+                <span class="name">Autoencoder decoder → RGB image</span>
+                <span class="desc">Token grid → latent → pixels</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="kv" aria-label="SD3 key facts">
+            <div class="cell"><div class="k">Backbone</div><div class="v">MMDiT</div></div>
+            <div class="cell"><div class="k">Objective</div><div class="v">Rectified flow</div></div>
+            <div class="cell"><div class="k">Refiner</div><div class="v">None</div></div>
+            <div class="cell"><div class="k">Text encoders</div><div class="v">3</div></div>
+            <div class="cell"><div class="k">Largest variant</div><div class="v">8B params</div></div>
+            <div class="cell"><div class="k">Smallest variant</div><div class="v">800M params</div></div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SECTION 2 — FULL PIPELINE DIAGRAMS (SVG)
+  ============================================================ -->
+  <section class="section" id="pipelines">
+    <div class="section-head">
+      <div style="display:flex; gap:var(--kui-space-md); align-items:baseline;">
+        <span class="num">02</span>
+        <h2>Pipeline diagrams</h2>
+      </div>
+      <p class="lede">Token-level data flow through each system, from prompt to RGB. Edges show what is passed between stages; dashed edges are inference-time options.</p>
+    </div>
+
+    <div class="pipe-pair">
+      <!-- ────────────── SDXL PIPELINE SVG ────────────── -->
+      <div class="pipe-card">
+        <div class="pipe-title">
+          <h3>SDXL — base + refiner</h3>
+          <span class="h-note">U-Net diffusion · ε-prediction</span>
+        </div>
+        <svg class="pipe-svg" viewBox="0 0 520 560" role="img" aria-label="SDXL full pipeline">
+          <defs>
+            <marker id="arr-sdxl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#5E5E5E"/>
+            </marker>
+            <marker id="arr-sdxl-dash" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#8F8F8F"/>
+            </marker>
+          </defs>
+
+          <!-- Prompt -->
+          <g>
+            <rect x="200" y="14" width="120" height="38" rx="2" fill="#F2F2F2" stroke="#D8D8D8"/>
+            <text x="260" y="32" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">Text prompt</text>
+            <text x="260" y="46" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="10" fill="#5E5E5E">"a wide-angle…"</text>
+          </g>
+
+          <!-- Text encoders -->
+          <g>
+            <rect x="40" y="80" width="200" height="56" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <rect x="40" y="80" width="3" height="56" fill="#1FA18D"/>
+            <text x="60" y="100" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">OpenCLIP ViT-bigG</text>
+            <text x="60" y="116" font-family="DM Sans, sans-serif" font-size="10" fill="#5E5E5E">text encoder 1</text>
+            <text x="60" y="128" font-family="Roboto Mono, monospace" font-size="9" fill="#8F8F8F">emb₁ ∈ ℝ^(L×d₁)</text>
+
+            <rect x="280" y="80" width="200" height="56" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <rect x="280" y="80" width="3" height="56" fill="#1FA18D"/>
+            <text x="300" y="100" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">CLIP ViT-L</text>
+            <text x="300" y="116" font-family="DM Sans, sans-serif" font-size="10" fill="#5E5E5E">text encoder 2</text>
+            <text x="300" y="128" font-family="Roboto Mono, monospace" font-size="9" fill="#8F8F8F">emb₂ ∈ ℝ^(L×d₂)</text>
+          </g>
+
+          <!-- Concat -->
+          <g>
+            <rect x="180" y="160" width="160" height="34" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="260" y="180" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">Concatenate · pool</text>
+          </g>
+
+          <!-- Conditioning -->
+          <g>
+            <rect x="40" y="160" width="120" height="34" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <rect x="40" y="160" width="3" height="34" fill="#9747FF"/>
+            <text x="105" y="180" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" font-weight="500" fill="#202020">Size + crop cond.</text>
+          </g>
+
+          <!-- Latent noise -->
+          <g>
+            <rect x="360" y="160" width="120" height="34" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <rect x="360" y="160" width="3" height="34" fill="#1FA18D"/>
+            <text x="425" y="180" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" font-weight="500" fill="#202020">z_T  (noise)</text>
+          </g>
+
+          <!-- Base U-Net -->
+          <g>
+            <rect x="80" y="220" width="360" height="98" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <rect x="80" y="220" width="3" height="98" fill="#1FA18D"/>
+            <text x="100" y="242" font-family="DM Sans, sans-serif" font-size="14" font-weight="500" fill="#202020">Base U-Net (enlarged)</text>
+            <text x="100" y="258" font-family="DM Sans, sans-serif" font-size="11" fill="#5E5E5E">~3× larger than prior SD U-Net</text>
+
+            <!-- mini blocks inside -->
+            <g font-family="Roboto Mono, monospace" font-size="9" fill="#5E5E5E">
+              <rect x="100" y="272" width="60" height="30" rx="2" fill="#F2F2F2" stroke="#D8D8D8"/>
+              <text x="130" y="284" text-anchor="middle">ResBlock</text>
+              <text x="130" y="294" text-anchor="middle">×N</text>
+              <rect x="170" y="272" width="80" height="30" rx="2" fill="#F2F2F2" stroke="#D8D8D8"/>
+              <text x="210" y="284" text-anchor="middle">Self-Attn</text>
+              <text x="210" y="294" text-anchor="middle">spatial</text>
+              <rect x="260" y="272" width="80" height="30" rx="2" fill="#E8F4D6" stroke="#76B900"/>
+              <text x="300" y="284" text-anchor="middle" fill="#007D00">Cross-Attn</text>
+              <text x="300" y="294" text-anchor="middle" fill="#007D00">↔ text</text>
+              <rect x="350" y="272" width="80" height="30" rx="2" fill="#F2F2F2" stroke="#D8D8D8"/>
+              <text x="390" y="284" text-anchor="middle">Down/Up</text>
+              <text x="390" y="294" text-anchor="middle">skip</text>
+            </g>
+          </g>
+
+          <!-- ε predict / step -->
+          <g>
+            <rect x="180" y="342" width="160" height="34" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="260" y="362" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">Predict ε · step z_t → z_{t-1}</text>
+          </g>
+
+          <!-- Refiner -->
+          <g>
+            <rect x="80" y="402" width="360" height="60" rx="4" fill="#FFFFFF" stroke="#D8D8D8" stroke-dasharray="3 2"/>
+            <rect x="80" y="402" width="3" height="60" fill="#1FA18D"/>
+            <text x="100" y="424" font-family="DM Sans, sans-serif" font-size="14" font-weight="500" fill="#202020">Refiner U-Net (optional)</text>
+            <text x="100" y="442" font-family="DM Sans, sans-serif" font-size="11" fill="#5E5E5E">Post-hoc image-to-image on the base latent</text>
+            <text x="100" y="455" font-family="DM Sans, sans-serif" font-size="11" fill="#5E5E5E">at low noise / high-detail regime</text>
+          </g>
+
+          <!-- VAE decode -->
+          <g>
+            <rect x="180" y="486" width="160" height="40" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="260" y="504" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">VAE decoder</text>
+            <text x="260" y="518" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="10" fill="#5E5E5E">z → RGB</text>
+          </g>
+          <text x="260" y="546" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" fill="#5E5E5E">→ image</text>
+
+          <!-- Arrows -->
+          <g stroke="#5E5E5E" stroke-width="1" fill="none" marker-end="url(#arr-sdxl)">
+            <!-- prompt to encoders -->
+            <path d="M260,52 L260,66 L140,66 L140,80"/>
+            <path d="M260,52 L260,66 L380,66 L380,80"/>
+            <!-- encoders to concat -->
+            <path d="M140,136 L140,150 L240,150 L240,160"/>
+            <path d="M380,136 L380,150 L280,150 L280,160"/>
+            <!-- concat → U-Net (cross-attn) -->
+            <path d="M260,194 L260,210 L260,220"/>
+            <!-- noise → U-Net -->
+            <path d="M420,194 L420,212 L420,220"/>
+            <!-- cond → U-Net -->
+            <path d="M100,194 L100,212 L100,220"/>
+            <!-- U-Net → predict -->
+            <path d="M260,318 L260,342"/>
+            <!-- predict → refiner -->
+            <path d="M260,376 L260,402" stroke-dasharray="3 2"/>
+            <!-- refiner → decode -->
+            <path d="M260,462 L260,486"/>
+          </g>
+          <!-- self-loop on U-Net for T denoising steps -->
+          <g stroke="#5E5E5E" stroke-width="1" fill="none" marker-end="url(#arr-sdxl)">
+            <path d="M450,318 C 480,318 480,250 450,250 L440,250"/>
+          </g>
+          <text x="488" y="286" font-family="DM Sans, sans-serif" font-size="10" fill="#5E5E5E" text-anchor="middle">T</text>
+          <text x="488" y="298" font-family="DM Sans, sans-serif" font-size="9" fill="#8F8F8F" text-anchor="middle">steps</text>
+        </svg>
+      </div>
+
+      <!-- ────────────── SD3 PIPELINE SVG ────────────── -->
+      <div class="pipe-card">
+        <div class="pipe-title">
+          <h3>Stable Diffusion 3 — MMDiT + rectified flow</h3>
+          <span class="h-note">Transformer · flow matching</span>
+        </div>
+        <svg class="pipe-svg" viewBox="0 0 520 560" role="img" aria-label="Stable Diffusion 3 full pipeline">
+          <defs>
+            <marker id="arr-sd3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#5E5E5E"/>
+            </marker>
+          </defs>
+
+          <!-- Prompt -->
+          <g>
+            <rect x="200" y="14" width="120" height="38" rx="2" fill="#F2F2F2" stroke="#D8D8D8"/>
+            <text x="260" y="32" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">Text prompt</text>
+            <text x="260" y="46" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="10" fill="#5E5E5E">"a wide-angle…"</text>
+          </g>
+
+          <!-- Three text encoders -->
+          <g>
+            <rect x="20" y="80" width="150" height="56" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <rect x="20" y="80" width="3" height="56" fill="#76B900"/>
+            <text x="35" y="100" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">CLIP (a)</text>
+            <text x="35" y="116" font-family="DM Sans, sans-serif" font-size="10" fill="#5E5E5E">text encoder 1</text>
+
+            <rect x="185" y="80" width="150" height="56" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <rect x="185" y="80" width="3" height="56" fill="#76B900"/>
+            <text x="200" y="100" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">CLIP (b)</text>
+            <text x="200" y="116" font-family="DM Sans, sans-serif" font-size="10" fill="#5E5E5E">text encoder 2</text>
+
+            <rect x="350" y="80" width="150" height="56" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <rect x="350" y="80" width="3" height="56" fill="#76B900"/>
+            <text x="365" y="100" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">T5</text>
+            <text x="365" y="116" font-family="DM Sans, sans-serif" font-size="10" fill="#5E5E5E">text encoder 3 (optional at inference)</text>
+          </g>
+
+          <!-- text tokens -->
+          <g>
+            <rect x="80" y="160" width="200" height="34" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="180" y="180" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">Text token sequence</text>
+          </g>
+
+          <!-- image latent tokens -->
+          <g>
+            <rect x="310" y="160" width="180" height="34" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <rect x="310" y="160" width="3" height="34" fill="#76B900"/>
+            <text x="400" y="180" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" font-weight="500" fill="#202020">Noisy latent → patches</text>
+          </g>
+
+          <!-- MMDiT stack -->
+          <g>
+            <rect x="40" y="220" width="440" height="120" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <rect x="40" y="220" width="3" height="120" fill="#76B900"/>
+            <text x="60" y="242" font-family="DM Sans, sans-serif" font-size="14" font-weight="500" fill="#202020">MMDiT stack  ·  N blocks</text>
+            <text x="60" y="258" font-family="DM Sans, sans-serif" font-size="11" fill="#5E5E5E">15–38 blocks across model sizes</text>
+
+            <!-- two-stream illustration -->
+            <g font-family="Roboto Mono, monospace" font-size="9" fill="#5E5E5E">
+              <!-- text stream -->
+              <rect x="60" y="272" width="170" height="22" rx="2" fill="#E9F4FB" stroke="#9ACCF2"/>
+              <text x="145" y="287" text-anchor="middle" fill="#2378CA">text-stream weights</text>
+              <rect x="60" y="298" width="170" height="22" rx="2" fill="#E9F4FB" stroke="#9ACCF2"/>
+              <text x="145" y="313" text-anchor="middle" fill="#2378CA">MLP · norm · params Wₜ</text>
+              <!-- image stream -->
+              <rect x="290" y="272" width="170" height="22" rx="2" fill="#E8F4D6" stroke="#76B900"/>
+              <text x="375" y="287" text-anchor="middle" fill="#007D00">image-stream weights</text>
+              <rect x="290" y="298" width="170" height="22" rx="2" fill="#E8F4D6" stroke="#76B900"/>
+              <text x="375" y="313" text-anchor="middle" fill="#007D00">MLP · norm · params Wᵢ</text>
+              <!-- joint attention -->
+              <path d="M230,283 L290,283" stroke="#5E5E5E" marker-end="url(#arr-sd3)"/>
+              <path d="M290,313 L230,313" stroke="#5E5E5E" marker-end="url(#arr-sd3)"/>
+              <text x="260" y="278" text-anchor="middle" fill="#202020" font-size="9">joint attention</text>
+              <text x="260" y="330" text-anchor="middle" fill="#5E5E5E" font-size="9">(sequences concatenated)</text>
+            </g>
+          </g>
+
+          <!-- Rectified flow ODE -->
+          <g>
+            <rect x="80" y="362" width="360" height="46" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <rect x="80" y="362" width="3" height="46" fill="#0D69D4"/>
+            <text x="100" y="382" font-family="DM Sans, sans-serif" font-size="13" font-weight="500" fill="#202020">Rectified flow · linear data ↔ noise trajectory</text>
+            <text x="100" y="398" font-family="DM Sans, sans-serif" font-size="10" fill="#5E5E5E">Re-weighted schedule favors the middle of the trajectory</text>
+          </g>
+
+          <!-- Sampler -->
+          <g>
+            <rect x="180" y="424" width="160" height="34" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="260" y="444" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">ODE sampler · N steps</text>
+          </g>
+
+          <!-- Decoder -->
+          <g>
+            <rect x="180" y="478" width="160" height="40" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="260" y="496" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">Improved autoencoder · decode</text>
+            <text x="260" y="510" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="10" fill="#5E5E5E">z → RGB</text>
+          </g>
+          <text x="260" y="540" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" fill="#5E5E5E">→ image</text>
+
+          <!-- Arrows -->
+          <g stroke="#5E5E5E" stroke-width="1" fill="none" marker-end="url(#arr-sd3)">
+            <path d="M260,52 L260,66 L95,66 L95,80"/>
+            <path d="M260,52 L260,66 L260,80"/>
+            <path d="M260,52 L260,66 L425,66 L425,80"/>
+            <!-- encoders to text seq -->
+            <path d="M95,136 L95,150 L150,150 L150,160"/>
+            <path d="M260,136 L260,150 L180,150 L180,160"/>
+            <path d="M425,136 L425,150 L210,150 L210,160"/>
+            <!-- text seq → MMDiT -->
+            <path d="M180,194 L180,210 L180,220"/>
+            <!-- noisy latent → MMDiT -->
+            <path d="M400,194 L400,210 L400,220"/>
+            <!-- MMDiT → flow -->
+            <path d="M260,340 L260,362"/>
+            <!-- flow → sampler -->
+            <path d="M260,408 L260,424"/>
+            <!-- sampler → decoder -->
+            <path d="M260,458 L260,478"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SECTION 3 — BLOCK INTERNALS
+  ============================================================ -->
+  <section class="section" id="blocks">
+    <div class="section-head">
+      <div style="display:flex; gap:var(--kui-space-md); align-items:baseline;">
+        <span class="num">03</span>
+        <h2>Block internals</h2>
+      </div>
+      <p class="lede">Inside a single denoising block. SDXL fuses text into image features via cross-attention inside a U-Net block; SD3 carries two independent streams that meet in a joint attention operation.</p>
+    </div>
+
+    <div class="blocks">
+      <!-- SDXL U-Net block -->
+      <article class="block-card">
+        <h3>SDXL · U-Net block with cross-attention</h3>
+        <p class="desc">
+          Spatial features pass through ResNet blocks and self-attention, then attend to the
+          concatenated dual text embedding via cross-attention before being passed forward.
+          Down-sampling and up-sampling halves of the U-Net are connected by skip connections.
+        </p>
+        <svg class="block-svg" viewBox="0 0 520 380" role="img" aria-label="SDXL U-Net block internals">
+          <defs>
+            <marker id="arr-blk1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#5E5E5E"/>
+            </marker>
+          </defs>
+          <!-- inputs -->
+          <g>
+            <rect x="40" y="20" width="160" height="40" rx="4" fill="#F2F2F2" stroke="#D8D8D8"/>
+            <text x="120" y="44" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">Latent feature map x</text>
+            <rect x="320" y="20" width="160" height="40" rx="4" fill="#F2F2F2" stroke="#D8D8D8"/>
+            <text x="400" y="38" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">Text embeddings c</text>
+            <text x="400" y="52" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="10" fill="#5E5E5E">[bigG ; ViT-L]</text>
+          </g>
+
+          <!-- GroupNorm -->
+          <g>
+            <rect x="40" y="80" width="160" height="38" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="120" y="103" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" fill="#202020">GroupNorm + SiLU</text>
+          </g>
+          <!-- Conv -->
+          <g>
+            <rect x="40" y="130" width="160" height="38" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="120" y="153" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" fill="#202020">Conv 3×3 · ResBlock</text>
+          </g>
+          <!-- Self-attn -->
+          <g>
+            <rect x="40" y="180" width="160" height="38" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="120" y="203" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" fill="#202020">Self-attention (spatial)</text>
+          </g>
+          <!-- Cross-attn -->
+          <g>
+            <rect x="40" y="230" width="440" height="60" rx="4" fill="#E8F4D6" stroke="#76B900"/>
+            <text x="60" y="252" font-family="DM Sans, sans-serif" font-size="13" font-weight="500" fill="#007D00">Cross-attention</text>
+            <text x="60" y="270" font-family="Roboto Mono, monospace" font-size="10" fill="#007D00">Q = W_q · x_norm</text>
+            <text x="60" y="284" font-family="Roboto Mono, monospace" font-size="10" fill="#007D00">K, V = W_k c , W_v c   (text → image)</text>
+            <text x="320" y="270" font-family="DM Sans, sans-serif" font-size="11" fill="#007D00">SDXL widens K, V → larger</text>
+            <text x="320" y="284" font-family="DM Sans, sans-serif" font-size="11" fill="#007D00">cross-attention context</text>
+          </g>
+          <!-- FFN -->
+          <g>
+            <rect x="40" y="304" width="160" height="38" rx="4" fill="#FFFFFF" stroke="#D8D8D8"/>
+            <text x="120" y="327" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" fill="#202020">Feed-forward · GEGLU</text>
+          </g>
+          <!-- Output -->
+          <g>
+            <rect x="220" y="304" width="180" height="38" rx="4" fill="#F2F2F2" stroke="#D8D8D8"/>
+            <text x="310" y="327" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#202020">x′ (updated features)</text>
+          </g>
+          <!-- skip connection -->
+          <path d="M40,99 C 20,99 20,323 40,323" stroke="#8F8F8F" stroke-dasharray="3 2" fill="none"/>
+          <text x="14" y="220" font-family="DM Sans, sans-serif" font-size="10" fill="#8F8F8F" transform="rotate(-90 14 220)">U-Net skip</text>
+
+          <!-- vertical arrows -->
+          <g stroke="#5E5E5E" stroke-width="1" fill="none" marker-end="url(#arr-blk1)">
+            <path d="M120,60 L120,80"/>
+            <path d="M120,118 L120,130"/>
+            <path d="M120,168 L120,180"/>
+            <path d="M120,218 L120,230"/>
+            <path d="M120,290 L120,304"/>
+            <path d="M200,323 L220,323"/>
+            <!-- text into cross-attn -->
+            <path d="M400,60 L400,230"/>
+          </g>
+          <text x="410" y="160" font-family="DM Sans, sans-serif" font-size="10" fill="#5E5E5E">K, V from text</text>
+        </svg>
+      </article>
+
+      <!-- SD3 MMDiT block -->
+      <article class="block-card">
+        <h3>SD3 · MMDiT block with joint attention</h3>
+        <p class="desc">
+          Two independent transformer streams — one for text tokens, one for image patch tokens —
+          each have their own MLPs and norms. Inside the attention operation the two sequences are
+          concatenated, so attention weights are computed jointly and information flows in both
+          directions before each stream returns to its own MLP.
+        </p>
+        <svg class="block-svg" viewBox="0 0 520 380" role="img" aria-label="SD3 MMDiT block internals">
+          <defs>
+            <marker id="arr-blk2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#5E5E5E"/>
+            </marker>
+          </defs>
+
+          <!-- inputs -->
+          <g>
+            <rect x="40" y="20" width="180" height="42" rx="4" fill="#E9F4FB" stroke="#9ACCF2"/>
+            <text x="130" y="40" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#2378CA">Text tokens  tₜ</text>
+            <text x="130" y="55" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#2378CA">CLIP × 2  +  T5</text>
+
+            <rect x="300" y="20" width="180" height="42" rx="4" fill="#E8F4D6" stroke="#76B900"/>
+            <text x="390" y="40" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="500" fill="#007D00">Image tokens  tᵢ</text>
+            <text x="390" y="55" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#007D00">patchified noisy latent</text>
+          </g>
+
+          <!-- Norms -->
+          <g>
+            <rect x="40" y="82" width="180" height="34" rx="4" fill="#FFFFFF" stroke="#9ACCF2"/>
+            <text x="130" y="102" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" fill="#2378CA">LayerNorm  ·  AdaLN(t)</text>
+
+            <rect x="300" y="82" width="180" height="34" rx="4" fill="#FFFFFF" stroke="#76B900"/>
+            <text x="390" y="102" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" fill="#007D00">LayerNorm  ·  AdaLN(t)</text>
+          </g>
+
+          <!-- Q K V projections -->
+          <g>
+            <rect x="40" y="128" width="180" height="34" rx="4" fill="#FFFFFF" stroke="#9ACCF2"/>
+            <text x="130" y="148" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="11" fill="#2378CA">Qₜ Kₜ Vₜ = Wₜ · tₜ</text>
+
+            <rect x="300" y="128" width="180" height="34" rx="4" fill="#FFFFFF" stroke="#76B900"/>
+            <text x="390" y="148" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="11" fill="#007D00">Qᵢ Kᵢ Vᵢ = Wᵢ · tᵢ</text>
+          </g>
+
+          <!-- Joint attention -->
+          <g>
+            <rect x="40" y="178" width="440" height="62" rx="4" fill="#F2F2F2" stroke="#202020"/>
+            <text x="260" y="200" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="500" fill="#202020">Joint attention</text>
+            <text x="260" y="218" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="10" fill="#5E5E5E">Q = [Qₜ ; Qᵢ]   K = [Kₜ ; Kᵢ]   V = [Vₜ ; Vᵢ]</text>
+            <text x="260" y="232" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" fill="#5E5E5E">softmax(QKᵀ / √d) · V   →   bidirectional info flow</text>
+          </g>
+
+          <!-- Split back -->
+          <g>
+            <rect x="40" y="254" width="180" height="34" rx="4" fill="#FFFFFF" stroke="#9ACCF2"/>
+            <text x="130" y="274" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" fill="#2378CA">Out-proj Wₜ + residual</text>
+
+            <rect x="300" y="254" width="180" height="34" rx="4" fill="#FFFFFF" stroke="#76B900"/>
+            <text x="390" y="274" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" fill="#007D00">Out-proj Wᵢ + residual</text>
+          </g>
+
+          <!-- MLP -->
+          <g>
+            <rect x="40" y="300" width="180" height="34" rx="4" fill="#FFFFFF" stroke="#9ACCF2"/>
+            <text x="130" y="320" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" fill="#2378CA">MLP   ·  text weights</text>
+
+            <rect x="300" y="300" width="180" height="34" rx="4" fill="#FFFFFF" stroke="#76B900"/>
+            <text x="390" y="320" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" fill="#007D00">MLP   ·  image weights</text>
+          </g>
+
+          <!-- output -->
+          <g>
+            <rect x="40" y="344" width="180" height="30" rx="4" fill="#F2F2F2" stroke="#9ACCF2"/>
+            <text x="130" y="362" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" font-weight="500" fill="#2378CA">tₜ′</text>
+            <rect x="300" y="344" width="180" height="30" rx="4" fill="#F2F2F2" stroke="#76B900"/>
+            <text x="390" y="362" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" font-weight="500" fill="#007D00">tᵢ′</text>
+          </g>
+
+          <!-- arrows -->
+          <g stroke="#5E5E5E" stroke-width="1" fill="none" marker-end="url(#arr-blk2)">
+            <path d="M130,62 L130,82"/>
+            <path d="M130,116 L130,128"/>
+            <path d="M130,162 L130,178"/>
+            <path d="M130,240 L130,254"/>
+            <path d="M130,288 L130,300"/>
+            <path d="M130,334 L130,344"/>
+            <path d="M390,62 L390,82"/>
+            <path d="M390,116 L390,128"/>
+            <path d="M390,162 L390,178"/>
+            <path d="M390,240 L390,254"/>
+            <path d="M390,288 L390,300"/>
+            <path d="M390,334 L390,344"/>
+          </g>
+        </svg>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SECTION 4 — WHAT CHANGED
+  ============================================================ -->
+  <section class="section" id="changed">
+    <div class="section-head">
+      <div style="display:flex; gap:var(--kui-space-md); align-items:baseline;">
+        <span class="num">04</span>
+        <h2>What changed from SDXL to SD3</h2>
+      </div>
+      <p class="lede">Three architectural swaps account for most of the difference between the two systems.</p>
+    </div>
+
+    <div class="changed">
+      <article class="change-card">
+        <div class="lhs">01 · Denoiser</div>
+        <h4>U-Net diffusion → Transformer rectified flow</h4>
+        <div class="swap">
+          <span class="from">U-Net · ε-prediction</span>
+          <span class="arrow">→</span>
+          <span class="to">MMDiT · rectified flow</span>
+        </div>
+        <p>SDXL keeps the convolutional U-Net with self-attention and cross-attention. SD3 replaces it with a transformer stack and switches the training objective to rectified flow, where data and noise are connected on a linear trajectory and a re-weighted schedule favors the middle of that trajectory.</p>
+      </article>
+
+      <article class="change-card">
+        <div class="lhs">02 · Quality lever</div>
+        <h4>Refiner pass → no refiner</h4>
+        <div class="swap">
+          <span class="from">Base + refiner U-Nets</span>
+          <span class="arrow">→</span>
+          <span class="to">Single MMDiT</span>
+        </div>
+        <p>SDXL introduces a separate refinement model that runs post-hoc image-to-image on the base latent to improve fidelity. SD3 does not ship a refiner; the rectified-flow transformer produces final samples in one stack.</p>
+      </article>
+
+      <article class="change-card">
+        <div class="lhs">03 · Text conditioning</div>
+        <h4>Dual text encoders → triple text embedders</h4>
+        <div class="swap">
+          <span class="from">2× CLIP</span>
+          <span class="arrow">→</span>
+          <span class="to info">2× CLIP  +  T5</span>
+        </div>
+        <p>SDXL widens cross-attention by concatenating two CLIP-family encoders. SD3 adds a T5 encoder to the two CLIPs and feeds the resulting text token sequence into a separate transformer stream that exchanges information with image tokens through joint attention.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SECTION 5 — COMPARISON TABLE
+  ============================================================ -->
+  <section class="section" id="compare">
+    <div class="section-head">
+      <div style="display:flex; gap:var(--kui-space-md); align-items:baseline;">
+        <span class="num">05</span>
+        <h2>Architecture comparison</h2>
+      </div>
+      <p class="lede">Component-level differences. Values left as "not reported" where the cited sources do not give an exact figure.</p>
+    </div>
+
+    <div class="table-wrap">
+      <table class="kui">
+        <thead>
+          <tr>
+            <th class="label">Component</th>
+            <th class="col-sdxl">SDXL</th>
+            <th class="col-sd3">Stable Diffusion 3</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label">Latent space</td>
+            <td>VAE encoder/decoder (latent diffusion)</td>
+            <td>Improved autoencoder used to encode image tokens</td>
+          </tr>
+          <tr>
+            <td class="label">Text encoders</td>
+            <td>Two text encoders, concatenated to form a larger cross-attention context</td>
+            <td>Three text embedders: two CLIP models and T5</td>
+          </tr>
+          <tr>
+            <td class="label">Denoising backbone</td>
+            <td><span class="pill teal">U-Net</span> roughly 3× larger than prior Stable Diffusion U-Net; more attention blocks; larger cross-attention context</td>
+            <td><span class="pill green">MMDiT</span> two transformer streams (text, image) with separate weights; joint attention couples the sequences</td>
+          </tr>
+          <tr>
+            <td class="label">Text → image coupling</td>
+            <td>Cross-attention layers inside U-Net blocks (text supplies K, V; image supplies Q)</td>
+            <td>Sequences concatenated inside the attention operation, so both modalities attend to each other in both directions</td>
+          </tr>
+          <tr>
+            <td class="label">Training objective</td>
+            <td>Diffusion (denoising) on the U-Net</td>
+            <td>Rectified flow with a re-weighted trajectory sampling schedule</td>
+          </tr>
+          <tr>
+            <td class="label">Inference trajectory</td>
+            <td>Diffusion ODE / SDE over the U-Net</td>
+            <td>Linear data ↔ noise trajectory; straighter paths support fewer-step sampling</td>
+          </tr>
+          <tr>
+            <td class="label">Refinement</td>
+            <td>Separate refiner model: post-hoc image-to-image on the base latent</td>
+            <td>None reported</td>
+          </tr>
+          <tr>
+            <td class="label">Conditioning extras</td>
+            <td>Novel conditioning schemes; trained on multiple aspect ratios</td>
+            <td><span class="pill muted">not reported in cited sources beyond the items above</span></td>
+          </tr>
+          <tr>
+            <td class="label">Scale (params)</td>
+            <td><span class="pill muted">verify by variant</span> — paper describes a "three times larger U-Net" than earlier Stable Diffusion, without a single number for the whole pipeline</td>
+            <td>Variants from 800M to 8B parameters; scaling study spans 15 blocks / 450M to 38 blocks / 8B</td>
+          </tr>
+          <tr>
+            <td class="label">Code &amp; weights</td>
+            <td><a href="https://github.com/Stability-AI/generative-models" target="_blank" rel="noopener">Stability-AI/generative-models</a></td>
+            <td>Discussed in the research paper; ranges of models referenced in the research post</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SECTION 6 — REPORTED NUMBERS
+  ============================================================ -->
+  <section class="section" id="numbers">
+    <div class="section-head">
+      <div style="display:flex; gap:var(--kui-space-md); align-items:baseline;">
+        <span class="num">06</span>
+        <h2>Reported numbers</h2>
+      </div>
+      <p class="lede">Only values stated explicitly in the cited papers and Stability AI research post. Human-preference comparisons against named systems are summarized below; per-model win-rate tables are not reproduced here because exact percentages by competitor are not given in the post.</p>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat">
+        <div class="k">SD3 largest variant</div>
+        <div class="v">8 B params</div>
+        <div class="src">Stability AI research post (Mar 2024)</div>
+      </div>
+      <div class="stat">
+        <div class="k">SD3 smallest variant</div>
+        <div class="v">800 M params</div>
+        <div class="src">Stability AI research post (Mar 2024)</div>
+      </div>
+      <div class="stat">
+        <div class="k">SD3-8B inference on RTX 4090</div>
+        <div class="v">34 s · 1024×1024</div>
+        <div class="src">Unoptimized, 50 sampling steps; fits in 24 GB VRAM</div>
+      </div>
+      <div class="stat">
+        <div class="k">SD3 scaling study</div>
+        <div class="v">15 → 38 blocks</div>
+        <div class="src">450 M → 8 B parameters</div>
+      </div>
+    </div>
+
+    <div style="height: var(--kui-space-md)"></div>
+
+    <div class="table-wrap">
+      <table class="kui">
+        <thead>
+          <tr>
+            <th class="label">SD3 ablation — remove T5 at inference</th>
+            <th>Win rate vs. full SD3</th>
+            <th>Reported</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label">Visual aesthetics</td>
+            <td class="num">50%</td>
+            <td class="dim">No effect reported</td>
+          </tr>
+          <tr>
+            <td class="label">Prompt adherence</td>
+            <td class="num">46%</td>
+            <td class="dim">Slightly reduced text adherence</td>
+          </tr>
+          <tr>
+            <td class="label">Typography</td>
+            <td class="num">38%</td>
+            <td class="dim">Largest drop; T5 recommended for written-text generation</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top: var(--kui-space-md); font: var(--kui-text-sm); color: var(--kui-fg-muted); max-width: 80ch;">
+      Stability AI also reports that in human-preference evaluations SD3 is equal to or outperforms
+      named systems including SDXL, SDXL Turbo, Stable Cascade, Playground v2.5, Pixart-α, DALL·E 3,
+      Midjourney v6, and Ideogram v1 across visual aesthetics, prompt following, and typography —
+      but does not publish per-competitor win-rate numbers in the post, so they are not tabulated here.
+    </p>
+  </section>
+
+  <!-- ============================================================
+       SECTION 7 — CAVEATS
+  ============================================================ -->
+  <section class="section" id="caveats">
+    <div class="section-head">
+      <div style="display:flex; gap:var(--kui-space-md); align-items:baseline;">
+        <span class="num">07</span>
+        <h2>Caveats and unknowns</h2>
+      </div>
+      <p class="lede">Where the cited sources stop, this page stops. No values are inferred from community implementations or third-party reproductions.</p>
+    </div>
+
+    <div class="caveats">
+      <h3>Read these before quoting any number from this page</h3>
+      <ul>
+        <li>
+          <span class="topic">Variant parameter counts <span class="nr">not reported</span></span>
+          <span>SDXL's paper describes the U-Net as "three times larger" than prior Stable Diffusion, but does not give a single end-to-end parameter count for the cited variants. SD3 names a 800M-to-8B range and a 15-blocks/450M-to-38-blocks/8B scaling study, but per-variant breakdowns beyond those two endpoints are not stated in the cited research post. Verify each variant against its model card.</span>
+        </li>
+        <li>
+          <span class="topic">License <span class="nr">verify model card</span></span>
+          <span>SDXL code and weights are released via <code>Stability-AI/generative-models</code>. SD3's release terms are covered by Stability AI's licensing, which has multiple tiers; this page does not enumerate them. Treat license as variant- and date-specific.</span>
+        </li>
+        <li>
+          <span class="topic">Data mixture <span class="nr">not reported</span></span>
+          <span>Pretraining data composition, sourcing, and de-duplication procedures are not detailed in the cited research post; the SDXL paper abstract does not enumerate them either. Treat training-data claims as out of scope for this page.</span>
+        </li>
+        <li>
+          <span class="topic">Safety filters <span class="nr">not reported</span></span>
+          <span>Neither the SDXL paper abstract nor the SD3 research post enumerates the safety classifiers, watermarking, or content filters used at inference time. Refer to the model card and release notes for each specific variant.</span>
+        </li>
+        <li>
+          <span class="topic">Model-card restrictions <span class="nr">verify model card</span></span>
+          <span>Acceptable-use restrictions, commercial use terms, and downstream redistribution policies are variant-specific and may change between releases. Always consult the active model card.</span>
+        </li>
+        <li>
+          <span class="topic">No SDXL/SD3 detail mixing</span>
+          <span>SDXL details on this page are sourced only from the SDXL paper and the linked code repository; SD3 details only from the SD3 paper and the Stability AI research post. U-Net/refiner facts are not extrapolated to SD3, and MMDiT/rectified-flow facts are not extrapolated to SDXL.</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SECTION 8 — SOURCES
+  ============================================================ -->
+  <section class="section" id="sources">
+    <div class="section-head">
+      <div style="display:flex; gap:var(--kui-space-md); align-items:baseline;">
+        <span class="num">08</span>
+        <h2>Sources</h2>
+      </div>
+      <p class="lede">The only sources used to populate this page.</p>
+    </div>
+
+    <div class="sources">
+      <article class="src-card">
+        <span class="kind">Paper</span>
+        <span class="t">SDXL: Improving Latent Diffusion Models for High-Resolution Image Synthesis</span>
+        <span class="id">arXiv:2307.01952 · Podell et al. · Jul 2023</span>
+        <a href="https://arxiv.org/abs/2307.01952" target="_blank" rel="noopener">arxiv.org/abs/2307.01952</a>
+      </article>
+      <article class="src-card">
+        <span class="kind">Paper</span>
+        <span class="t">Scaling Rectified Flow Transformers for High-Resolution Image Synthesis</span>
+        <span class="id">arXiv:2403.03206 · Mar 2024</span>
+        <a href="https://arxiv.org/abs/2403.03206" target="_blank" rel="noopener">arxiv.org/abs/2403.03206</a>
+      </article>
+      <article class="src-card">
+        <span class="kind">Research post</span>
+        <span class="t">Stable Diffusion 3: Research Paper</span>
+        <span class="id">stability.ai · Mar 2024</span>
+        <a href="https://stability.ai/news-updates/stable-diffusion-3-research-paper" target="_blank" rel="noopener">stability.ai/news-updates/stable-diffusion-3-research-paper</a>
+      </article>
+      <article class="src-card">
+        <span class="kind">Code &amp; weights</span>
+        <span class="t">Stability-AI / generative-models</span>
+        <span class="id">GitHub repository</span>
+        <a href="https://github.com/Stability-AI/generative-models" target="_blank" rel="noopener">github.com/Stability-AI/generative-models</a>
+      </article>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <span>Architecture Atlas · Image Generation</span>
+    <span>Visualization built on the NVIDIA Kaizen design system (KUI v11 beta)</span>
+  </footer>
+
+</main>
+
+</body>
+</html>

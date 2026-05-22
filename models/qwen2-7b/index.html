@@ -1,0 +1,1246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qwen2 7B — Architecture</title>
+<link rel="stylesheet" href="kaizen/colors_and_type.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--kui-bg-canvas); color: var(--kui-fg-strong); font: var(--kui-body); }
+  body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  a { color: inherit; text-decoration: none; }
+
+  /* ── tokens for this page ── */
+  :root {
+    --c-attn:     #C54600;   /* warning-orange — attention */
+    --c-attn-bg:  #FDEFE6;
+    --c-ffn:      #0D69D4;   /* info-blue — FFN / SwiGLU */
+    --c-ffn-bg:   #E9F4FB;
+    --c-moe:      #76B900;   /* nvidia green — MoE */
+    --c-moe-bg:   #E8F4D6;
+    --c-rope:     #851F41;   /* magenta — RoPE / positional */
+    --c-rope-bg:  #FBEEFE;
+    --c-norm:     #1FA18D;   /* teal — RMSNorm */
+    --c-norm-bg:  #E6F5F2;
+    --c-embed:    #5E5E5E;
+    --c-embed-bg: #F2F2F2;
+  }
+
+  /* ── app shell ── */
+  .top-bar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 32px;
+    background: #000; color: #fff;
+    border-bottom: 4px solid var(--kui-brand-green);
+  }
+  .top-bar .wordmark { height: 22px; }
+  .top-bar .divider { width: 1px; height: 18px; background: rgba(255,255,255,0.25); }
+  .top-bar h1 { font: 500 16px/1 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0; }
+  .top-bar .meta { margin-left: auto; display: flex; gap: 24px; font: var(--kui-text-sm); color: rgba(255,255,255,0.7); }
+  .top-bar .meta b { color: #fff; font-weight: 500; }
+  .atlas-home {
+    flex: 0 0 auto;
+    padding: 7px 10px;
+    border: 1px solid rgba(255,255,255,0.32);
+    border-radius: 4px;
+    color: #fff;
+    font: 700 12px/1 var(--kui-font-sans);
+  }
+  .atlas-home:hover { border-color: var(--kui-brand-green); color: var(--kui-brand-green); }
+
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 0 32px 96px; }
+
+  /* ── hero ── */
+  .hero {
+    padding: 56px 0 40px;
+    border-bottom: 1px solid var(--kui-border-default);
+    display: grid; grid-template-columns: 1.4fr 1fr; gap: 48px; align-items: end;
+  }
+  .hero .eyebrow {
+    font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--kui-fg-muted); margin-bottom: 12px;
+  }
+  .hero h2 {
+    font: 500 48px/1.05 var(--kui-font-sans); letter-spacing: -0.75px;
+    margin: 0 0 16px;
+  }
+  .hero h2 .accent { color: var(--kui-brand-green); }
+  .hero p { font: var(--kui-body-md); color: var(--kui-fg-default); max-width: 60ch; margin: 0; }
+  .hero .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); }
+  .hero .stat { background: #fff; padding: 16px 20px; }
+  .hero .stat .label { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1px; color: var(--kui-fg-muted); margin-bottom: 6px; }
+  .hero .stat .value { font: 500 28px/1 var(--kui-font-sans); letter-spacing: -0.5px; }
+  .hero .stat .value small { font: 400 14px/1 var(--kui-font-sans); color: var(--kui-fg-muted); margin-left: 6px; letter-spacing: 0; }
+
+  /* ── section ── */
+  section { padding: 64px 0; border-bottom: 1px solid var(--kui-border-default); }
+  section:last-of-type { border-bottom: 0; }
+  .sec-head { display: grid; grid-template-columns: 200px 1fr; gap: 32px; margin-bottom: 32px; align-items: baseline; }
+  .sec-head .num { font: var(--kui-overline); letter-spacing: 1.5px; color: var(--kui-fg-muted); text-transform: uppercase; padding-top: 6px; }
+  .sec-head h3 { font: 500 28px/1.2 var(--kui-font-sans); letter-spacing: -0.5px; margin: 0 0 8px; }
+  .sec-head p { font: var(--kui-body-md); color: var(--kui-fg-default); max-width: 72ch; margin: 0; }
+
+  /* ── forward-pass band ── */
+  .pass {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 0;
+    align-items: stretch;
+    border: 1px solid var(--kui-border-default); background: #fff;
+  }
+  .pass .step {
+    padding: 24px 20px; border-right: 1px solid var(--kui-border-default);
+    display: flex; flex-direction: column; gap: 8px;
+    position: relative;
+  }
+  .pass .step:last-child { border-right: 0; }
+  .pass .step .k {
+    font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--kui-fg-muted);
+  }
+  .pass .step .t { font: 500 16px/1.25 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .pass .step .d { font: 400 12px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .pass .step.stack { background: #F8F8F8; }
+  .pass .step .badge {
+    display: inline-block; align-self: flex-start;
+    font: var(--kui-text-sm); padding: 2px 8px;
+    background: var(--kui-bg-canvas); border: 1px solid var(--kui-border-default);
+  }
+
+  /* ── layer ribbon ── */
+  .ribbon-wrap { border: 1px solid var(--kui-border-default); background: #fff; padding: 24px; }
+  .ribbon-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+  .ribbon-head h4 { font: var(--kui-h4); letter-spacing: -0.25px; margin: 0; }
+  .ribbon-head .key { display: flex; gap: 16px; font: var(--kui-text-sm); color: var(--kui-fg-default); }
+  .ribbon-head .key span { display: inline-flex; align-items: center; gap: 6px; }
+  .ribbon-head .key i { width: 10px; height: 10px; display: inline-block; }
+
+  .ribbon {
+    display: grid; grid-template-columns: repeat(28, 1fr); gap: 3px;
+    height: 88px; align-items: stretch;
+  }
+  .ribbon .cell { position: relative; display: flex; flex-direction: column; }
+  .ribbon .cell .bar-attn { flex: 1; background: var(--c-attn); }
+  .ribbon .cell .bar-ffn  { flex: 1; background: var(--c-ffn); }
+  .ribbon .cell .num { position: absolute; bottom: -18px; left: 0; right: 0; text-align: center; font: 400 9px/1 var(--kui-font-mono); color: var(--kui-fg-muted); }
+
+  .ribbon-legend {
+    margin-top: 36px;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .ribbon-legend .note { padding: 16px; border: 1px solid var(--kui-border-default); }
+  .ribbon-legend .note .h { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 6px; }
+  .ribbon-legend .note .v { font: 500 22px/1 var(--kui-font-sans); letter-spacing: -0.25px; margin-bottom: 4px; }
+  .ribbon-legend .note .l { font: var(--kui-caption); color: var(--kui-fg-default); }
+  .ribbon-legend .note.a .v { color: var(--c-attn); }
+  .ribbon-legend .note.f .v { color: var(--c-ffn); }
+  .ribbon-legend .note.n .v { color: var(--c-norm); }
+  .ribbon-legend .note.r .v { color: var(--c-rope); }
+
+  /* ── block diagram ── */
+  .block-wrap { display: grid; grid-template-columns: 1.1fr 1fr; gap: 32px; }
+  .block-svg { background: #fff; border: 1px solid var(--kui-border-default); padding: 32px; }
+  .block-svg svg { display: block; width: 100%; height: auto; }
+  .block-side { display: flex; flex-direction: column; gap: 16px; }
+  .block-step { background: #fff; border: 1px solid var(--kui-border-default); padding: 18px 20px; position: relative; }
+  .block-step::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  }
+  .block-step.norm::before { background: var(--c-norm); }
+  .block-step.attn::before { background: var(--c-attn); }
+  .block-step.ffn::before  { background: var(--c-ffn); }
+  .block-step.add::before  { background: var(--kui-fg-muted); }
+  .block-step .h { display: flex; justify-content: space-between; align-items: baseline; }
+  .block-step .h .t { font: 500 16px/1.25 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .block-step .h .tag { font: var(--kui-text-sm); font-family: var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .block-step p { font: var(--kui-body); color: var(--kui-fg-default); margin: 6px 0 0; }
+
+  /* ── component triptych ── */
+  .triptych { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .comp {
+    background: #fff; border: 1px solid var(--kui-border-default);
+    display: flex; flex-direction: column;
+  }
+  .comp .strip { height: 6px; background: #000; }
+  .comp.attn  .strip { background: var(--c-attn); }
+  .comp.ffn   .strip { background: var(--c-ffn); }
+  .comp.rope  .strip { background: var(--c-rope); }
+  .comp.norm  .strip { background: var(--c-norm); }
+  .comp.moe   .strip { background: var(--c-moe); }
+  .comp .body { padding: 24px; display: flex; flex-direction: column; gap: 16px; flex: 1; }
+  .comp .body > .eyebrow { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); }
+  .comp .body > h4 { font: 500 22px/1.2 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0; }
+  .comp .body > p  { font: var(--kui-body); color: var(--kui-fg-default); margin: 0; }
+  .comp .diagram { background: var(--kui-bg-canvas); border: 1px solid var(--kui-border-default); padding: 16px; }
+  .comp .diagram svg { display: block; width: 100%; height: auto; }
+  .comp .spec {
+    display: grid; grid-template-columns: 1fr auto; gap: 6px 16px;
+    font: var(--kui-body); padding-top: 8px;
+    border-top: 1px solid var(--kui-border-default);
+  }
+  .comp .spec .k { color: var(--kui-fg-muted); }
+  .comp .spec .v { font-family: var(--kui-font-mono); font-size: 13px; color: var(--kui-fg-strong); text-align: right; }
+
+  /* ── GQA deep dive ── */
+  .gqa { background: #fff; border: 1px solid var(--kui-border-default); padding: 32px; }
+  .gqa h4 { font: var(--kui-h3); letter-spacing: -0.25px; margin: 0 0 8px; }
+  .gqa > p { font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 24px; max-width: 80ch; }
+  .gqa-grid { display: grid; grid-template-columns: 60px 1fr; gap: 4px 16px; align-items: center; margin-bottom: 16px; }
+  .gqa-row-label { font: var(--kui-text-sm); color: var(--kui-fg-muted); font-family: var(--kui-font-mono); }
+  .gqa-row { display: grid; grid-template-columns: repeat(28, 1fr); gap: 2px; }
+  .gqa-row .cell { aspect-ratio: 1/1; background: var(--kui-n100); position: relative; }
+  .gqa-row.q .cell { background: var(--c-attn); }
+  .gqa-row.kv { grid-template-columns: repeat(28, 1fr); }
+  .gqa-row.kv .cell { background: var(--kui-n100); }
+  .gqa-row.kv .cell.k { background: var(--c-attn); grid-column: span 7; aspect-ratio: 7/1; }
+  .gqa-share { display: grid; grid-template-columns: 60px 1fr; gap: 4px 16px; align-items: center; margin-top: 12px; }
+  .gqa-share .lines { height: 32px; position: relative; }
+  .gqa-share svg { width: 100%; height: 100%; }
+  .gqa-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); margin-top: 24px; }
+  .gqa-stats .n { background: #fff; padding: 14px 16px; }
+  .gqa-stats .n .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 4px; }
+  .gqa-stats .n .v { font: 500 22px/1 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .gqa-stats .n .v small { font: 400 12px/1 var(--kui-font-sans); color: var(--kui-fg-muted); margin-left: 6px; }
+
+  /* ── MoE deep dive ── */
+  .moe-deep { display: grid; grid-template-columns: 1fr 1.4fr; gap: 32px; align-items: stretch; }
+  .moe-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 32px; }
+  .moe-card h4 { font: var(--kui-h3); letter-spacing: -0.25px; margin: 0 0 8px; }
+  .moe-card > p  { font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 24px; max-width: 50ch; }
+  .moe-grid {
+    display: grid;
+    grid-template-columns: repeat(16, 1fr);
+    gap: 3px;
+  }
+  .moe-grid .e {
+    aspect-ratio: 1 / 1;
+    background: var(--kui-n100);
+    position: relative;
+  }
+  .moe-grid .e.active { background: var(--c-moe); }
+  .moe-grid .e.active::after {
+    content: ""; position: absolute; inset: 0;
+    background:
+      linear-gradient(135deg, transparent 46%, rgba(255,255,255,0.6) 46%, rgba(255,255,255,0.6) 54%, transparent 54%);
+  }
+  .moe-shared { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; margin-top: 12px; }
+  .moe-shared .e { aspect-ratio: 1/1; background: var(--c-rope); }
+  .moe-key { display: flex; gap: 16px; margin-top: 16px; font: var(--kui-text-sm); color: var(--kui-fg-default); }
+  .moe-key span { display: inline-flex; align-items: center; gap: 6px; }
+  .moe-key i { width: 12px; height: 12px; display: inline-block; }
+  .moe-numbers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); margin-top: 24px; }
+  .moe-numbers .n { background: #fff; padding: 14px 16px; }
+  .moe-numbers .n .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 4px; }
+  .moe-numbers .n .v { font: 500 20px/1 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .moe-numbers .n .v small { font: 400 12px/1 var(--kui-font-sans); color: var(--kui-fg-muted); margin-left: 4px; }
+
+  .moe-flow { background: #fff; border: 1px solid var(--kui-border-default); padding: 32px; }
+  .moe-flow h4 { font: var(--kui-h3); letter-spacing: -0.25px; margin: 0 0 16px; }
+  .moe-flow svg { display: block; width: 100%; height: auto; }
+
+  /* ── tokenizer ── */
+  .tok { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; }
+  .tok-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .tok-card h4 { font: var(--kui-h3); letter-spacing: -0.25px; margin: 0 0 12px; }
+  .tok-card p { font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 16px; }
+  .tok-flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; align-items: stretch; margin-top: 8px; }
+  .tok-flow .step { background: var(--kui-bg-canvas); border: 1px solid var(--kui-border-default); padding: 12px 12px 14px; position: relative; }
+  .tok-flow .step .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 6px; }
+  .tok-flow .step .v { font: 500 14px/1.2 var(--kui-font-sans); }
+  .tok-flow .step .m { font: 400 11px/1.3 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 4px; word-break: break-all; }
+  .tok-flow .arrow { display: grid; place-items: center; font: 500 18px/1 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .tok-special { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tok-special span { font: 12px/1 var(--kui-font-mono); padding: 4px 8px; background: var(--kui-bg-canvas); border: 1px solid var(--kui-border-default); }
+
+  /* ── long context ── */
+  .lc { background: #fff; border: 1px solid var(--kui-border-default); padding: 32px; }
+  .lc h4 { font: var(--kui-h3); letter-spacing: -0.25px; margin: 0 0 8px; }
+  .lc > p { font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 24px; max-width: 80ch; }
+  .lc-bars { display: grid; grid-template-columns: 140px 1fr 100px; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--kui-border-subtle); }
+  .lc-bars:first-of-type { border-top: 0; }
+  .lc-bars .name { font: 500 14px/1.2 var(--kui-font-sans); }
+  .lc-bars .name small { display: block; font: 400 12px/1.2 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 2px; }
+  .lc-bars .track { height: 14px; background: var(--kui-n100); position: relative; }
+  .lc-bars .fill { height: 100%; background: var(--c-rope); }
+  .lc-bars .v { font: 500 14px/1 var(--kui-font-mono); text-align: right; }
+
+  /* ── specs grand table ── */
+  .specs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); }
+  .specs .group { background: #F8F8F8; padding: 18px 20px 14px; grid-column: 1 / -1; border-top: 1px solid var(--kui-border-default); }
+  .specs .group:first-child { border-top: 0; }
+  .specs .group h5 { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-default); margin: 0; }
+  .specs .cell { background: #fff; padding: 16px 20px; }
+  .specs .cell .k { font: var(--kui-text-sm); color: var(--kui-fg-muted); margin-bottom: 6px; }
+  .specs .cell .v { font: 500 20px/1 var(--kui-font-sans); letter-spacing: -0.25px; font-family: var(--kui-font-mono); font-weight: 500; }
+  .specs .cell .n { font: var(--kui-caption); color: var(--kui-fg-default); margin-top: 6px; }
+
+  /* ── training timeline ── */
+  .timeline { background: #fff; border: 1px solid var(--kui-border-default); padding: 32px; }
+  .timeline h4 { font: var(--kui-h3); letter-spacing: -0.25px; margin: 0 0 24px; }
+  .timeline .track {
+    display: grid; grid-template-columns: 7fr 2fr 1.2fr 1fr 1fr;
+    gap: 2px;
+    height: 64px;
+    margin-bottom: 8px;
+  }
+  .timeline .seg { background: var(--kui-n100); padding: 10px 12px; position: relative; }
+  .timeline .seg .ph { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: rgba(0,0,0,0.6); }
+  .timeline .seg .nm { font: 500 13px/1.2 var(--kui-font-sans); margin-top: 4px; color: #000; }
+  .timeline .seg.s1 { background: #DCE9F7; }
+  .timeline .seg.s2 { background: #92B5D3; color: #fff; }
+  .timeline .seg.s2 .ph, .timeline .seg.s2 .nm { color: #fff; }
+  .timeline .seg.s3 { background: var(--c-moe-bg); }
+  .timeline .seg.s4 { background: var(--c-moe); }
+  .timeline .seg.s4 .ph, .timeline .seg.s4 .nm { color: #fff; }
+  .timeline .seg.s5 { background: #5E9600; }
+  .timeline .seg.s5 .ph, .timeline .seg.s5 .nm { color: #fff; }
+  .timeline .ax { display: flex; justify-content: space-between; font: var(--kui-caption); color: var(--kui-fg-muted); font-family: var(--kui-font-mono); padding-top: 6px; border-top: 1px solid var(--kui-border-default); }
+
+  .prepost { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; }
+  .pp-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .pp-card .eyebrow { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 6px; }
+  .pp-card h4 { font: var(--kui-h3); letter-spacing: -0.25px; margin: 0 0 16px; }
+  .pp-card ul { padding-left: 18px; margin: 0; }
+  .pp-card li { font: var(--kui-body); color: var(--kui-fg-default); margin-bottom: 8px; }
+  .pp-card li b { color: var(--kui-fg-strong); font-weight: 500; }
+  .pp-card code { font: 13px/1 var(--kui-font-mono); background: var(--kui-bg-canvas); padding: 1px 6px; border: 1px solid var(--kui-border-default); }
+
+  /* ── footer ── */
+  footer { padding: 32px; border-top: 1px solid var(--kui-border-default); background: #fff; }
+  footer .row { max-width: 1440px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; font: var(--kui-caption); color: var(--kui-fg-muted); }
+  footer a { color: var(--c-ffn); }
+
+  /* ── SVG resets ── */
+  svg text { font-family: var(--kui-font-sans); }
+  svg .mono { font-family: var(--kui-font-mono); }
+
+  @media (max-width: 1100px) {
+    .hero { grid-template-columns: 1fr; }
+    .triptych { grid-template-columns: 1fr; }
+    .block-wrap { grid-template-columns: 1fr; }
+    .moe-deep, .tok, .prepost { grid-template-columns: 1fr; }
+    .pass { grid-template-columns: repeat(2, 1fr); }
+    .pass .step { border-bottom: 1px solid var(--kui-border-default); }
+  }
+</style>
+</head>
+<body class="kui">
+
+<header class="top-bar">
+  <a class="atlas-home" href="../../index.html">&larr; Atlas home</a>
+  <img src="kaizen/NVIDIA-wordmark.svg" class="wordmark" alt="NVIDIA">
+  <div class="divider"></div>
+  <h1>Qwen2 7B — Architecture brief</h1>
+  <div class="meta">
+    <span>Source: <b>arXiv:2407.10671</b></span>
+    <span>Qwen Team, Alibaba</span>
+    <span>Jul 2024</span>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ─────────── HERO ─────────── -->
+  <section class="hero" data-screen-label="01 Hero">
+    <div>
+      <div class="eyebrow">Open weights · Decoder-only · Dense</div>
+      <h2>A <span class="accent">dense Transformer</span> with GQA, SwiGLU and RoPE.</h2>
+      <p>Qwen2-7B is one of four dense variants released in the Qwen2 family (0.5B, 1.5B, 7B, 72B), alongside a 57B-parameter Mixture-of-Experts sibling. All five share the same primitive: a Llama-style decoder-only Transformer with Grouped-Query Attention, SwiGLU feed-forward, Rotary positional embeddings, and pre-norm RMSNorm. Long context is achieved with YARN+DCA at inference time, not at pre-training.</p>
+      <p style="margin-top: 12px; font: var(--kui-caption); color: var(--kui-fg-muted);">Note · the linked arXiv paper (2407.10671) is the <b>Qwen2</b> technical report. Qwen2.5-7B reuses this same architecture verbatim, retraining on a larger 18T-token corpus.</p>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="label">Total parameters</div><div class="value">7.07 B</div></div>
+      <div class="stat"><div class="label">Non-embedding</div><div class="value">6.53 B</div></div>
+      <div class="stat"><div class="label">Layers</div><div class="value">28</div></div>
+      <div class="stat"><div class="label">Hidden dim</div><div class="value">3 584</div></div>
+      <div class="stat"><div class="label">Q / KV heads</div><div class="value">28 / 4 <small>GQA 7:1</small></div></div>
+      <div class="stat"><div class="label">Vocab</div><div class="value">152 064</div></div>
+      <div class="stat"><div class="label">Context (YARN)</div><div class="value">131 K <small>tokens</small></div></div>
+      <div class="stat"><div class="label">Train tokens</div><div class="value">7 T</div></div>
+    </div>
+  </section>
+
+  <!-- ─────────── FORWARD PASS ─────────── -->
+  <section data-screen-label="02 Forward pass">
+    <div class="sec-head">
+      <div class="num">01 · Forward pass</div>
+      <div>
+        <h3>End-to-end signal flow</h3>
+        <p>A token id enters the left edge and a logit vector exits the right. The 28-layer stack in the middle does all the work; pre- and post-processing are deliberately minimal. Position is injected inside attention via RoPE — not at the embedding layer — so the embedding step is a pure table lookup.</p>
+      </div>
+    </div>
+
+    <div class="pass">
+      <div class="step">
+        <div class="k">Input</div>
+        <div class="t">Token ids</div>
+        <div class="d">[B, T]</div>
+        <span class="badge">int64</span>
+      </div>
+      <div class="step">
+        <div class="k">Tokenize</div>
+        <div class="t">Byte-level BPE</div>
+        <div class="d">text → ids</div>
+        <span class="badge">tiktoken</span>
+      </div>
+      <div class="step">
+        <div class="k">Pre</div>
+        <div class="t">Token embedding</div>
+        <div class="d">152 064 → 3 584</div>
+        <span class="badge">untied</span>
+      </div>
+      <div class="step stack">
+        <div class="k">Backbone · 28 layers</div>
+        <div class="t">RMSNorm → GQA → RMSNorm → SwiGLU</div>
+        <div class="d">d = 3 584 · residual</div>
+        <span class="badge">+ RoPE inside attn</span>
+      </div>
+      <div class="step">
+        <div class="k">Post</div>
+        <div class="t">Final RMSNorm</div>
+        <div class="d">γ ∈ ℝ^3584</div>
+        <span class="badge">no bias</span>
+      </div>
+      <div class="step">
+        <div class="k">Post</div>
+        <div class="t">LM head</div>
+        <div class="d">3 584 → 152 064</div>
+        <span class="badge">untied W</span>
+      </div>
+      <div class="step">
+        <div class="k">Output</div>
+        <div class="t">Logits</div>
+        <div class="d">[B, T, V]</div>
+        <span class="badge">bf16</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── LAYER PATTERN ─────────── -->
+  <section data-screen-label="03 Layer pattern">
+    <div class="sec-head">
+      <div class="num">02 · Layer pattern</div>
+      <div>
+        <h3>The 28-layer stack, decoded</h3>
+        <p>Unlike hybrid Mamba-Transformer designs, Qwen2-7B's stack is monotonous by design: every layer is the same decoder block — a GQA sublayer followed by a SwiGLU FFN sublayer, both wrapped in pre-norm RMSNorm and a residual add. The simplicity is the point — it makes the model trivially shardable and lets vendor kernels (FlashAttention, FlashInfer) plug in unchanged.</p>
+      </div>
+    </div>
+
+    <div class="ribbon-wrap">
+      <div class="ribbon-head">
+        <h4>Layer index → sublayer composition (1 → 28)</h4>
+        <div class="key">
+          <span><i style="background:var(--c-attn)"></i> GQA · self-attention</span>
+          <span><i style="background:var(--c-ffn)"></i> SwiGLU · FFN</span>
+          <span><i style="background:var(--c-norm)"></i> RMSNorm</span>
+          <span><i style="background:var(--c-rope)"></i> RoPE (per-head, applied to Q/K)</span>
+        </div>
+      </div>
+
+      <div class="ribbon" id="ribbon"><!-- filled by script --></div>
+
+      <div class="ribbon-legend">
+        <div class="note a"><div class="h">GQA sublayers</div><div class="v">28</div><div class="l">All 28 layers are full self-attention — no sparsity, no swap, no shared KV across layers.</div></div>
+        <div class="note f"><div class="h">SwiGLU sublayers</div><div class="v">28</div><div class="l">FFN dim 18 944 — ≈5.3× hidden, the standard SwiGLU expansion ratio.</div></div>
+        <div class="note n"><div class="h">RMSNorm sites</div><div class="v">57</div><div class="l">2 per block (pre-attn, pre-FFN) + 1 final norm before LM head. Pre-norm placement.</div></div>
+        <div class="note r"><div class="h">RoPE base θ</div><div class="v">1 M</div><div class="l">Raised from the usual 10 000 to support direct 32 K context, then YARN-extended to 131 K.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── TRANSFORMER BLOCK ─────────── -->
+  <section data-screen-label="04 Transformer block">
+    <div class="sec-head">
+      <div class="num">03 · The block</div>
+      <div>
+        <h3>One decoder layer, in full</h3>
+        <p>A single transformer block. The residual stream of width 3 584 flows top-to-bottom; at every sublayer, an RMSNorm copy is taken, transformed, and added back. This is the pre-norm formulation popularised by GPT-2 / Llama — both sublayers preserve the residual identity at initialization.</p>
+      </div>
+    </div>
+
+    <div class="block-wrap">
+
+      <div class="block-svg">
+        <svg viewBox="0 0 360 560" xmlns="http://www.w3.org/2000/svg">
+          <!-- residual rail -->
+          <line x1="60" y1="20" x2="60" y2="540" stroke="#5E5E5E" stroke-width="1" stroke-dasharray="4 3"/>
+          <text x="40" y="20" font-size="10" fill="#5E5E5E" text-anchor="end">x</text>
+          <text x="40" y="540" font-size="10" fill="#5E5E5E" text-anchor="end">x'</text>
+
+          <!-- entry arrow -->
+          <line x1="60" y1="40" x2="120" y2="40" stroke="#5E5E5E" stroke-width="1.2"/>
+          <polygon points="118,37 124,40 118,43" fill="#5E5E5E"/>
+
+          <!-- RMSNorm 1 -->
+          <rect x="120" y="28" width="180" height="28" fill="#E6F5F2" stroke="#1FA18D" stroke-width="1"/>
+          <text x="210" y="46" font-size="12" text-anchor="middle" font-weight="500">RMSNorm</text>
+
+          <!-- GQA box -->
+          <line x1="210" y1="56" x2="210" y2="76" stroke="#5E5E5E"/>
+          <polygon points="207,74 210,80 213,74" fill="#5E5E5E"/>
+          <rect x="120" y="80" width="180" height="120" fill="#FDEFE6" stroke="#C54600" stroke-width="1"/>
+          <text x="210" y="100" font-size="13" text-anchor="middle" font-weight="600">Grouped-Query Attention</text>
+          <text x="210" y="118" font-size="10" text-anchor="middle" fill="#5E5E5E" class="mono">Q proj 3584→3584  ·  KV proj 3584→512</text>
+          <text x="210" y="134" font-size="10" text-anchor="middle" fill="#5E5E5E" class="mono">28 Q heads · 4 KV heads · d_h = 128</text>
+          <!-- rope marker -->
+          <rect x="135" y="146" width="80" height="20" fill="#FBEEFE" stroke="#851F41"/>
+          <text x="175" y="160" font-size="10" text-anchor="middle" fill="#851F41" font-weight="500">+ RoPE (Q,K)</text>
+          <rect x="220" y="146" width="65" height="20" fill="#fff" stroke="#C54600"/>
+          <text x="252" y="160" font-size="10" text-anchor="middle">+ qkv bias</text>
+          <rect x="135" y="172" width="150" height="20" fill="#fff" stroke="#C54600"/>
+          <text x="210" y="186" font-size="10" text-anchor="middle">o_proj 3584→3584</text>
+
+          <!-- residual add 1 -->
+          <line x1="210" y1="200" x2="210" y2="220" stroke="#5E5E5E"/>
+          <polygon points="207,218 210,224 213,218" fill="#5E5E5E"/>
+          <circle cx="60" cy="232" r="8" fill="#fff" stroke="#5E5E5E"/>
+          <text x="60" y="236" font-size="13" text-anchor="middle" fill="#5E5E5E">+</text>
+          <line x1="210" y1="232" x2="68" y2="232" stroke="#5E5E5E"/>
+          <polygon points="71,229 65,232 71,235" fill="#5E5E5E"/>
+
+          <!-- RMSNorm 2 -->
+          <line x1="60" y1="240" x2="60" y2="290" stroke="#5E5E5E" stroke-dasharray="4 3"/>
+          <line x1="60" y1="300" x2="120" y2="300" stroke="#5E5E5E"/>
+          <polygon points="118,297 124,300 118,303" fill="#5E5E5E"/>
+          <rect x="120" y="288" width="180" height="28" fill="#E6F5F2" stroke="#1FA18D"/>
+          <text x="210" y="306" font-size="12" text-anchor="middle" font-weight="500">RMSNorm</text>
+
+          <!-- SwiGLU box -->
+          <line x1="210" y1="316" x2="210" y2="336" stroke="#5E5E5E"/>
+          <polygon points="207,334 210,340 213,334" fill="#5E5E5E"/>
+          <rect x="120" y="340" width="180" height="140" fill="#E9F4FB" stroke="#0D69D4"/>
+          <text x="210" y="360" font-size="13" text-anchor="middle" font-weight="600">SwiGLU FFN</text>
+
+          <!-- gate proj -->
+          <rect x="135" y="372" width="78" height="22" fill="#fff" stroke="#0D69D4"/>
+          <text x="174" y="386" font-size="10" text-anchor="middle">gate_proj</text>
+          <text x="174" y="396" font-size="9" text-anchor="middle" fill="#5E5E5E" class="mono">3584→18944</text>
+
+          <!-- up proj -->
+          <rect x="219" y="372" width="68" height="22" fill="#fff" stroke="#0D69D4"/>
+          <text x="253" y="386" font-size="10" text-anchor="middle">up_proj</text>
+          <text x="253" y="396" font-size="9" text-anchor="middle" fill="#5E5E5E" class="mono">3584→18944</text>
+
+          <!-- silu × -->
+          <text x="153" y="416" font-size="11" font-weight="500">SiLU</text>
+          <text x="200" y="416" font-size="16" font-weight="500">⊙</text>
+          <text x="220" y="416" font-size="11">(elementwise gate)</text>
+
+          <!-- down proj -->
+          <rect x="135" y="428" width="150" height="22" fill="#fff" stroke="#0D69D4"/>
+          <text x="210" y="442" font-size="10" text-anchor="middle">down_proj</text>
+          <text x="210" y="452" font-size="9" text-anchor="middle" fill="#5E5E5E" class="mono">18944→3584</text>
+
+          <!-- no bias -->
+          <text x="210" y="470" font-size="9" fill="#0D69D4" text-anchor="middle">no bias on FFN linears</text>
+
+          <!-- residual add 2 -->
+          <line x1="210" y1="480" x2="210" y2="500" stroke="#5E5E5E"/>
+          <polygon points="207,498 210,504 213,498" fill="#5E5E5E"/>
+          <circle cx="60" cy="512" r="8" fill="#fff" stroke="#5E5E5E"/>
+          <text x="60" y="516" font-size="13" text-anchor="middle" fill="#5E5E5E">+</text>
+          <line x1="210" y1="512" x2="68" y2="512" stroke="#5E5E5E"/>
+          <polygon points="71,509 65,512 71,515" fill="#5E5E5E"/>
+        </svg>
+      </div>
+
+      <div class="block-side">
+        <div class="block-step norm">
+          <div class="h"><div class="t">1 · Pre-attention RMSNorm</div><div class="tag">γ ∈ ℝ³⁵⁸⁴ · ε = 1e-6</div></div>
+          <p>Root-Mean-Square layer norm with a learned per-channel gain γ and no bias / no recentering. Cheaper than LayerNorm and numerically stable in bf16.</p>
+        </div>
+        <div class="block-step attn">
+          <div class="h"><div class="t">2 · GQA self-attention</div><div class="tag">28 Q · 4 KV · dh = 128</div></div>
+          <p>Three projections (q_proj, k_proj, v_proj) with <b>QKV bias</b> — a Qwen-specific carry-over from Qwen1; helpful for length extrapolation. Causal mask, FlashAttention-2 in practice. Output projection is bias-free.</p>
+        </div>
+        <div class="block-step add">
+          <div class="h"><div class="t">3 · Residual add</div><div class="tag">x ← x + attn(norm(x))</div></div>
+          <p>Pre-norm placement: the residual rail is untouched and gradients flow cleanly. No DropPath, no LayerScale.</p>
+        </div>
+        <div class="block-step norm">
+          <div class="h"><div class="t">4 · Pre-FFN RMSNorm</div><div class="tag">second γ vector</div></div>
+          <p>A second, independent RMSNorm before the feed-forward sublayer.</p>
+        </div>
+        <div class="block-step ffn">
+          <div class="h"><div class="t">5 · SwiGLU feed-forward</div><div class="tag">3 584 ↔ 18 944</div></div>
+          <p>Three linears (gate, up, down), zero bias. Gating is <code style="font-family:var(--kui-font-mono);font-size:12px;background:var(--kui-bg-canvas);padding:1px 4px;">silu(gate(x)) ⊙ up(x)</code>, then projected back down. Replaces GeLU MLP from the original Transformer.</p>
+        </div>
+        <div class="block-step add">
+          <div class="h"><div class="t">6 · Residual add</div><div class="tag">x ← x + ffn(norm(x))</div></div>
+          <p>Closes the block. The output enters the next layer (or, after layer 28, a final RMSNorm and the LM head).</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── COMPONENT TRIPTYCH ─────────── -->
+  <section data-screen-label="05 Primitives">
+    <div class="sec-head">
+      <div class="num">04 · Primitives</div>
+      <div>
+        <h3>Three operators carry the design</h3>
+        <p>Every interesting choice in Qwen2-7B is at the operator level: how attention shares KV across heads, how the FFN gates its activations, how positional information enters. Below: the three primitives that distinguish this architecture from the original 2017 Transformer.</p>
+      </div>
+    </div>
+
+    <div class="triptych">
+
+      <!-- ── GQA ── -->
+      <article class="comp attn">
+        <div class="strip"></div>
+        <div class="body">
+          <div class="eyebrow">Sequence mixer · 28 of 28 layers</div>
+          <h4>Grouped-Query Attention</h4>
+          <p>28 query heads share just 4 KV heads — a 7:1 ratio. The KV cache shrinks 7× vs MHA at near-identical quality. Q/K/V projections retain a learned bias term (Qwen-specific).</p>
+
+          <div class="diagram">
+            <svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg">
+              <!-- 28 Q heads top row -->
+              <text x="10" y="22" font-size="10" font-weight="500">28 Q heads</text>
+              <g id="qheads-mini">
+                <!-- generated in JS -->
+              </g>
+
+              <!-- 4 KV heads -->
+              <text x="10" y="110" font-size="10" font-weight="500">4 KV heads</text>
+              <rect x="20" y="120" width="68" height="22" fill="#C54600"/>
+              <rect x="92" y="120" width="68" height="22" fill="#C54600"/>
+              <rect x="164" y="120" width="68" height="22" fill="#C54600"/>
+              <rect x="236" y="120" width="68" height="22" fill="#C54600"/>
+              <text x="54"  y="135" font-size="9" text-anchor="middle" fill="#fff">KV-0</text>
+              <text x="126" y="135" font-size="9" text-anchor="middle" fill="#fff">KV-1</text>
+              <text x="198" y="135" font-size="9" text-anchor="middle" fill="#fff">KV-2</text>
+              <text x="270" y="135" font-size="9" text-anchor="middle" fill="#fff">KV-3</text>
+
+              <!-- output -->
+              <text x="10" y="170" font-size="9" fill="#5E5E5E">dim_q = 28·128 = 3584</text>
+              <text x="10" y="184" font-size="9" fill="#5E5E5E">dim_kv = 4·128 = 512  (7× smaller)</text>
+            </svg>
+          </div>
+
+          <div class="spec">
+            <div class="k">Q heads</div><div class="v">28</div>
+            <div class="k">KV heads</div><div class="v">4</div>
+            <div class="k">Head dim</div><div class="v">128</div>
+            <div class="k">QKV bias</div><div class="v">yes</div>
+            <div class="k">Output bias</div><div class="v">no</div>
+            <div class="k">Mask</div><div class="v">causal</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ── SwiGLU ── -->
+      <article class="comp ffn">
+        <div class="strip"></div>
+        <div class="body">
+          <div class="eyebrow">Channel mixer · 28 of 28 layers</div>
+          <h4>SwiGLU FFN</h4>
+          <p>A gated linear unit with SiLU gating. Two parallel projections widen 3 584 → 18 944; one is gated by the other, then a single linear contracts back to 3 584. Three matrices instead of two — but no bias means parameter count is comparable to a 4× GeLU MLP.</p>
+
+          <div class="diagram">
+            <svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg">
+              <!-- input -->
+              <rect x="10" y="92" width="44" height="22" fill="#fff" stroke="#0D69D4"/>
+              <text x="32" y="106" font-size="10" text-anchor="middle">x</text>
+              <line x1="54" y1="103" x2="80" y2="103" stroke="#0D69D4"/>
+              <line x1="68" y1="60" x2="68" y2="146" stroke="#0D69D4"/>
+
+              <!-- gate proj -->
+              <rect x="80" y="48" width="80" height="22" fill="#E9F4FB" stroke="#0D69D4"/>
+              <text x="120" y="62" font-size="10" text-anchor="middle">gate</text>
+              <line x1="160" y1="59" x2="178" y2="59" stroke="#0D69D4"/>
+
+              <!-- SiLU -->
+              <rect x="178" y="48" width="42" height="22" fill="#fff" stroke="#0D69D4"/>
+              <text x="199" y="62" font-size="10" text-anchor="middle">SiLU</text>
+              <line x1="220" y1="59" x2="240" y2="59" stroke="#0D69D4"/>
+
+              <!-- up proj -->
+              <rect x="80" y="136" width="80" height="22" fill="#E9F4FB" stroke="#0D69D4"/>
+              <text x="120" y="150" font-size="10" text-anchor="middle">up</text>
+              <line x1="160" y1="147" x2="240" y2="147" stroke="#0D69D4"/>
+
+              <!-- multiply -->
+              <circle cx="248" cy="103" r="10" fill="#fff" stroke="#0D69D4"/>
+              <text x="248" y="107" font-size="13" text-anchor="middle" fill="#0D69D4">×</text>
+              <line x1="240" y1="59" x2="248" y2="93" stroke="#0D69D4"/>
+              <line x1="240" y1="147" x2="248" y2="113" stroke="#0D69D4"/>
+
+              <!-- down proj -->
+              <line x1="258" y1="103" x2="272" y2="103" stroke="#0D69D4"/>
+              <rect x="272" y="92" width="40" height="22" fill="#E9F4FB" stroke="#0D69D4"/>
+              <text x="292" y="106" font-size="9" text-anchor="middle">down</text>
+
+              <!-- labels -->
+              <text x="160" y="40" font-size="9" fill="#5E5E5E" text-anchor="middle">3584 → 18944</text>
+              <text x="160" y="180" font-size="9" fill="#5E5E5E" text-anchor="middle">3584 → 18944</text>
+              <text x="292" y="130" font-size="9" fill="#5E5E5E" text-anchor="middle">18944 → 3584</text>
+            </svg>
+          </div>
+
+          <div class="spec">
+            <div class="k">Hidden ratio</div><div class="v">5.28×</div>
+            <div class="k">Activation</div><div class="v">SiLU</div>
+            <div class="k">Gate, up, down bias</div><div class="v">no</div>
+            <div class="k">Params / block</div><div class="v">~204 M</div>
+            <div class="k">Forward FLOPs</div><div class="v">3 · 2 · d · dff</div>
+            <div class="k">Replaces</div><div class="v">GeLU MLP</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ── RoPE ── -->
+      <article class="comp rope">
+        <div class="strip"></div>
+        <div class="body">
+          <div class="eyebrow">Positional · applied inside attention</div>
+          <h4>Rotary Position Embedding</h4>
+          <p>Position is injected by rotating each (q, k) pair-of-dimensions through an angle proportional to the token's absolute position — frequency-spaced over the head dim. No absolute position vector is added; position is a property of the operator, not of the input.</p>
+
+          <div class="diagram">
+            <svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg">
+              <!-- axes -->
+              <line x1="40" y1="160" x2="280" y2="160" stroke="#5E5E5E"/>
+              <line x1="40" y1="160" x2="40" y2="40"  stroke="#5E5E5E"/>
+              <text x="160" y="178" font-size="10" text-anchor="middle" fill="#5E5E5E">dim index (paired) · 0 → d_h/2</text>
+              <text x="34" y="100" font-size="10" text-anchor="end" fill="#5E5E5E">θᵢ</text>
+
+              <!-- 1/θ^(2i/d) curve, theta = 1e6, d = 128 -->
+              <path d="M 40 50
+                       Q 80 60, 120 90
+                       Q 160 120, 200 145
+                       Q 240 156, 280 158"
+                    fill="none" stroke="#851F41" stroke-width="2"/>
+
+              <!-- markers -->
+              <circle cx="40"  cy="50"  r="3" fill="#851F41"/>
+              <circle cx="160" cy="120" r="3" fill="#851F41"/>
+              <circle cx="280" cy="158" r="3" fill="#851F41"/>
+              <text x="40"  y="40"  font-size="9" text-anchor="middle" fill="#851F41" class="mono">θ⁰ = 1</text>
+              <text x="160" y="110" font-size="9" text-anchor="middle" fill="#851F41" class="mono">θ¹/²</text>
+              <text x="280" y="148" font-size="9" text-anchor="end"    fill="#851F41" class="mono">θ¹ = 1 / 10⁶</text>
+
+              <!-- header -->
+              <text x="160" y="24" font-size="11" font-weight="500" text-anchor="middle">Rotation frequencies — base θ = 1 000 000</text>
+            </svg>
+          </div>
+
+          <div class="spec">
+            <div class="k">Base θ</div><div class="v">1 000 000</div>
+            <div class="k">Applied to</div><div class="v">Q, K</div>
+            <div class="k">Trained ctx</div><div class="v">32 K</div>
+            <div class="k">YARN-extended</div><div class="v">131 K</div>
+            <div class="k">Dual Chunk Attn</div><div class="v">infer only</div>
+            <div class="k">Form</div><div class="v">rotate-pair</div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ─────────── GQA DEEP DIVE ─────────── -->
+  <section data-screen-label="06 GQA detail">
+    <div class="sec-head">
+      <div class="num">05 · GQA in detail</div>
+      <div>
+        <h3>Why 28 query heads share 4 KV heads</h3>
+        <p>The KV cache is the largest live tensor during autoregressive decoding — it grows linearly with context length and dominates HBM at long context. GQA decouples the count of Q heads (compute) from KV heads (memory), shrinking the cache 7× at this configuration while keeping the per-Q-head expressivity that pure MQA sacrifices.</p>
+      </div>
+    </div>
+
+    <div class="gqa">
+      <h4>28 Q → 4 KV grouping map</h4>
+      <p>Heads 0–6 share KV-0. Heads 7–13 share KV-1. Heads 14–20 share KV-2. Heads 21–27 share KV-3. Each group is computed independently, then concatenated and projected.</p>
+
+      <div class="gqa-grid">
+        <div class="gqa-row-label">Q heads</div>
+        <div class="gqa-row q" id="qhead-row"></div>
+      </div>
+
+      <div class="gqa-share">
+        <div class="gqa-row-label">share ↓</div>
+        <div class="lines">
+          <svg viewBox="0 0 280 32" preserveAspectRatio="none">
+            <!-- 4 funnels from groups of 7 to single KV -->
+            <path d="M 0 0 L 35 32 L 70 0 Z"     fill="rgba(197,70,0,0.08)" stroke="#C54600" stroke-width="0.5"/>
+            <path d="M 70 0 L 105 32 L 140 0 Z"  fill="rgba(197,70,0,0.08)" stroke="#C54600" stroke-width="0.5"/>
+            <path d="M 140 0 L 175 32 L 210 0 Z" fill="rgba(197,70,0,0.08)" stroke="#C54600" stroke-width="0.5"/>
+            <path d="M 210 0 L 245 32 L 280 0 Z" fill="rgba(197,70,0,0.08)" stroke="#C54600" stroke-width="0.5"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="gqa-grid">
+        <div class="gqa-row-label">KV heads</div>
+        <div class="gqa-row kv">
+          <div class="cell k"></div>
+          <div class="cell k"></div>
+          <div class="cell k"></div>
+          <div class="cell k"></div>
+        </div>
+      </div>
+
+      <div class="gqa-stats">
+        <div class="n"><div class="k">KV cache (per token, fp16)</div><div class="v">2 KB <small>vs 14 KB MHA</small></div></div>
+        <div class="n"><div class="k">KV cache @ 131 K ctx</div><div class="v">262 MB <small>per batch lane</small></div></div>
+        <div class="n"><div class="k">Q params / layer</div><div class="v">3 584 × 3 584</div></div>
+        <div class="n"><div class="k">K, V params / layer</div><div class="v">3 584 × 512 <small>×2</small></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── MoE SIBLING ─────────── -->
+  <section data-screen-label="07 MoE sibling">
+    <div class="sec-head">
+      <div class="num">06 · MoE sibling</div>
+      <div>
+        <h3>Qwen2-57B-A14B — when the FFN goes sparse</h3>
+        <p>Qwen2-7B itself is <b>dense</b> — every parameter fires for every token. The MoE in the Qwen2 family lives in a different family member, <b>Qwen2-57B-A14B</b>, where the SwiGLU FFN is replaced with a fine-grained Mixture-of-Experts. Same attention, same RoPE, same RMSNorm — only the FFN sublayer differs. Shown here for completeness.</p>
+      </div>
+    </div>
+
+    <div class="moe-deep">
+
+      <div class="moe-card">
+        <h4>64 routed + 8 shared experts</h4>
+        <p>Every FFN sublayer is replaced with 64 tiny SwiGLU experts plus 8 always-on shared experts. A learned router picks the top-8 routed experts per token; the 8 shared experts always fire. Total params 57 B, only 14 B active per token.</p>
+
+        <div style="font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin: 8px 0 8px;">Routed pool · 64 experts (top-8 active)</div>
+        <div class="moe-grid" id="moegrid"><!-- generated --></div>
+
+        <div style="font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin: 16px 0 8px;">Shared pool · 8 experts (always active)</div>
+        <div class="moe-shared">
+          <div class="e"></div><div class="e"></div><div class="e"></div><div class="e"></div>
+          <div class="e"></div><div class="e"></div><div class="e"></div><div class="e"></div>
+        </div>
+
+        <div class="moe-key">
+          <span><i style="background:var(--c-moe)"></i> Routed · active for this token</span>
+          <span><i style="background:var(--kui-n100)"></i> Routed · idle</span>
+          <span><i style="background:var(--c-rope)"></i> Shared · always on</span>
+        </div>
+
+        <div class="moe-numbers">
+          <div class="n"><div class="k">Total params</div><div class="v">57 B</div></div>
+          <div class="n"><div class="k">Active / token</div><div class="v">14 B</div></div>
+          <div class="n"><div class="k">Routed experts</div><div class="v">64 <small>top-8</small></div></div>
+          <div class="n"><div class="k">Shared experts</div><div class="v">8 <small>always on</small></div></div>
+        </div>
+      </div>
+
+      <div class="moe-flow">
+        <h4>FFN sublayer — dense vs MoE</h4>
+
+        <svg viewBox="0 0 520 360" xmlns="http://www.w3.org/2000/svg">
+          <!-- dense column -->
+          <text x="100" y="22" font-size="11" font-weight="600" text-anchor="middle">Qwen2-7B · dense</text>
+          <rect x="60" y="36" width="80" height="22" fill="#fff" stroke="#5E5E5E"/>
+          <text x="100" y="50" font-size="10" text-anchor="middle">RMSNorm(x)</text>
+          <line x1="100" y1="58" x2="100" y2="74" stroke="#5E5E5E"/>
+          <polygon points="97,72 100,78 103,72" fill="#5E5E5E"/>
+
+          <rect x="50" y="78" width="100" height="180" fill="#E9F4FB" stroke="#0D69D4"/>
+          <text x="100" y="98" font-size="11" font-weight="500" text-anchor="middle">SwiGLU FFN</text>
+          <rect x="60" y="112" width="80" height="22" fill="#fff" stroke="#0D69D4"/>
+          <text x="100" y="126" font-size="9" text-anchor="middle">gate · 3584→18944</text>
+          <rect x="60" y="138" width="80" height="22" fill="#fff" stroke="#0D69D4"/>
+          <text x="100" y="152" font-size="9" text-anchor="middle">up · 3584→18944</text>
+          <text x="100" y="178" font-size="11" text-anchor="middle">SiLU(gate) ⊙ up</text>
+          <rect x="60" y="190" width="80" height="22" fill="#fff" stroke="#0D69D4"/>
+          <text x="100" y="204" font-size="9" text-anchor="middle">down · 18944→3584</text>
+          <text x="100" y="232" font-size="10" text-anchor="middle" fill="#0D69D4" font-weight="500">≈ 204 M params</text>
+          <text x="100" y="248" font-size="9" text-anchor="middle" fill="#5E5E5E">all fire, every token</text>
+
+          <line x1="100" y1="258" x2="100" y2="284" stroke="#5E5E5E"/>
+          <polygon points="97,282 100,288 103,282" fill="#5E5E5E"/>
+          <rect x="60" y="288" width="80" height="22" fill="#fff" stroke="#5E5E5E"/>
+          <text x="100" y="302" font-size="10" text-anchor="middle">+ residual</text>
+
+          <!-- MoE column -->
+          <text x="380" y="22" font-size="11" font-weight="600" text-anchor="middle">Qwen2-57B-A14B · MoE</text>
+          <rect x="340" y="36" width="80" height="22" fill="#fff" stroke="#5E5E5E"/>
+          <text x="380" y="50" font-size="10" text-anchor="middle">RMSNorm(x)</text>
+          <line x1="380" y1="58" x2="380" y2="74" stroke="#5E5E5E"/>
+          <polygon points="377,72 380,78 383,72" fill="#5E5E5E"/>
+
+          <!-- router -->
+          <rect x="335" y="78" width="90" height="22" fill="#FBEEFE" stroke="#851F41"/>
+          <text x="380" y="92" font-size="10" text-anchor="middle" fill="#851F41" font-weight="500">router (Wg · softmax)</text>
+          <line x1="380" y1="100" x2="380" y2="112" stroke="#851F41"/>
+          <line x1="340" y1="118" x2="430" y2="118" stroke="#851F41" stroke-dasharray="2 2"/>
+
+          <!-- 8 routed expert blocks -->
+          <g>
+            <rect x="335" y="124" width="20" height="16" fill="#76B900"/>
+            <rect x="357" y="124" width="20" height="16" fill="#76B900"/>
+            <rect x="379" y="124" width="20" height="16" fill="#76B900"/>
+            <rect x="401" y="124" width="20" height="16" fill="#76B900"/>
+            <rect x="335" y="142" width="20" height="16" fill="#76B900"/>
+            <rect x="357" y="142" width="20" height="16" fill="#76B900"/>
+            <rect x="379" y="142" width="20" height="16" fill="#76B900"/>
+            <rect x="401" y="142" width="20" height="16" fill="#76B900"/>
+          </g>
+          <text x="380" y="172" font-size="9" text-anchor="middle" fill="#5E5E5E">top-8 of 64 routed (fine-grained)</text>
+
+          <!-- shared experts -->
+          <rect x="340" y="180" width="80" height="16" fill="#851F41"/>
+          <text x="380" y="192" font-size="9" text-anchor="middle" fill="#fff">8 shared experts (always on)</text>
+
+          <!-- combine -->
+          <line x1="380" y1="200" x2="380" y2="218" stroke="#5E5E5E"/>
+          <polygon points="377,216 380,222 383,216" fill="#5E5E5E"/>
+          <rect x="340" y="222" width="80" height="22" fill="#fff" stroke="#5E5E5E"/>
+          <text x="380" y="236" font-size="10" text-anchor="middle">weighted sum</text>
+
+          <text x="380" y="262" font-size="10" text-anchor="middle" fill="#76B900" font-weight="500">≈ 14 B active / 57 B total</text>
+          <text x="380" y="278" font-size="9" text-anchor="middle" fill="#5E5E5E">~24 % of params fire</text>
+
+          <line x1="380" y1="284" x2="380" y2="284" stroke="#5E5E5E"/>
+          <rect x="340" y="288" width="80" height="22" fill="#fff" stroke="#5E5E5E"/>
+          <text x="380" y="302" font-size="10" text-anchor="middle">+ residual</text>
+
+          <!-- center divider -->
+          <line x1="240" y1="30" x2="240" y2="320" stroke="#D8D8D8" stroke-dasharray="3 4"/>
+
+          <!-- annotations -->
+          <text x="265" y="160" font-size="10" fill="#5E5E5E">same attention,</text>
+          <text x="265" y="174" font-size="10" fill="#5E5E5E">same RMSNorm,</text>
+          <text x="265" y="188" font-size="10" fill="#5E5E5E">same RoPE</text>
+          <line x1="262" y1="195" x2="262" y2="220" stroke="#D8D8D8"/>
+          <text x="265" y="232" font-size="10" fill="#5E5E5E" font-weight="500">FFN differs</text>
+        </svg>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ─────────── TOKENIZER ─────────── -->
+  <section data-screen-label="08 Tokenizer">
+    <div class="sec-head">
+      <div class="num">07 · Tokenizer & pre-processing</div>
+      <div>
+        <h3>Byte-level BPE, shared across the family</h3>
+        <p>Every Qwen2 variant uses the same byte-level BPE vocabulary, inherited from Qwen1 and stable across the line. The byte-level fallback means any UTF-8 input is encodable; the 152 064-row table is sized to a multiple of 128 for matmul efficiency, even though only ~151 646 ids are populated.</p>
+      </div>
+    </div>
+
+    <div class="tok">
+      <div class="tok-card">
+        <h4>Encode pipeline</h4>
+        <p>A six-stage pipeline turns raw text into a tensor of token ids. The whole thing is reversible — bytes in, bytes out.</p>
+
+        <div class="tok-flow">
+          <div class="step">
+            <div class="k">01 · Input</div>
+            <div class="v">UTF-8 string</div>
+            <div class="m">"Hello, 世界"</div>
+          </div>
+          <div class="step">
+            <div class="k">02 · Pre-tok</div>
+            <div class="v">tiktoken regex split</div>
+            <div class="m">whitespace / punct boundaries</div>
+          </div>
+          <div class="step">
+            <div class="k">03 · Bytes</div>
+            <div class="v">UTF-8 → bytes</div>
+            <div class="m">'世' → E4 B8 96</div>
+          </div>
+          <div class="step">
+            <div class="k">04 · BPE merge</div>
+            <div class="v">greedy longest match</div>
+            <div class="m">~151 646 merge entries</div>
+          </div>
+          <div class="step">
+            <div class="k">05 · Ids</div>
+            <div class="v">int tensor</div>
+            <div class="m">[9707, 11, 220, 99489, 99489]</div>
+          </div>
+        </div>
+
+        <div style="font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin: 20px 0 8px;">Special control tokens</div>
+        <div class="tok-special">
+          <span>&lt;|endoftext|&gt;</span>
+          <span>&lt;|im_start|&gt;</span>
+          <span>&lt;|im_end|&gt;</span>
+          <span>&lt;|object_ref_start|&gt;</span>
+          <span>&lt;|object_ref_end|&gt;</span>
+          <span>&lt;|box_start|&gt;</span>
+          <span>&lt;|box_end|&gt;</span>
+          <span>&lt;|quad_start|&gt;</span>
+          <span>&lt;|quad_end|&gt;</span>
+          <span>&lt;|vision_start|&gt;</span>
+          <span>&lt;|vision_end|&gt;</span>
+        </div>
+      </div>
+
+      <div class="tok-card">
+        <h4>Vocabulary stats</h4>
+        <p>Sized for multilingual coverage with strong compression on Chinese, code, and math notation.</p>
+
+        <div style="display:grid; grid-template-columns: 1fr auto; gap: 10px 24px; padding-top: 12px; border-top: 1px solid var(--kui-border-default); font: var(--kui-body);">
+          <div style="color: var(--kui-fg-muted);">Vocab table size</div>            <div class="mono" style="font-family: var(--kui-font-mono);">152 064</div>
+          <div style="color: var(--kui-fg-muted);">Regular tokens</div>               <div class="mono" style="font-family: var(--kui-font-mono);">151 643</div>
+          <div style="color: var(--kui-fg-muted);">Control tokens</div>               <div class="mono" style="font-family: var(--kui-font-mono);">3+</div>
+          <div style="color: var(--kui-fg-muted);">Pad / extra reserved</div>         <div class="mono" style="font-family: var(--kui-font-mono);">~418</div>
+          <div style="color: var(--kui-fg-muted);">Embedding rows</div>               <div class="mono" style="font-family: var(--kui-font-mono);">152 064 × 3 584</div>
+          <div style="color: var(--kui-fg-muted);">Embedding params</div>             <div class="mono" style="font-family: var(--kui-font-mono);">545 M</div>
+          <div style="color: var(--kui-fg-muted);">Embedding tied to LM head?</div>   <div class="mono" style="font-family: var(--kui-font-mono);">no (untied)</div>
+          <div style="color: var(--kui-fg-muted);">Bytes per token (avg, en)</div>    <div class="mono" style="font-family: var(--kui-font-mono);">≈ 4.0</div>
+          <div style="color: var(--kui-fg-muted);">Bytes per token (avg, zh)</div>    <div class="mono" style="font-family: var(--kui-font-mono);">≈ 1.5</div>
+          <div style="color: var(--kui-fg-muted);">Pre-tok regex</div>                <div class="mono" style="font-family: var(--kui-font-mono);">tiktoken cl100k-style</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── LONG CONTEXT ─────────── -->
+  <section data-screen-label="09 Long context">
+    <div class="sec-head">
+      <div class="num">08 · Long context</div>
+      <div>
+        <h3>From 4 K to 131 K, in stages</h3>
+        <p>Qwen2-7B is not trained at 131 K. The pre-training context window grows in stages, and the final stretch to 131 K is a pure inference-time intervention — YARN re-scales RoPE frequencies and Dual Chunk Attention partitions the long sequence into local + cross chunks so the kernel never materializes a 131 K × 131 K attention map.</p>
+      </div>
+    </div>
+
+    <div class="lc">
+      <h4>Context length progression</h4>
+
+      <div class="lc-bars">
+        <div class="name">Stage 1 · pre-train<br><small>most of 7T tokens</small></div>
+        <div class="track"><div class="fill" style="width: 3%;"></div></div>
+        <div class="v">4 096</div>
+      </div>
+      <div class="lc-bars">
+        <div class="name">Stage 2 · long-data<br><small>continued pre-train</small></div>
+        <div class="track"><div class="fill" style="width: 24%;"></div></div>
+        <div class="v">32 768</div>
+      </div>
+      <div class="lc-bars">
+        <div class="name">Stage 3 · post-train ctx<br><small>SFT + DPO</small></div>
+        <div class="track"><div class="fill" style="width: 24%;"></div></div>
+        <div class="v">32 768</div>
+      </div>
+      <div class="lc-bars">
+        <div class="name">Inference · YARN<br><small>RoPE freq rescale</small></div>
+        <div class="track"><div class="fill" style="width: 100%;"></div></div>
+        <div class="v">131 072</div>
+      </div>
+      <div class="lc-bars">
+        <div class="name">Inference · + DCA<br><small>Dual Chunk Attention</small></div>
+        <div class="track"><div class="fill" style="width: 100%;"></div></div>
+        <div class="v">131 072</div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 28px;">
+        <div style="border: 1px solid var(--kui-border-default); padding: 18px; background: var(--kui-bg-canvas);">
+          <div style="font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 8px;">YARN</div>
+          <p style="margin: 0; font: var(--kui-body); color: var(--kui-fg-default);">Rescales RoPE rotation frequencies non-uniformly: high-frequency dims (short-range) stay; low-frequency dims (long-range) are interpolated. Implemented as a multiplier on θⁱ. No re-training.</p>
+        </div>
+        <div style="border: 1px solid var(--kui-border-default); padding: 18px; background: var(--kui-bg-canvas);">
+          <div style="font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 8px;">Dual Chunk Attention</div>
+          <p style="margin: 0; font: var(--kui-body); color: var(--kui-fg-default);">Splits the sequence into chunks. Inside a chunk: standard causal attention. Across chunks: a re-scaled position index that keeps cross-chunk attention well-conditioned at distances beyond what RoPE has seen at training.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── TRAINING PIPELINE ─────────── -->
+  <section data-screen-label="10 Training pipeline">
+    <div class="sec-head">
+      <div class="num">09 · Training pipeline</div>
+      <div>
+        <h3>Pre-training, long-context, alignment</h3>
+        <p>Qwen2-7B is trained in five visible stages — three of them pre-training, two of them post-training alignment. The bulk of the compute lives in stage 1; the rest is conditioning the model to be useful, honest, and coherent in long-form chat.</p>
+      </div>
+    </div>
+
+    <div class="timeline">
+      <h4>Training stages — width is roughly proportional to token count</h4>
+
+      <div class="track">
+        <div class="seg s1"><div class="ph">Stage 1 · pre-training</div><div class="nm">7 T tokens · multilingual web + code + math</div></div>
+        <div class="seg s2"><div class="ph">Stage 2 · long</div><div class="nm">+ long-context data · ctx 32 K</div></div>
+        <div class="seg s3"><div class="ph">Stage 3 · SFT</div><div class="nm">500 K+ examples</div></div>
+        <div class="seg s4"><div class="ph">Stage 4 · DPO offline</div><div class="nm">human + model prefs</div></div>
+        <div class="seg s5"><div class="ph">Stage 5 · DPO online</div><div class="nm">RM-guided</div></div>
+      </div>
+      <div class="ax">
+        <span>step 0</span>
+        <span>≈ stage 1 end</span>
+        <span>+ ctx extension</span>
+        <span>+ post-train</span>
+        <span>release</span>
+      </div>
+
+      <div class="prepost">
+        <div class="pp-card">
+          <div class="eyebrow">Pre-processing · pre-training</div>
+          <h4>What goes in</h4>
+          <ul>
+            <li><b>Corpus</b> — multilingual web, code, books, math; total 7 T tokens after dedup and quality filtering.</li>
+            <li><b>Languages</b> — Chinese and English dominate; 27+ other languages including code-as-language.</li>
+            <li><b>Quality filtering</b> — model-based scoring (using earlier Qwen checkpoints) to drop low-quality web pages.</li>
+            <li><b>Deduplication</b> — minhash + exact-match dedup at document and substring level.</li>
+            <li><b>Packing</b> — documents concatenated into 4 K (then 32 K) sequences with <code>&lt;|endoftext|&gt;</code> separators.</li>
+            <li><b>Tokenize</b> — byte-level BPE, 152 064-row table, shared across the family.</li>
+          </ul>
+        </div>
+        <div class="pp-card">
+          <div class="eyebrow">Post-processing · alignment</div>
+          <h4>What comes out</h4>
+          <ul>
+            <li><b>SFT</b> — supervised fine-tuning on &gt;500 K curated instruction-response pairs spanning chat, coding, math, agentic use.</li>
+            <li><b>Offline DPO</b> — direct preference optimization against a static dataset of (chosen, rejected) pairs from humans and stronger models.</li>
+            <li><b>Online DPO</b> — preference signal from a reward model trained on the same dataset; samples are drawn from the live policy and graded in the loop.</li>
+            <li><b>Chat format</b> — ChatML-style with <code>&lt;|im_start|&gt;role</code> / <code>&lt;|im_end|&gt;</code> framing.</li>
+            <li><b>Safety</b> — red-team prompts mixed into SFT and DPO; refusals are part of the preference signal.</li>
+            <li><b>Release</b> — Base + Instruct weights, plus tokenizer and chat template, under Tongyi Qianwen license.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── FAMILY SPEC TABLE ─────────── -->
+  <section data-screen-label="11 Family specs">
+    <div class="sec-head">
+      <div class="num">10 · The full family</div>
+      <div>
+        <h3>How 7B fits among its siblings</h3>
+        <p>Five released checkpoints, all sharing the same architecture skeleton — only widths, depths, and KV ratios change. The MoE member (57B-A14B) is the outlier: same shape outside the FFN, sparse and fine-grained inside it.</p>
+      </div>
+    </div>
+
+    <div class="specs">
+
+      <div class="group"><h5>Qwen2-7B · the page's subject</h5></div>
+      <div class="cell"><div class="k">Layers</div><div class="v">28</div></div>
+      <div class="cell"><div class="k">d_model</div><div class="v">3 584</div></div>
+      <div class="cell"><div class="k">FFN dim</div><div class="v">18 944</div></div>
+      <div class="cell"><div class="k">Q / KV heads</div><div class="v">28 / 4</div></div>
+      <div class="cell"><div class="k">Tie embed</div><div class="v">no</div></div>
+      <div class="cell"><div class="k">QKV bias</div><div class="v">yes</div></div>
+      <div class="cell"><div class="k">Train tokens</div><div class="v">7 T</div></div>
+      <div class="cell"><div class="k">Active params</div><div class="v">7.07 B</div></div>
+
+      <div class="group"><h5>Qwen2-0.5B · the embedded-class sibling</h5></div>
+      <div class="cell"><div class="k">Layers</div><div class="v">24</div></div>
+      <div class="cell"><div class="k">d_model</div><div class="v">896</div></div>
+      <div class="cell"><div class="k">FFN dim</div><div class="v">4 864</div></div>
+      <div class="cell"><div class="k">Q / KV heads</div><div class="v">14 / 2</div></div>
+      <div class="cell"><div class="k">Tie embed</div><div class="v">yes</div></div>
+      <div class="cell"><div class="k">QKV bias</div><div class="v">yes</div></div>
+      <div class="cell"><div class="k">Train tokens</div><div class="v">7 T</div></div>
+      <div class="cell"><div class="k">Active params</div><div class="v">0.49 B</div></div>
+
+      <div class="group"><h5>Qwen2-1.5B</h5></div>
+      <div class="cell"><div class="k">Layers</div><div class="v">28</div></div>
+      <div class="cell"><div class="k">d_model</div><div class="v">1 536</div></div>
+      <div class="cell"><div class="k">FFN dim</div><div class="v">8 960</div></div>
+      <div class="cell"><div class="k">Q / KV heads</div><div class="v">12 / 2</div></div>
+      <div class="cell"><div class="k">Tie embed</div><div class="v">yes</div></div>
+      <div class="cell"><div class="k">QKV bias</div><div class="v">yes</div></div>
+      <div class="cell"><div class="k">Train tokens</div><div class="v">7 T</div></div>
+      <div class="cell"><div class="k">Active params</div><div class="v">1.54 B</div></div>
+
+      <div class="group"><h5>Qwen2-72B · the flagship dense</h5></div>
+      <div class="cell"><div class="k">Layers</div><div class="v">80</div></div>
+      <div class="cell"><div class="k">d_model</div><div class="v">8 192</div></div>
+      <div class="cell"><div class="k">FFN dim</div><div class="v">29 568</div></div>
+      <div class="cell"><div class="k">Q / KV heads</div><div class="v">64 / 8</div></div>
+      <div class="cell"><div class="k">Tie embed</div><div class="v">no</div></div>
+      <div class="cell"><div class="k">QKV bias</div><div class="v">yes</div></div>
+      <div class="cell"><div class="k">Train tokens</div><div class="v">7 T</div></div>
+      <div class="cell"><div class="k">Active params</div><div class="v">72.7 B</div></div>
+
+      <div class="group"><h5>Qwen2-57B-A14B · MoE</h5></div>
+      <div class="cell"><div class="k">Layers</div><div class="v">28</div></div>
+      <div class="cell"><div class="k">d_model</div><div class="v">3 584</div></div>
+      <div class="cell"><div class="k">Routed exp.</div><div class="v">64 (top-8)</div></div>
+      <div class="cell"><div class="k">Shared exp.</div><div class="v">8</div></div>
+      <div class="cell"><div class="k">Q / KV heads</div><div class="v">28 / 4</div></div>
+      <div class="cell"><div class="k">Active params</div><div class="v">14 B</div></div>
+      <div class="cell"><div class="k">Total params</div><div class="v">57 B</div></div>
+      <div class="cell"><div class="k">Train tokens</div><div class="v">~4.5 T <small>upcycled</small></div></div>
+
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="row">
+    <div>Qwen2 — technical report, Jul 2024 · <a href="https://arxiv.org/pdf/2407.10671">arXiv:2407.10671</a></div>
+    <div>Rendered with the NVIDIA Kaizen design system · Architecture brief</div>
+  </div>
+</footer>
+
+<script>
+  // ── ribbon: 28 identical decoder blocks ──
+  (function () {
+    const ribbon = document.getElementById('ribbon');
+    if (!ribbon) return;
+    for (let i = 0; i < 28; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.innerHTML = `
+        <div class="bar-attn" title="GQA layer ${i+1}"></div>
+        <div class="bar-ffn"  title="SwiGLU layer ${i+1}"></div>
+        <div class="num">${i + 1}</div>
+      `;
+      ribbon.appendChild(cell);
+    }
+  })();
+
+  // ── mini Q-head bars on the triptych ──
+  (function () {
+    const g = document.getElementById('qheads-mini');
+    if (!g) return;
+    const ns = 'http://www.w3.org/2000/svg';
+    const x0 = 20, y = 32, w = 8, gap = 2, gw = 7 * (w + gap) - gap, gxgap = 4;
+    for (let i = 0; i < 28; i++) {
+      const groupIdx = Math.floor(i / 7);
+      const inIdx = i % 7;
+      const x = x0 + groupIdx * (gw + gxgap) + inIdx * (w + gap);
+      const r = document.createElementNS(ns, 'rect');
+      r.setAttribute('x', x);
+      r.setAttribute('y', y);
+      r.setAttribute('width', w);
+      r.setAttribute('height', 50);
+      r.setAttribute('fill', '#C54600');
+      g.appendChild(r);
+    }
+  })();
+
+  // ── GQA full Q row (28 cells, color-banded by group) ──
+  (function () {
+    const row = document.getElementById('qhead-row');
+    if (!row) return;
+    const tints = ['#C54600', '#DD6A2A', '#E8884F', '#F4A878'];
+    for (let i = 0; i < 28; i++) {
+      const groupIdx = Math.floor(i / 7);
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.background = tints[groupIdx];
+      cell.style.aspectRatio = '1/1';
+      row.appendChild(cell);
+    }
+  })();
+
+  // ── MoE grid: 64 experts, top-8 highlighted ──
+  (function () {
+    const grid = document.getElementById('moegrid');
+    if (!grid) return;
+    // 8 indices distributed across 64 slots
+    const active = new Set([3, 9, 14, 22, 31, 40, 49, 58]);
+    for (let i = 0; i < 64; i++) {
+      const e = document.createElement('div');
+      e.className = 'e' + (active.has(i) ? ' active' : '');
+      grid.appendChild(e);
+    }
+  })();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Model Architecture Atlas</title>
+  <style>
+    :root {
+      --bg: #f5f5f2;
+      --ink: #111216;
+      --muted: #646871;
+      --soft: #ebece7;
+      --line: #d7d8d2;
+      --panel: #ffffff;
+      --dark: #171a20;
+      --green: #76b900;
+      --blue: #0d69d4;
+      --violet: #7052d8;
+      --amber: #bc7a1f;
+      --rose: #c14c68;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 44px 0 64px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 280px;
+      gap: 30px;
+      align-items: end;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 840px;
+      margin: 0;
+      font-size: clamp(44px, 8vw, 90px);
+      line-height: 0.95;
+      letter-spacing: 0;
+    }
+
+    .summary {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .meter {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .meter div {
+      min-height: 88px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+    }
+
+    .meter span,
+    .card-meta span,
+    .path,
+    .status,
+    .filter-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .meter strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 32px;
+      line-height: 1;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      margin: 24px 0;
+    }
+
+    .search {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+    }
+
+    .search svg {
+      flex: 0 0 auto;
+      width: 18px;
+      height: 18px;
+      color: var(--muted);
+    }
+
+    input {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+    }
+
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    button {
+      min-height: 42px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--ink);
+      cursor: pointer;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    button.active {
+      border-color: var(--dark);
+      background: var(--dark);
+      color: #fff;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      display: grid;
+      gap: 18px;
+      min-height: 260px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: inherit;
+      text-decoration: none;
+      transition: border-color 160ms ease, transform 160ms ease;
+    }
+
+    .card:hover {
+      border-color: var(--green);
+      transform: translateY(-2px);
+    }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    .mark {
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      width: 48px;
+      height: 42px;
+      border-radius: 6px;
+      background: var(--soft);
+      color: var(--ink);
+      font-weight: 900;
+    }
+
+    .card:nth-child(4n + 1) .mark { background: #dff2bb; }
+    .card:nth-child(4n + 2) .mark { background: #ddecff; }
+    .card:nth-child(4n + 3) .mark { background: #eee8ff; }
+    .card:nth-child(4n + 4) .mark { background: #fae3bd; }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .card-meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      align-self: end;
+    }
+
+    .card-meta div {
+      min-width: 0;
+      padding: 10px;
+      border-left: 3px solid var(--line);
+      background: #fafaf7;
+    }
+
+    .card-meta div:nth-child(1) { border-color: var(--green); }
+    .card-meta div:nth-child(2) { border-color: var(--blue); }
+    .card-meta div:nth-child(3) { border-color: var(--violet); }
+    .card-meta div:nth-child(4) { border-color: var(--amber); }
+
+    .card-meta strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+    }
+
+    .status-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status {
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: var(--soft);
+      color: var(--ink);
+    }
+
+    .status.available { background: #dff2bb; }
+    .status.missing { background: #ffe0e7; color: #611124; }
+
+    .path {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-transform: none;
+      color: var(--muted);
+    }
+
+    .empty {
+      display: none;
+      padding: 28px;
+      border: 1px dashed var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .empty.visible { display: block; }
+
+    footer {
+      margin-top: 34px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    code {
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: var(--soft);
+      color: var(--ink);
+    }
+
+    @media (max-width: 760px) {
+      main { width: min(100% - 24px, 1180px); padding-top: 28px; }
+      header,
+      .toolbar {
+        grid-template-columns: 1fr;
+      }
+      .filters { justify-content: flex-start; }
+      .meter,
+      .card-meta {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="eyebrow">Downloaded architecture pages</p>
+        <h1>Model Architecture Atlas</h1>
+      </div>
+      <div class="meter" aria-label="Atlas counts">
+        <div><span>Pages</span><strong id="page-count">0</strong></div>
+        <div><span>Families</span><strong id="family-count">0</strong></div>
+      </div>
+    </header>
+
+    <p class="summary">A home surface for model-specific HTML artifacts. Each linked page can bring its own CSS, JavaScript, assets, diagrams, and layout decisions.</p>
+
+    <section class="toolbar" aria-label="Atlas controls">
+      <label class="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M10.8 4.5a6.3 6.3 0 1 1 0 12.6 6.3 6.3 0 0 1 0-12.6Zm0 1.8a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Zm4.2 9.9 4.1 4.1-1.3 1.3-4.1-4.1 1.3-1.3Z" fill="currentColor"></path>
+        </svg>
+        <input id="search" type="search" placeholder="Search models, families, or tags" autocomplete="off">
+      </label>
+      <div class="filters" id="filters" aria-label="Family filters"></div>
+    </section>
+
+    <section class="grid" id="grid" aria-label="Downloaded model pages"></section>
+    <div class="empty" id="empty">No atlas pages match the current filter.</div>
+
+    <footer>
+      For a new model without an HTML artifact, generate a Claude Design prompt from <code>CLAUDE_DESIGN_PROMPT_TEMPLATE.md</code>. After download, add the folder and update <code>ATLAS_PAGES</code>.
+    </footer>
+  </main>
+
+  <script>
+    const ATLAS_PAGES = [
+      {
+        title: "DeepSeek-V4 Architecture",
+        family: "DeepSeek",
+        model: "DeepSeek-V4",
+        href: "models/deepseek-v4/index.html",
+        status: "downloaded",
+        tags: ["MoE", "mHC", "CSA", "HCA", "benchmarks"],
+        note: "Downloaded Claude-design HTML artifact organized with local styles and assets.",
+        mark: "DS"
+      },
+      {
+        title: "Qwen2 7B Architecture",
+        family: "Qwen",
+        model: "Qwen2 7B",
+        href: "models/qwen2-7b/index.html",
+        status: "downloaded",
+        tags: ["decoder", "attention", "RoPE", "GQA", "benchmarks"],
+        note: "Downloaded Claude-design HTML artifact moved from Downloads.",
+        mark: "Q2"
+      },
+      {
+        title: "Nemotron 3 Nano 30B-A3B Architecture",
+        family: "NVIDIA",
+        model: "Nemotron 3 Nano 30B-A3B",
+        href: "models/nemotron-3-nano/index.html",
+        status: "downloaded",
+        tags: ["MoE", "hybrid", "Nano", "NVIDIA", "benchmarks"],
+        note: "Downloaded Claude-design HTML artifact moved from Downloads.",
+        mark: "N3"
+      },
+      {
+        title: "Nemotron 3 Super 120B-A12B Architecture",
+        family: "NVIDIA",
+        model: "Nemotron 3 Super 120B-A12B",
+        href: "models/nemotron-3-super-120b/index.html",
+        status: "downloaded",
+        tags: ["LatentMoE", "Mamba-2", "MTP", "NVFP4", "benchmarks"],
+        note: "Downloaded Claude-design HTML artifact moved from the atlas root.",
+        mark: "NS"
+      }
+    ];
+
+    const state = {
+      query: "",
+      family: "All"
+    };
+
+    const grid = document.querySelector("#grid");
+    const filters = document.querySelector("#filters");
+    const empty = document.querySelector("#empty");
+    const search = document.querySelector("#search");
+    const pageCount = document.querySelector("#page-count");
+    const familyCount = document.querySelector("#family-count");
+
+    function families() {
+      return ["All", ...Array.from(new Set(ATLAS_PAGES.map((page) => page.family))).sort()];
+    }
+
+    function pageText(page) {
+      return [
+        page.title,
+        page.family,
+        page.model,
+        page.status,
+        page.note,
+        ...(page.tags || [])
+      ].join(" ").toLowerCase();
+    }
+
+    function filteredPages() {
+      const query = state.query.trim().toLowerCase();
+      return ATLAS_PAGES.filter((page) => {
+        const familyMatch = state.family === "All" || page.family === state.family;
+        const queryMatch = !query || pageText(page).includes(query);
+        return familyMatch && queryMatch;
+      });
+    }
+
+    function renderFilters() {
+      filters.innerHTML = "";
+      for (const family of families()) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = family;
+        button.classList.toggle("active", family === state.family);
+        button.addEventListener("click", () => {
+          state.family = family;
+          render();
+        });
+        filters.append(button);
+      }
+    }
+
+    function card(page) {
+      const link = document.createElement("a");
+      link.className = "card";
+      link.href = page.href;
+      link.innerHTML = `
+        <div class="card-top">
+          <div>
+            <h2>${page.title}</h2>
+            <div class="status-row">
+              <span class="status">${page.status || "page"}</span>
+              <span class="path">${page.href}</span>
+            </div>
+          </div>
+          <div class="mark">${page.mark || page.family.slice(0, 2).toUpperCase()}</div>
+        </div>
+        <p>${page.note || ""}</p>
+        <div class="card-meta">
+          <div><span>Family</span><strong>${page.family}</strong></div>
+          <div><span>Model</span><strong>${page.model || page.title}</strong></div>
+          <div><span>Tags</span><strong>${(page.tags || []).slice(0, 3).join(", ") || "HTML"}</strong></div>
+          <div><span>Source</span><strong>${page.status || "local"}</strong></div>
+        </div>
+      `;
+      return link;
+    }
+
+    async function markAvailability() {
+      await Promise.all(Array.from(document.querySelectorAll(".card")).map(async (cardNode) => {
+        const badge = cardNode.querySelector(".status");
+        try {
+          const response = await fetch(cardNode.getAttribute("href"), {method: "HEAD"});
+          badge.classList.add(response.ok ? "available" : "missing");
+          badge.textContent = response.ok ? "available" : "missing";
+        } catch {
+          badge.textContent = "local path";
+        }
+      }));
+    }
+
+    function render() {
+      const pages = filteredPages();
+      grid.innerHTML = "";
+      for (const page of pages) grid.append(card(page));
+      empty.classList.toggle("visible", pages.length === 0);
+      pageCount.textContent = String(ATLAS_PAGES.length);
+      familyCount.textContent = String(families().length - 1);
+      renderFilters();
+      markAvailability();
+    }
+
+    search.addEventListener("input", () => {
+      state.query = search.value;
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>

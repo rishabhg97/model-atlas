@@ -441,7 +441,7 @@
   <span class="right">
     <a class="atlas-home" href="../../index.html">Atlas home</a>
     <span class="tag gray">Source-backed</span>
-    <span>Built from official model cards · Nov 2025–Mar 2026</span>
+    <span>Built from official model cards, configs and Liquid docs · Aug 2025–Apr 2026</span>
   </span>
 </header>
 
@@ -505,7 +505,7 @@
         <div class="specs">
           <div class="kv"><div class="k">Vendor</div><div class="v">Liquid AI</div></div>
           <div class="kv"><div class="k">Type</div><div class="v">Vision-language (VLM)</div></div>
-          <div class="kv"><div class="k">Variants</div><div class="v">4 sizes · 450M–3B</div></div>
+          <div class="kv"><div class="k">Variants</div><div class="v">5 checkpoints · 450M–3B</div></div>
           <div class="kv"><div class="k">Release window</div><div class="v">Aug 2025 → Apr 2026</div></div>
           <div class="kv"><div class="k">Native max image</div><div class="v">512 × 512 px <span class="muted">(no upscaling)</span></div></div>
           <div class="kv"><div class="k">Context length</div><div class="v"><span class="num">32,768</span> tokens <span class="muted">(450M card)</span></div></div>
@@ -536,7 +536,7 @@
         <span class="num-label">02</span>
         <h2 class="section">Variant matrix</h2>
       </div>
-      <p class="lede">Four checkpoints across two generations. The family shares a single architecture — a hybrid LFM2 language backbone with a SigLIP visual encoder and a projector — and scales by swapping the backbone and encoder.</p>
+      <p class="lede">Five checkpoints across two generations. The family shares a single architecture recipe — a hybrid LFM2/LFM2.5 language backbone, a SigLIP2 NaFlex visual encoder and a multimodal projector — and scales by swapping the backbone and encoder.</p>
 
       <table class="matrix">
         <thead>
@@ -553,30 +553,39 @@
         <tbody>
           <tr>
             <td class="name">LFM2-VL-450M<div class="fam">First gen · Aug 2025</div></td>
-            <td>LFM2-350M <span class="muted">(implied by name)</span></td>
-            <td class="tag unknown">not reported in listed sources</td>
+            <td>LFM2-350M <span class="muted">(HF card/config)</span></td>
+            <td>SigLIP2 NaFlex base, 86M <span class="muted">(12L · 768d)</span></td>
             <td class="num">~0.45 B</td>
             <td>LFM2</td>
             <td>up to 512×512</td>
-            <td>Edge-focused baseline VLM</td>
+            <td>Edge-focused baseline VLM; config has <span class="mono">use_thumbnail=false</span></td>
+          </tr>
+          <tr>
+            <td class="name">LFM2-VL-1.6B<div class="fam">First gen · Aug 2025</div></td>
+            <td>LFM2-1.2B <span class="muted">(HF card/config)</span></td>
+            <td>SigLIP2 NaFlex shape-optimized, 400M <span class="muted">(26L · 1152d)</span></td>
+            <td class="num">~1.6 B</td>
+            <td>LFM2</td>
+            <td>up to 512×512</td>
+            <td>More capable first-gen lightweight VLM; thumbnail enabled</td>
           </tr>
           <tr>
             <td class="name">LFM2-VL-3B<div class="fam">First gen · Oct 2025</div></td>
-            <td>LFM2-2.6B <span class="muted">(implied)</span></td>
-            <td class="tag unknown">not reported in listed sources</td>
+            <td>LFM2-2.6B <span class="muted">(HF card/config)</span></td>
+            <td>SigLIP2 NaFlex large, 400M <span class="muted">(27L · 1152d)</span></td>
             <td class="num">~3 B</td>
             <td>LFM2</td>
             <td>up to 512×512</td>
-            <td>"New efficient VLM for the edge"</td>
+            <td>Highest-capacity first-gen VLM; 10-language visual understanding</td>
           </tr>
           <tr>
             <td class="name">LFM2.5-VL-1.6B<div class="fam">Second gen · Q1 2026</div></td>
-            <td>LFM2.5-1.2B <span class="muted">(implied)</span></td>
-            <td class="tag unknown">not reported in listed sources</td>
+            <td>LFM2.5-1.2B-Base <span class="muted">(HF card)</span></td>
+            <td>SigLIP2 NaFlex shape-optimized, 400M <span class="muted">(27L · 1152d)</span></td>
             <td class="num">~1.6 B</td>
             <td>LFM2.5</td>
             <td>up to 512×512</td>
-            <td>Scaled-up successor to 450M</td>
+            <td>Updated 1.6B VLM with improved multi-image, OCR and multilingual behavior</td>
           </tr>
           <tr style="background: #F7FBED;">
             <td class="name">LFM2.5-VL-450M<div class="fam">Second gen · Apr 2026</div></td>
@@ -589,7 +598,7 @@
           </tr>
         </tbody>
       </table>
-      <p class="note">Only the LFM2.5-VL-450M model card was fetched in full for this build. Backbone and encoder cells marked "implied" follow the consistent Liquid naming pattern (LM backbone name embedded in the VL model name) but are not directly stated in the listed sources for the older variants.</p>
+      <p class="note">Backbone and encoder cells are now taken from Liquid AI model cards/blog posts and Hugging Face configs. Config-level labels such as layer count and hidden size come from <span class="mono">config.json</span>; marketing labels such as "base," "shape-optimized," and "large" come from Liquid model cards/blog posts.</p>
     </section>
 
     <!-- ===================== 3. END-TO-END MAP ===================== -->
@@ -598,7 +607,7 @@
         <span class="num-label">03</span>
         <h2 class="section">End-to-end model map</h2>
       </div>
-      <p class="lede">From pixels and characters on the left, to text tokens (and optionally JSON-encoded boxes or tool calls) on the right. Source-backed dimensions come from the LFM2.5-VL-450M model card; anything missing is labeled.</p>
+      <p class="lede">From pixels and characters on the left, to text tokens (and optionally JSON-encoded boxes or tool calls) on the right. Source-backed dimensions come from the LFM2.5-VL-450M model card and config; anything still missing is labeled.</p>
 
       <div class="map">
         <svg viewBox="0 0 1180 520" role="img" aria-label="End-to-end LFM2-VL data flow">
@@ -646,10 +655,10 @@
           <path class="arrow" d="M 670 100 L 710 100"/>
 
           <g>
-            <rect class="flowbox unknown" x="710" y="60" width="180" height="80" rx="3"/>
+            <rect class="flowbox" x="710" y="60" width="180" height="80" rx="3"/>
             <text class="flowtxt" x="800" y="88" text-anchor="middle">Projector</text>
-            <text class="flowtxt sm" x="800" y="106" text-anchor="middle">vision → token embeddings</text>
-            <text class="flowtxt sm" x="800" y="124" text-anchor="middle" style="font-style:italic;">type / dim not reported</text>
+            <text class="flowtxt sm" x="800" y="106" text-anchor="middle">2-layer MLP + pixel unshuffle</text>
+            <text class="flowtxt sm mono" x="800" y="124" text-anchor="middle">hidden 2048 · GELU</text>
           </g>
 
           <path class="arrow" d="M 800 140 L 800 195"/>
@@ -689,7 +698,7 @@
             <text class="flowtxt sm" x="850" y="226" text-anchor="middle">LFM2.5-350M LM (450M variant)</text>
             <text class="flowtxt sm" x="850" y="241" text-anchor="middle">"Liquid Neural Network" architecture:</text>
             <text class="flowtxt sm" x="850" y="256" text-anchor="middle">conv + attention hybrid blocks</text>
-            <text class="flowtxt sm" x="850" y="275" text-anchor="middle" style="font-style:italic; fill: #6A2B7A;">exact block counts / dims not reported</text>
+            <text class="flowtxt sm" x="850" y="275" text-anchor="middle">16 layers · 10 conv / 6 attention</text>
             <text class="flowtxt sm" x="850" y="290" text-anchor="middle">context window: 32,768 tokens</text>
           </g>
 
@@ -782,13 +791,13 @@
             </text>
             <text class="flowtxt sm" x="40" y="466">
               <tspan>Generation params (vision):</tspan>
-              <tspan class="mono" dx="6">min_image_tokens = 32 · max_image_tokens = 256 · do_image_splitting = True</tspan>
+              <tspan class="mono" dx="6">card recipe min_image_tokens = 32 · config default min_image_tokens = 64 · max_image_tokens = 256</tspan>
             </text>
           </g>
 
         </svg>
       </div>
-      <p class="note">Source: LFM2.5-VL-450M model card on Hugging Face. Items marked <em style="color:#6A2B7A">not reported</em> are dimensions the listed sources do not state — projector type/dim, exact backbone block topology, and image-token grid shape per tile.</p>
+      <p class="note">Sources: Liquid's LFM2-VL architecture blog for projector type, and the LFM2.5-VL-450M Hugging Face config for projector hidden size, encoder dimensions and backbone topology. Still not reported: the exact image-token grid shape per tile and the rule for distributing the 32/64–256 token budget across tiles and thumbnail.</p>
     </section>
 
     <!-- ===================== 4. PREPROCESSING ===================== -->
@@ -797,7 +806,7 @@
         <span class="num-label">04</span>
         <h2 class="section">Image preprocessing &amp; tiling</h2>
       </div>
-      <p class="lede">Aspect ratio is preserved without distortion. Images above the native cap are split into 512×512 non-overlapping patches, and a downscaled thumbnail is added so the encoder still sees global context.</p>
+      <p class="lede">Aspect ratio is preserved without distortion. Images above the native cap are split into 512×512 non-overlapping patches. Thumbnail context is enabled for LFM2-VL-1.6B/3B and LFM2.5-VL checkpoints; the first-generation LFM2-VL-450M config sets <span class="mono">use_thumbnail=false</span>.</p>
 
       <div class="grid cols-2">
         <div class="card">
@@ -807,13 +816,13 @@
             <span class="k">Max native</span><span class="v num">512 × 512 px</span>
             <span class="k">Upscaling</span><span class="v">none</span>
             <span class="k">Letterboxing</span><span class="v">no — aspect preserved</span>
-            <span class="k">Image tokens / image</span><span class="v num">32 – 256 (tunable)</span>
+            <span class="k">Image tokens / image</span><span class="v num">32 – 256 recipe; config default min 64</span>
           </div>
         </div>
 
         <div class="card">
           <h4>Tiling (&gt; 512×512)</h4>
-          <p style="margin: 6px 0 var(--kui-space-sm); color: var(--kui-fg-default);">Large images are split into a grid of <span class="mono">512×512</span> non-overlapping patches. A single downscaled <span class="mono">thumbnail</span> of the full image is also encoded and prepended for global context.</p>
+          <p style="margin: 6px 0 var(--kui-space-sm); color: var(--kui-fg-default);">Large images are split into a grid of <span class="mono">512×512</span> non-overlapping patches. Where <span class="mono">use_thumbnail=true</span>, a single downscaled <span class="mono">thumbnail</span> of the full image is also encoded and prepended for global context.</p>
 
           <div style="display:flex; gap: var(--kui-space-md); align-items: flex-start;">
             <div class="tilegrid" aria-hidden="true">
@@ -831,7 +840,7 @@
               <div style="margin-top:8px;"><b style="color:var(--kui-fg-strong); font-weight:500;">Per-tile resolution</b> · 512×512</div>
               <div><b style="color:var(--kui-fg-strong); font-weight:500;">Tile overlap</b> · none</div>
               <div><b style="color:var(--kui-fg-strong); font-weight:500;">Thumbnail</b> · enabled by default</div>
-              <div style="margin-top:6px;"><span class="tag unknown">Patch size inside encoder · not reported in listed sources</span></div>
+              <div style="margin-top:6px;"><span class="tag teal">Encoder patch size · 16 px</span> <span class="tag">downsample factor · 2</span></div>
             </div>
           </div>
         </div>
@@ -844,7 +853,7 @@
         <span class="num-label">05</span>
         <h2 class="section">Vision encoder &mdash; SigLIP2 NaFlex 86M</h2>
       </div>
-      <p class="lede">The visual front-end of LFM2.5-VL-450M is a shape-optimized SigLIP2 NaFlex encoder (~86M parameters). NaFlex variants are designed to ingest images at native resolution and arbitrary aspect ratio — a natural match for the family's "no upscaling, no distortion" preprocessing rule.</p>
+      <p class="lede">The visual front-end of LFM2.5-VL-450M is a shape-optimized SigLIP2 NaFlex encoder (~86M parameters). Its Hugging Face config reports a 12-layer, 768-hidden SigLIP2 vision tower with 16-pixel patches and a 256-patch grid before VL downsampling.</p>
 
       <div class="grid cols-3">
         <div class="card">
@@ -853,17 +862,22 @@
           <div style="margin-top: 6px;"><span class="tag teal">SigLIP2 NaFlex</span> <span class="tag">~86 M params</span> <span class="tag">shape-optimized</span></div>
         </div>
         <div class="card">
-          <h4>Why this encoder</h4>
-          <p style="font: var(--kui-body); margin: 6px 0;">A NaFlex encoder lets Liquid honor arbitrary aspect ratios and the 512×512 cap without padding or upscaling. The shape-optimized 86 M tier keeps the encoder small enough for on-device deployment.</p>
+          <h4>Config details (450M)</h4>
+          <div class="klist">
+            <span class="k">Patch size</span><span class="v num">16 px</span>
+            <span class="k">Hidden size</span><span class="v num">768</span>
+            <span class="k">Layers</span><span class="v num">12</span>
+            <span class="k">Attention heads</span><span class="v num">12</span>
+            <span class="k">Intermediate</span><span class="v num">3,072</span>
+            <span class="k">Head</span><span class="v">disabled (<span class="mono">vision_use_head=false</span>)</span>
+          </div>
         </div>
         <div class="card">
-          <h4>Not reported in listed sources</h4>
+          <h4>Still not reported in listed sources</h4>
           <ul class="crisp" style="font: var(--kui-body); color: var(--kui-fg-default);">
-            <li>Internal patch size</li>
-            <li>Number of transformer blocks</li>
-            <li>Embedding / hidden dimension</li>
             <li>Output token grid shape per tile</li>
             <li>Whether the encoder is frozen during VL training</li>
+            <li>Whether the 450M "shape-optimized" label means architecture search, distillation, or checkpoint selection</li>
           </ul>
         </div>
       </div>
@@ -875,28 +889,36 @@
         <span class="num-label">06</span>
         <h2 class="section">Projector &amp; multimodal fusion</h2>
       </div>
-      <p class="lede">After SigLIP2 emits its feature grid, a projector maps the visual features into the LM's token-embedding space and inserts them into the chat stream at the position of the <span class="mono">&lt;image&gt;</span> tag. The listed sources do not specify the projector type or dimensions.</p>
+      <p class="lede">After SigLIP2 emits its feature grid, a multimodal projector maps visual features into the LM token stream at the <span class="mono">&lt;image&gt;</span> tag. Liquid's LFM2-VL blog identifies the connector as a 2-layer MLP with pixel unshuffle; the LFM2.5-VL-450M config reports a GELU projector with hidden size 2048 and no projector layer norm.</p>
 
       <div class="grid cols-2">
         <div class="card">
           <h4>What the sources do say</h4>
           <ul class="crisp" style="font: var(--kui-body); color: var(--kui-fg-default);">
             <li>Each image consumes <span class="mono">32–256</span> image tokens, with the cap set at request time.</li>
+            <li>The released LFM2.5-VL-450M config default is <span class="mono">min_image_tokens=64</span>, while the model card's recommended recipe shows <span class="mono">min_image_tokens=32</span>.</li>
             <li>Image tokens are inserted at the <span class="mono">&lt;image&gt;</span> placeholder inside a ChatML-style chat template.</li>
             <li>The HF processor (<span class="mono">AutoProcessor</span>) handles the tile→token expansion automatically via <span class="mono">apply_chat_template</span>.</li>
             <li>Multimodal fusion is decoder-only — there is no separate cross-attention head; image tokens enter the same residual stream as text tokens.</li>
           </ul>
         </div>
         <div class="card">
-          <h4>What is <em>not</em> reported</h4>
+          <h4>Config-backed projector facts</h4>
+          <div class="klist">
+            <span class="k">Connector</span><span class="v">2-layer MLP + pixel unshuffle</span>
+            <span class="k">Hidden activation</span><span class="v mono">gelu</span>
+            <span class="k">Hidden size</span><span class="v num">2048</span>
+            <span class="k">Bias</span><span class="v mono">true</span>
+            <span class="k">LayerNorm</span><span class="v mono">false</span>
+            <span class="k">Downsample</span><span class="v mono">2</span>
+          </div>
+          <h4 style="margin-top: var(--kui-space-md);">Still not reported</h4>
           <ul class="crisp" style="font: var(--kui-body); color: var(--kui-fg-default);">
-            <li>Projector architecture (MLP, perceiver-resampler, cross-attention adapter, etc.)</li>
-            <li>Projector input dim → output dim</li>
             <li>Whether image tokens are pooled / compressed before insertion</li>
             <li>How the 32–256 token budget is allocated across tiles and the thumbnail</li>
           </ul>
           <div class="callout unknown" style="margin-top: var(--kui-space-md); font: var(--kui-body);">
-            <b>Treat the projector block as a black box</b> until a Liquid AI technical report or a config inspection of the released weights confirms its structure.
+            <b>Remaining caveat:</b> the config exposes projector settings, but not a step-by-step tensor-shape trace from SigLIP2 features through pixel unshuffle into final LM embeddings.
           </div>
         </div>
       </div>
@@ -908,7 +930,7 @@
         <span class="num-label">07</span>
         <h2 class="section">LM backbone &mdash; LFM2 / LFM2.5 hybrid</h2>
       </div>
-      <p class="lede">The text-side backbone is an LFM2-family hybrid language model. Liquid describes the family as Liquid Neural Networks "rooted in dynamical systems and signal processing," with hybrid blocks that mix convolutional and attention components. For LFM2.5-VL-450M the backbone is named explicitly: LFM2.5-350M.</p>
+      <p class="lede">The text-side backbone is an LFM2-family hybrid language model. Liquid's technical report describes LFM2 as a hybrid of gated short convolutions and grouped-query attention. For LFM2.5-VL-450M, the model card names the backbone as LFM2.5-350M and the released config exposes the concrete 16-layer topology.</p>
 
       <div class="grid cols-2">
         <div class="card">
@@ -916,6 +938,7 @@
           <div class="klist">
             <span class="k">Backbone</span><span class="v">LFM2.5-350M</span>
             <span class="k">Context</span><span class="v num">32,768 tokens</span>
+            <span class="k">Config max positions</span><span class="v num">128,000</span>
             <span class="k">Vocab</span><span class="v num">65,536</span>
             <span class="k">Tokenizer template</span><span class="v">ChatML (custom special tokens)</span>
             <span class="k">Languages</span><span class="v">English · Arabic · Chinese · French · German · Japanese · Korean · Portuguese · Spanish</span>
@@ -925,17 +948,17 @@
         </div>
 
         <div class="card">
-          <h4>Architecture family (Liquid AI product page)</h4>
-          <p style="font: var(--kui-body); margin: 6px 0;">Across the LFM family Liquid describes a <b>hybrid</b> architecture — convolutional and attention blocks interleaved — designed for low latency on CPU, GPU and NPU.</p>
+          <h4>450M config topology</h4>
+          <p style="font: var(--kui-body); margin: 6px 0;">The released LFM2.5-VL-450M config uses 16 backbone layers: 10 convolution layers and 6 full-attention layers, with 16 attention heads and 8 key/value heads where attention is used.</p>
           <div style="margin-top: var(--kui-space-sm); display:flex; flex-wrap:wrap; gap: 6px;">
-            <span class="tag teal">hybrid · conv + attention</span>
-            <span class="tag">on-device first</span>
-            <span class="tag">CPU · GPU · NPU</span>
-            <span class="tag unknown">layer count · not reported</span>
-            <span class="tag unknown">attention type · not reported</span>
-            <span class="tag unknown">hidden dim · not reported</span>
+            <span class="tag teal">hybrid · conv + full_attention</span>
+            <span class="tag">16 layers</span>
+            <span class="tag">hidden 1024</span>
+            <span class="tag">intermediate 6656</span>
+            <span class="tag">16 Q heads · 8 KV heads</span>
+            <span class="tag">RoPE θ 1,000,000</span>
           </div>
-          <p class="note" style="margin-top: var(--kui-space-sm);">The LFM2 technical report (arXiv 2511.23404) is referenced from the model card and is the place exact block topology and head counts will be found; the report itself was not fetched for this page.</p>
+          <p class="note" style="margin-top: var(--kui-space-sm);">Layer sequence in config order: conv, conv, attention, conv, conv, attention, conv, conv, attention, conv, attention, conv, attention, conv, attention, conv.</p>
         </div>
       </div>
     </section>
@@ -965,11 +988,11 @@
             <span class="k">temperature</span><span class="v mono">0.1</span>
             <span class="k">min_p</span><span class="v mono">0.15</span>
             <span class="k">repetition_penalty</span><span class="v mono">1.05</span>
-            <span class="k">min_image_tokens</span><span class="v mono">32</span>
+            <span class="k">min_image_tokens</span><span class="v mono">32 recipe · 64 config default</span>
             <span class="k">max_image_tokens</span><span class="v mono">256</span>
             <span class="k">do_image_splitting</span><span class="v mono">True</span>
           </div>
-          <p class="note">Recommended generation parameters published with the 450M card. Tunable at inference time without retraining.</p>
+          <p class="note">Text parameters and the 32-token vision floor are from the 450M model card. The released <span class="mono">config.json</span> default uses <span class="mono">min_image_tokens=64</span>; both are inference-time knobs.</p>
         </div>
       </div>
 
@@ -1079,45 +1102,45 @@ I am retrieving the current weather for Paris.&lt;|<span class="kw">im_end</span
         <span class="num-label">11</span>
         <h2 class="section">Training, data &amp; post-training</h2>
       </div>
-      <p class="lede">The listed sources speak about training mostly at the family level (LFM2.5 across all modalities), and at the VL level only in terms of what changed between v2 and v2.5 of the 450M VLM. There is no detailed VL-specific data card in the fetched sources.</p>
+      <p class="lede">Liquid now reports several VL-level training facts. First-generation LFM2-VL uses joint vision-language mid-training followed by joint SFT; LFM2.5-VL-450M scales the underlying pretraining from 10T to 28T tokens and adds preference optimization plus reinforcement learning focused on grounding, instruction following and reliability.</p>
 
       <div class="grid cols-2">
         <div class="card">
-          <h4>LFM2.5 family training (Liquid models page)</h4>
+          <h4>LFM2.5-VL-450M refresh (Liquid blog)</h4>
           <ul class="crisp" style="font: var(--kui-body);">
-            <li>"Extends LFM2 with <b>28 T tokens of pretraining</b>" across text models — same family the VL backbones belong to.</li>
-            <li>Adds "a <b>scaled reinforcement learning</b> pipeline" on top of pretraining.</li>
-            <li>Hardware-in-the-loop architecture design, pre-training, knowledge distillation and post-training recipe are summarized in the <b>LFM2 Technical Report</b> (arXiv 2511.23404).</li>
+            <li>Scaled pretraining relative to LFM2-VL-450M: <b>10T → 28T tokens</b>.</li>
+            <li>Post-training focused on production multimodal behavior.</li>
+            <li>Preference optimization and reinforcement learning were used to improve grounding, instruction following and reliability.</li>
+            <li>The LFM2 technical report frames the underlying LFM2 recipe as hardware-in-the-loop architecture search plus SFT, preference optimization and model merging.</li>
           </ul>
           <div class="callout amber" style="margin-top: var(--kui-space-md); font: var(--kui-body);">
-            These numbers describe the LFM2.5 <em>text</em> family. The model card does not separately quantify the visual or VL-specific training-data scale.
+            Liquid reports the 10T → 28T scale-up for the LFM2.5-VL-450M refresh, but does not publish a separate image-pair count for that refresh.
           </div>
         </div>
 
         <div class="card">
-          <h4>LFM2-VL-450M &rarr; LFM2.5-VL-450M (what changed)</h4>
+          <h4>LFM2-VL base training (Liquid LFM2-VL blog)</h4>
           <ul class="crisp" style="font: var(--kui-body);">
-            <li>Refreshed on top of an updated backbone (LFM2.5-350M).</li>
-            <li>Stronger instruction following on vision and language.</li>
-            <li>Improved multilingual vision understanding across Arabic, Chinese, French, German, Japanese, Korean, Portuguese and Spanish.</li>
-            <li>New capability: <b>bounding-box prediction</b> and object detection.</li>
-            <li>New capability: <b>function calling</b> (text-only input).</li>
-            <li>Multilingual vision evals use benchmarks <em>translated from English by GPT-4.1-mini</em> into the 8 target languages.</li>
+            <li>Built on LFM2 base models, then fused vision and language in a <b>joint mid-training</b> phase.</li>
+            <li>The text:image data ratio is gradually adjusted from <b>95% to 30%</b>.</li>
+            <li>Followed by joint supervised fine-tuning with emphasis on image understanding.</li>
+            <li>Vision data combines large-scale open-source datasets and in-house synthetic vision datasets.</li>
+            <li>Overall LFM2-VL training is reported at <b>order of 100B multimodal tokens</b>.</li>
           </ul>
         </div>
       </div>
 
       <div class="card" style="margin-top: var(--kui-space-md);">
-        <h4>Training pipeline &mdash; not reported in listed sources</h4>
+        <h4>Training pipeline &mdash; still not reported in listed sources</h4>
         <div class="grid cols-3" style="margin-top: var(--kui-space-sm);">
           <ul class="crisp" style="font: var(--kui-body); color: var(--kui-fg-default);">
-            <li>VL pretraining dataset(s)</li>
             <li>Image-text pairs count</li>
             <li>Caption / VQA / grounding split</li>
+            <li>Named open-source dataset mixture</li>
           </ul>
           <ul class="crisp" style="font: var(--kui-body); color: var(--kui-fg-default);">
-            <li>Supervised fine-tuning data sources</li>
-            <li>Whether RLHF / DPO / GRPO was applied to the VLM specifically</li>
+            <li>Supervised fine-tuning dataset names</li>
+            <li>Exact preference/RL algorithm for LFM2.5-VL</li>
             <li>Distillation teacher(s)</li>
           </ul>
           <ul class="crisp" style="font: var(--kui-body); color: var(--kui-fg-default);">
@@ -1189,28 +1212,28 @@ I am retrieving the current weather for Paris.&lt;|<span class="kw">im_end</span
         <span class="num-label">13</span>
         <h2 class="section">Unknowns &amp; caveats</h2>
       </div>
-      <p class="lede">Items the listed sources (LFM2.5-VL-450M model card, Liquid AI models page, Liquid AI HF organization) do not state explicitly. Each is flagged where it appears earlier on this page.</p>
+      <p class="lede">Items the listed primary sources still do not state explicitly. Config-inspectable details have been moved out of this section; only unresolved caveats remain here.</p>
 
       <div class="grid cols-2">
         <div class="card">
-          <h4>Architecture &mdash; not reported</h4>
+          <h4>Architecture &mdash; still not reported</h4>
           <ul class="crisp" style="font: var(--kui-body);">
-            <li>Vision encoder patch size, hidden dim, block count</li>
-            <li>Projector type and input → output dimensions</li>
-            <li>LFM2.5-350M block topology (conv:attention ratio, attention type, head count, hidden dim)</li>
             <li>Image-token grid shape produced per 512×512 tile</li>
             <li>How the 32–256 visual-token budget is split between tiles and thumbnail</li>
+            <li>Step-by-step tensor shapes through pixel unshuffle and projector output</li>
             <li>Whether the vision encoder is frozen or co-trained</li>
+            <li>Exact meaning of the "shape-optimized" and "large" SigLIP2 labels beyond config size</li>
           </ul>
         </div>
 
         <div class="card">
-          <h4>Training / data &mdash; not reported</h4>
+          <h4>Training / data &mdash; still not reported</h4>
           <ul class="crisp" style="font: var(--kui-body);">
-            <li>VL-specific pretraining dataset(s) and scale</li>
+            <li>Named VL pretraining datasets and filtering recipe</li>
             <li>Image-text pair count</li>
             <li>Caption / VQA / grounding / detection mix</li>
-            <li>SFT, RL, DPO or distillation specific to the VLM</li>
+            <li>Exact preference-optimization or RL algorithm used for LFM2.5-VL</li>
+            <li>Grounding/object-detection data mixture for RefCOCO-M capability</li>
             <li>Safety filtering pipeline</li>
             <li>Resolution / aspect-ratio curriculum</li>
           </ul>
@@ -1220,8 +1243,9 @@ I am retrieving the current weather for Paris.&lt;|<span class="kw">im_end</span
           <h4>Cross-source consistency</h4>
           <ul class="crisp" style="font: var(--kui-body);">
             <li>LFM2.5-VL family on the Liquid AI models page lists <b>two</b> 2.5-VL checkpoints (1.6B and 450M) — the workspace backlog row also lists <b>1.6B</b> and <b>450M</b> for LFM2.5-VL. Consistent.</li>
-            <li>Older LFM2-VL line on the same page lists <b>450M</b> and <b>3B</b> — the backlog row's "450M / 3B" reading matches. <em>The backlog row's "1.6B" likely refers to LFM2.5-VL-1.6B, not an LFM2-VL-1.6B; no LFM2-VL-1.6B is listed on Liquid AI's models page.</em></li>
+            <li>Older LFM2-VL line in Liquid docs now lists <b>450M</b>, <b>1.6B</b> and <b>3B</b>. The original August 2025 blog announced 450M and 1.6B; the October 2025 blog added 3B.</li>
             <li>The Hugging Face card states the LFM2.5-VL-450M model size as <b>0.4B parameters</b> (BF16). The product page label "450M" rounds up the combined LM (~350M) + vision encoder (~86M) total. Consistent.</li>
+            <li>The LFM2.5-VL-450M card recommends <span class="mono">min_image_tokens=32</span>, while the released config defaults to <span class="mono">min_image_tokens=64</span>. This page treats the card value as a recipe and the config value as the checkpoint default.</li>
           </ul>
         </div>
 
@@ -1245,15 +1269,39 @@ I am retrieving the current weather for Paris.&lt;|<span class="kw">im_end</span
           <span class="url"><a href="https://huggingface.co/LiquidAI/LFM2.5-VL-450M" target="_blank" rel="noopener">https://huggingface.co/LiquidAI/LFM2.5-VL-450M</a></span>
         </li>
         <li>
-          <b>Liquid Foundation Models</b> — product page (variant list, family positioning, LFM2.5 training summary)
-          <span class="url"><a href="https://www.liquid.ai/models" target="_blank" rel="noopener">https://www.liquid.ai/models</a></span>
+          <b>LFM2.5-VL-450M config.json</b> — Hugging Face (projector, encoder, tiling and backbone topology)
+          <span class="url"><a href="https://huggingface.co/LiquidAI/LFM2.5-VL-450M/blob/main/config.json" target="_blank" rel="noopener">https://huggingface.co/LiquidAI/LFM2.5-VL-450M/blob/main/config.json</a></span>
+        </li>
+        <li>
+          <b>LFM2-VL model cards/configs</b> — Hugging Face (450M, 1.6B, 3B variant matrix)
+          <span class="url"><a href="https://huggingface.co/LiquidAI/LFM2-VL-450M" target="_blank" rel="noopener">https://huggingface.co/LiquidAI/LFM2-VL-450M</a> · <a href="https://huggingface.co/LiquidAI/LFM2-VL-1.6B" target="_blank" rel="noopener">https://huggingface.co/LiquidAI/LFM2-VL-1.6B</a> · <a href="https://huggingface.co/LiquidAI/LFM2-VL-3B" target="_blank" rel="noopener">https://huggingface.co/LiquidAI/LFM2-VL-3B</a></span>
+        </li>
+        <li>
+          <b>LFM2.5-VL-1.6B model card/config</b> — Hugging Face (1.6B successor backbone, encoder and config details)
+          <span class="url"><a href="https://huggingface.co/LiquidAI/LFM2.5-VL-1.6B" target="_blank" rel="noopener">https://huggingface.co/LiquidAI/LFM2.5-VL-1.6B</a></span>
+        </li>
+        <li>
+          <b>LFM2-VL: Efficient Vision-Language Models</b> — Liquid AI blog (architecture and LFM2-VL training)
+          <span class="url"><a href="https://www.liquid.ai/blog/lfm2-vl-efficient-vision-language-models" target="_blank" rel="noopener">https://www.liquid.ai/blog/lfm2-vl-efficient-vision-language-models</a></span>
+        </li>
+        <li>
+          <b>LFM2-VL-3B: A New Efficient Vision-Language for the Edge</b> — Liquid AI blog (3B release and 400M encoder)
+          <span class="url"><a href="https://www.liquid.ai/blog/lfm2-vl-3b-a-new-efficient-vision-language-for-the-edge" target="_blank" rel="noopener">https://www.liquid.ai/blog/lfm2-vl-3b-a-new-efficient-vision-language-for-the-edge</a></span>
+        </li>
+        <li>
+          <b>LFM2.5-VL-450M: Structured Visual Intelligence, Edge to Cloud</b> — Liquid AI blog (LFM2.5 refresh, benchmarks, post-training)
+          <span class="url"><a href="https://www.liquid.ai/blog/lfm2-5-vl-450m" target="_blank" rel="noopener">https://www.liquid.ai/blog/lfm2-5-vl-450m</a></span>
+        </li>
+        <li>
+          <b>Liquid Vision Models docs</b> — docs.liquid.ai (current model library / deprecation status)
+          <span class="url"><a href="https://docs.liquid.ai/lfm/models/vision-models" target="_blank" rel="noopener">https://docs.liquid.ai/lfm/models/vision-models</a></span>
         </li>
         <li>
           <b>Liquid AI</b> — Hugging Face organization page (paper link, collections, model registry)
           <span class="url"><a href="https://huggingface.co/LiquidAI" target="_blank" rel="noopener">https://huggingface.co/LiquidAI</a></span>
         </li>
         <li>
-          <b>LFM2 Technical Report</b> — arXiv 2511.23404 (referenced by model card; not fetched into this page)
+          <b>LFM2 Technical Report</b> — arXiv 2511.23404 (hybrid backbone and LFM2 training summary)
           <span class="url"><a href="https://arxiv.org/abs/2511.23404" target="_blank" rel="noopener">https://arxiv.org/abs/2511.23404</a></span>
         </li>
         <li>

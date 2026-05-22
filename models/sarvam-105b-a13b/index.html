@@ -1,0 +1,1183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sarvam 105B-A13B — Architecture</title>
+<link rel="stylesheet" href="kaizen/colors_and_type.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--kui-bg-canvas); color: var(--kui-fg-strong); font: var(--kui-body); }
+  body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  a { color: inherit; text-decoration: none; }
+
+  /* ── tokens for this page ── */
+  :root {
+    --c-mla:      #1FA18D;   /* teal — MLA attention */
+    --c-mla-bg:   #E2F1EF;
+    --c-rope:     #C54600;   /* warning-orange — RoPE half */
+    --c-rope-bg:  #FDEFE6;
+    --c-nope:     #851F41;   /* magenta — NoPE half */
+    --c-nope-bg:  #F5E5EC;
+    --c-moe:      #76B900;   /* nvidia green — MoE / shared */
+    --c-moe-bg:   #E8F4D6;
+    --c-shared:   #5E9600;   /* darker green — shared expert */
+    --c-embed:    #5E5E5E;
+    --c-embed-bg: #F2F2F2;
+    --c-indic:    #A05AB4;   /* purple — Indic tokenizer */
+    --c-indic-bg: #F1E6F4;
+  }
+
+  /* ── app shell ── */
+  .top-bar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 32px;
+    background: #000; color: #fff;
+    border-bottom: 4px solid var(--kui-brand-green);
+  }
+  .top-bar .wordmark { height: 22px; }
+  .top-bar .divider { width: 1px; height: 18px; background: rgba(255,255,255,0.25); }
+  .top-bar .crumb { font: 500 12px/1 var(--kui-font-sans); text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,0.55); }
+  .top-bar h1 { font: 500 16px/1 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0; }
+  .top-bar .meta { margin-left: auto; display: flex; gap: 24px; font: var(--kui-text-sm); color: rgba(255,255,255,0.7); }
+  .top-bar .meta b { color: #fff; font-weight: 500; }
+
+  .layout { display: grid; grid-template-columns: 220px 1fr; gap: 0; }
+  .rail {
+    position: sticky; top: 0;
+    height: 100vh; border-right: 1px solid var(--kui-border-default);
+    padding: 32px 24px; background: #fff;
+    display: flex; flex-direction: column; gap: 4px;
+    overflow-y: auto;
+  }
+  .rail .who { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 14px; }
+  .rail a { font: var(--kui-body); color: var(--kui-fg-muted); padding: 7px 0; display: block; border-left: 2px solid transparent; padding-left: 12px; margin-left: -12px; }
+  .rail a.active, .rail a:hover { color: var(--kui-fg-strong); border-left-color: var(--kui-brand-green); }
+  .rail a .n { font-family: var(--kui-font-mono); font-size: 11px; color: var(--kui-fg-disabled); margin-right: 10px; }
+  .rail .foot { margin-top: auto; padding-top: 24px; border-top: 1px solid var(--kui-border-default); font: var(--kui-caption); color: var(--kui-fg-muted); }
+  .rail .foot a { display: inline; padding: 0; margin: 0; border: 0; color: var(--c-mla); }
+  .rail .home-link {
+    margin: 0 0 14px -12px;
+    color: var(--kui-fg-strong);
+    font-weight: 500;
+  }
+  .rail .home-link::before {
+    content: "←";
+    margin-right: 8px;
+    color: var(--kui-brand-green);
+  }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 40px 96px; }
+
+  /* ── hero ── */
+  .hero {
+    padding: 48px 0 40px;
+    border-bottom: 1px solid var(--kui-border-default);
+  }
+  .hero .row1 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 64px; align-items: end; margin-bottom: 32px; }
+  .hero .eyebrow { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 14px; display: flex; gap: 12px; align-items: center; }
+  .hero .eyebrow .pill { background: var(--c-moe-bg); color: var(--c-shared); padding: 3px 8px; border: 1px solid var(--c-moe); font-family: var(--kui-font-mono); font-size: 10px; }
+  .hero h2 {
+    font: 500 52px/1.04 var(--kui-font-sans); letter-spacing: -1px;
+    margin: 0 0 16px;
+  }
+  .hero h2 .accent { color: var(--c-mla); }
+  .hero h2 .accent2 { color: var(--kui-brand-green); }
+  .hero p { font: var(--kui-body-md); color: var(--kui-fg-default); max-width: 60ch; margin: 0; }
+
+  .hero .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); }
+  .hero .stat { background: #fff; padding: 16px 18px; }
+  .hero .stat .label { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1px; color: var(--kui-fg-muted); margin-bottom: 6px; }
+  .hero .stat .value { font: 500 24px/1 var(--kui-font-sans); letter-spacing: -0.5px; }
+  .hero .stat .value small { font: 400 12px/1 var(--kui-font-sans); color: var(--kui-fg-muted); margin-left: 4px; letter-spacing: 0; }
+  .hero .stat .src { font: 10px/1 var(--kui-font-mono); color: var(--kui-fg-disabled); margin-top: 6px; }
+
+  /* identity sidebar block */
+  .ident {
+    background: #fff; border: 1px solid var(--kui-border-default);
+    padding: 24px;
+  }
+  .ident .row { display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 10px 0; border-top: 1px solid var(--kui-border-subtle); font: var(--kui-body); }
+  .ident .row:first-of-type { border-top: 0; padding-top: 0; }
+  .ident .row .k { color: var(--kui-fg-muted); }
+  .ident .row .v { font-family: var(--kui-font-mono); font-size: 13px; color: var(--kui-fg-strong); text-align: right; }
+  .ident h4 { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin: 0 0 14px; }
+
+  /* ── section ── */
+  section { padding: 64px 0; border-bottom: 1px solid var(--kui-border-default); scroll-margin-top: 24px; }
+  section:last-of-type { border-bottom: 0; }
+  .sec-head { display: grid; grid-template-columns: 180px 1fr; gap: 32px; margin-bottom: 32px; align-items: baseline; }
+  .sec-head .num { font: var(--kui-overline); letter-spacing: 1.5px; color: var(--kui-fg-muted); text-transform: uppercase; padding-top: 6px; }
+  .sec-head h3 { font: 500 28px/1.2 var(--kui-font-sans); letter-spacing: -0.5px; margin: 0 0 8px; }
+  .sec-head p { font: var(--kui-body-md); color: var(--kui-fg-default); max-width: 70ch; margin: 0; }
+
+  /* ── forward-pass band ── */
+  .pass {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 0;
+    align-items: stretch;
+    border: 1px solid var(--kui-border-default); background: #fff;
+  }
+  .pass .step {
+    padding: 22px 18px; border-right: 1px solid var(--kui-border-default);
+    display: flex; flex-direction: column; gap: 8px;
+    position: relative;
+  }
+  .pass .step:last-child { border-right: 0; }
+  .pass .step .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); }
+  .pass .step .t { font: 500 15px/1.25 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .pass .step .d { font: 400 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .pass .step.stack { background: var(--c-mla-bg); }
+  .pass .step.stack .t { color: var(--c-mla); }
+  .pass .step .badge {
+    display: inline-block; align-self: flex-start;
+    font: var(--kui-text-sm); padding: 2px 8px;
+    background: var(--kui-bg-canvas); border: 1px solid var(--kui-border-default);
+    font-family: var(--kui-font-mono);
+  }
+  .pass-note { margin-top: 12px; font: var(--kui-caption); color: var(--kui-fg-muted); font-family: var(--kui-font-mono); }
+
+  /* ── block schematic (decoder block) ── */
+  .block-wrap { display: grid; grid-template-columns: 1.1fr 1fr; gap: 32px; }
+  .block-svg-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .block-svg-card h4 { font: var(--kui-h4); margin: 0 0 16px; letter-spacing: -0.25px; }
+  .block-svg-card svg { width: 100%; height: auto; display: block; }
+
+  .block-prose { display: flex; flex-direction: column; gap: 16px; }
+  .block-prose .eq {
+    background: #fff; border: 1px solid var(--kui-border-default); padding: 16px 20px;
+  }
+  .block-prose .eq .lbl { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 6px; }
+  .block-prose .eq code { font: 13px/1.6 var(--kui-font-mono); display: block; color: var(--kui-fg-strong); white-space: pre-wrap; }
+
+  /* ── MLA deep-dive ── */
+  .mla-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .mla-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .mla-card h4 { font: var(--kui-h3); letter-spacing: -0.25px; margin: 0 0 8px; }
+  .mla-card .sub { font: var(--kui-caption); color: var(--kui-fg-muted); margin-bottom: 24px; }
+  .mla-card svg { width: 100%; height: auto; display: block; }
+
+  .head-bar { display: flex; flex-direction: column; gap: 8px; padding: 14px 0; border-top: 1px solid var(--kui-border-subtle); }
+  .head-bar:first-of-type { border-top: 0; padding-top: 0; }
+  .head-bar .h { display: flex; justify-content: space-between; font: 500 13px/1 var(--kui-font-sans); }
+  .head-bar .h .name { color: var(--kui-fg-strong); }
+  .head-bar .h .val { font-family: var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .head-bar .seg { display: flex; height: 18px; gap: 2px; }
+  .head-bar .seg .a { background: var(--c-rope); }
+  .head-bar .seg .b { background: var(--c-nope); }
+  .head-bar .seg .c { background: var(--c-mla); }
+  .head-bar .seg .lbl { display: grid; place-items: center; font: 500 10px/1 var(--kui-font-mono); color: #fff; padding: 0 6px; }
+
+  /* ── MoE deep dive ── */
+  .moe-wrap { display: grid; grid-template-columns: 1.1fr 1fr; gap: 32px; align-items: stretch; }
+  .moe-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .moe-card h4 { font: var(--kui-h3); letter-spacing: -0.25px; margin: 0 0 8px; }
+  .moe-card p  { font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 20px; max-width: 52ch; }
+  .moe-grid {
+    display: grid;
+    grid-template-columns: repeat(16, 1fr);
+    gap: 3px;
+  }
+  .moe-grid .e {
+    aspect-ratio: 1 / 1;
+    background: var(--kui-n100);
+    position: relative;
+  }
+  .moe-grid .e.active { background: var(--c-moe); }
+  .moe-grid .e.shared { background: var(--c-shared); }
+  .moe-grid .e.active::after, .moe-grid .e.shared::after {
+    content: attr(data-r); position: absolute; inset: 0;
+    display: grid; place-items: center;
+    font: 500 9px/1 var(--kui-font-mono); color: #fff;
+  }
+  .moe-key { display: flex; gap: 18px; margin-top: 18px; font: var(--kui-text-sm); color: var(--kui-fg-default); }
+  .moe-key span { display: flex; align-items: center; gap: 6px; }
+  .moe-key i { width: 10px; height: 10px; display: inline-block; }
+  .moe-numbers { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); margin-top: 22px; }
+  .moe-numbers .n { background: #fff; padding: 14px 16px; }
+  .moe-numbers .n .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 4px; }
+  .moe-numbers .n .v { font: 500 22px/1 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .moe-numbers .n .v small { font: 400 12px/1 var(--kui-font-sans); color: var(--kui-fg-muted); margin-left: 4px; }
+
+  .router-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .router-card h4 { font: var(--kui-h3); letter-spacing: -0.25px; margin: 0 0 18px; }
+  .router-card svg { width: 100%; height: auto; display: block; }
+
+  /* ── context / YaRN ── */
+  .ctx-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .ctx-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .ctx-card h4 { font: var(--kui-h3); margin: 0 0 8px; letter-spacing: -0.25px; }
+  .ctx-card p { font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 24px; max-width: 50ch; }
+
+  .ruler { position: relative; height: 64px; background: var(--kui-bg-canvas); border: 1px solid var(--kui-border-default); }
+  .ruler .seg { position: absolute; top: 0; bottom: 0; border-right: 1px solid var(--kui-border-default); }
+  .ruler .native { background: var(--c-rope-bg); left: 0; width: 25%; }
+  .ruler .yarn { background: var(--c-mla-bg); left: 25%; width: 75%; }
+  .ruler .label { position: absolute; top: 8px; left: 12px; font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); }
+  .ruler .val { position: absolute; bottom: 8px; left: 12px; font: 500 14px/1 var(--kui-font-sans); }
+  .ruler .nv .label, .ruler .nv .val { left: 12px; }
+  .ruler .yv { color: var(--c-mla); }
+  .ruler-ax { display: flex; justify-content: space-between; font: var(--kui-caption); color: var(--kui-fg-muted); font-family: var(--kui-font-mono); margin-top: 8px; }
+
+  /* ── benchmarks ── */
+  .bench { display: grid; grid-template-columns: 1fr; gap: 24px; }
+  .bench-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px 28px; }
+  .bench-card h4 { font: var(--kui-h4); margin: 0 0 18px; letter-spacing: -0.25px; }
+  .bench-card .row { display: grid; grid-template-columns: 220px 1fr 64px; gap: 14px; align-items: center; padding: 8px 0; border-top: 1px solid var(--kui-border-subtle); }
+  .bench-card .row:first-of-type { border-top: 0; }
+  .bench-card .row .name { font: 500 13px/1.2 var(--kui-font-sans); }
+  .bench-card .row .name small { font: 400 11px/1 var(--kui-font-mono); color: var(--kui-fg-muted); display: block; margin-top: 3px; }
+  .bench-card .row .bar-track { height: 12px; background: var(--kui-n100); position: relative; }
+  .bench-card .row .bar { height: 100%; background: var(--c-mla); }
+  .bench-card .row .bar.hi { background: var(--c-moe); }
+  .bench-card .row .bar.tool { background: var(--c-shared); position: absolute; left: 0; top: 0; opacity: 0.55; }
+  .bench-card .row .score { font-family: var(--kui-font-mono); font-size: 14px; text-align: right; font-weight: 500; }
+  .bench-foot { font: var(--kui-caption); color: var(--kui-fg-muted); margin-top: 16px; font-family: var(--kui-font-mono); }
+
+  /* ── training pipeline ── */
+  .pipe { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .pipe .track { display: grid; grid-template-columns: 4fr 1fr 1.2fr; gap: 4px; height: 56px; margin-bottom: 12px; }
+  .pipe .seg { padding: 10px 14px; position: relative; }
+  .pipe .seg .ph { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: rgba(0,0,0,0.6); }
+  .pipe .seg .nm { font: 500 13px/1.1 var(--kui-font-sans); margin-top: 4px; color: #000; }
+  .pipe .seg.a { background: var(--c-rope-bg); }
+  .pipe .seg.b { background: var(--c-mla-bg); }
+  .pipe .seg.c { background: var(--c-moe-bg); }
+  .pipe .ax { display: flex; justify-content: space-between; font: var(--kui-caption); color: var(--kui-fg-muted); font-family: var(--kui-font-mono); padding-top: 4px; border-top: 1px solid var(--kui-border-default); }
+  .pipe .detail { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 24px; }
+  .pipe .detail .it { padding: 16px 18px; border-left: 3px solid var(--kui-border-default); }
+  .pipe .detail .it h6 { font: var(--kui-h4); letter-spacing: -0.25px; margin: 0 0 8px; }
+  .pipe .detail .it p { font: var(--kui-caption); line-height: 1.5; color: var(--kui-fg-default); margin: 0; }
+  .pipe .detail .it.pre { border-left-color: var(--c-rope); }
+  .pipe .detail .it.sft { border-left-color: var(--c-mla); }
+  .pipe .detail .it.rl  { border-left-color: var(--c-shared); }
+
+  /* ── tokenizer ── */
+  .tok { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; display: grid; grid-template-columns: 1fr 1.3fr; gap: 32px; }
+  .tok h4 { font: var(--kui-h3); letter-spacing: -0.25px; margin: 0 0 12px; }
+  .tok p { font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 16px; }
+  .scripts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .scripts .s { padding: 12px 10px; background: var(--c-indic-bg); border: 1px solid var(--c-indic); text-align: center; }
+  .scripts .s .glyph { font-family: var(--kui-font-display); font-weight: 700; font-size: 22px; color: var(--c-indic); line-height: 1; margin-bottom: 6px; }
+  .scripts .s .nm { font: var(--kui-caption); color: var(--kui-fg-strong); }
+
+  /* ── specs grand table ── */
+  .specs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); }
+  .specs .group { background: #F8F8F8; padding: 18px 20px 14px; grid-column: 1 / -1; border-top: 1px solid var(--kui-border-default); }
+  .specs .group:first-child { border-top: 0; }
+  .specs .group h5 { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-default); margin: 0; }
+  .specs .cell { background: #fff; padding: 16px 20px; }
+  .specs .cell .k { font: var(--kui-text-sm); color: var(--kui-fg-muted); margin-bottom: 6px; }
+  .specs .cell .v { font: 500 18px/1.1 var(--kui-font-sans); letter-spacing: -0.25px; font-family: var(--kui-font-mono); font-weight: 500; word-break: break-word; }
+  .specs .cell .v.unk { color: var(--kui-fg-disabled); font-weight: 400; font-style: italic; }
+  .specs .cell .n { font: var(--kui-caption); color: var(--kui-fg-default); margin-top: 6px; }
+
+  /* ── caveats ── */
+  .caveats { background: #FFFCEB; border: 1px solid #E8C967; padding: 24px 28px; }
+  .caveats h4 { font: var(--kui-h4); margin: 0 0 14px; letter-spacing: -0.25px; display: flex; align-items: center; gap: 10px; }
+  .caveats h4::before { content: "△"; color: #B58A00; }
+  .caveats ul { margin: 0; padding-left: 22px; }
+  .caveats li { font: var(--kui-body); color: var(--kui-fg-default); margin-bottom: 8px; }
+  .caveats li b { color: var(--kui-fg-strong); font-weight: 500; }
+  .caveats li code { font: 12px/1 var(--kui-font-mono); background: #fff; padding: 1px 6px; border: 1px solid #E8C967; }
+
+  /* ── footer ── */
+  footer { padding: 32px 0; border-top: 1px solid var(--kui-border-default); background: #fff; margin-top: -1px; }
+  footer .row { max-width: 1240px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 0 40px; font: var(--kui-caption); color: var(--kui-fg-muted); }
+  footer a { color: var(--c-mla); }
+
+  /* ── SVG defaults ── */
+  svg text { font-family: var(--kui-font-sans); }
+  svg .mono { font-family: var(--kui-font-mono); }
+
+  /* responsive ── tablet down */
+  @media (max-width: 980px) {
+    .layout { grid-template-columns: 1fr; }
+    .rail { position: static; height: auto; flex-direction: row; overflow-x: auto; flex-wrap: nowrap; padding: 16px 24px; }
+    .rail .who, .rail .foot { display: none; }
+    .rail a { white-space: nowrap; padding: 8px 14px; border-left: 0; border-bottom: 2px solid transparent; margin: 0; }
+    .rail a.active { border-bottom-color: var(--kui-brand-green); }
+    .hero .row1 { grid-template-columns: 1fr; gap: 24px; }
+    .hero .stats { grid-template-columns: repeat(2, 1fr); }
+    .pass { grid-template-columns: 1fr 1fr; }
+    .pass .step { border-right: 0; border-bottom: 1px solid var(--kui-border-default); }
+    .block-wrap, .mla-wrap, .moe-wrap, .ctx-wrap, .tok { grid-template-columns: 1fr; }
+    .specs { grid-template-columns: 1fr 1fr; }
+    .pipe .detail { grid-template-columns: 1fr; }
+    .scripts { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body class="kui">
+
+<header class="top-bar">
+  <img src="kaizen/NVIDIA-wordmark.svg" class="wordmark" alt="NVIDIA">
+  <div class="divider"></div>
+  <div class="crumb">Model Atlas</div>
+  <h1>Sarvam 105B-A13B</h1>
+  <div class="meta">
+    <span><b>Architecture brief</b></span>
+    <span>Vendor: <b>Sarvam AI</b></span>
+    <span>Released <b>Mar 2026</b> · Apache-2.0</span>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ── LEFT RAIL ── -->
+  <nav class="rail">
+    <div class="who">On this page</div>
+    <a class="home-link" href="../../index.html">Atlas home</a>
+    <a href="#identity" class="active"><span class="n">00</span>Identity</a>
+    <a href="#pass"><span class="n">01</span>Forward pass</a>
+    <a href="#block"><span class="n">02</span>Decoder block</a>
+    <a href="#mla"><span class="n">03</span>MLA attention</a>
+    <a href="#rope"><span class="n">04</span>NoPE / RoPE split</a>
+    <a href="#moe"><span class="n">05</span>Sparse MoE</a>
+    <a href="#context"><span class="n">06</span>Long-context (YaRN)</a>
+    <a href="#tokenizer"><span class="n">07</span>Tokenizer</a>
+    <a href="#training"><span class="n">08</span>Training</a>
+    <a href="#benchmarks"><span class="n">09</span>Benchmarks</a>
+    <a href="#specs"><span class="n">10</span>Spec sheet</a>
+    <a href="#caveats"><span class="n">11</span>Unknowns</a>
+    <div class="foot">
+      Compiled from sarvamai/sarvam-105b model card, docs.sarvam.ai, and the Sarvam release post (2026-03-06). Primary sources only — see <a href="#caveats">caveats</a>.
+    </div>
+  </nav>
+
+  <main class="wrap">
+
+    <!-- ─────────── HERO ─────────── -->
+    <section id="identity" class="hero">
+      <div class="row1">
+        <div>
+          <div class="eyebrow">
+            <span>Sparse MoE Transformer</span>
+            <span class="pill">Apache-2.0 · 12 T tokens</span>
+          </div>
+          <h2><span class="accent">MLA</span> attention + <span class="accent2">128-expert</span> sparse MoE reasoning model</h2>
+          <p>Sarvam AI's flagship sovereign Indian-language LLM. A Mixture-of-Experts transformer trained from scratch with Multi-head Latent Attention, decoupled RoPE / NoPE query channels, and auxiliary-loss-free expert routing. 10.3 B parameters wake per token; 106 B sleep.</p>
+        </div>
+
+        <aside class="ident">
+          <h4>Identity</h4>
+          <div class="row"><span class="k">Vendor / lab</span><span class="v">Sarvam AI</span></div>
+          <div class="row"><span class="k">Repository</span><span class="v">sarvamai/sarvam-105b</span></div>
+          <div class="row"><span class="k">Model class</span><span class="v">SarvamMLAForCausalLM</span></div>
+          <div class="row"><span class="k">License</span><span class="v">Apache-2.0</span></div>
+          <div class="row"><span class="k">Release</span><span class="v">2026-03-06</span></div>
+          <div class="row"><span class="k">Companion model</span><span class="v">sarvam-30b</span></div>
+          <div class="row"><span class="k">Quantized release</span><span class="v">sarvam-105b-fp8</span></div>
+        </aside>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="label">Total params</div><div class="value">106 B</div><div class="src">model card · safetensors size</div></div>
+        <div class="stat"><div class="label">Active per token</div><div class="value">10.3 B</div><div class="src">model card</div></div>
+        <div class="stat"><div class="label">Experts (top-k / total)</div><div class="value">8 / 128 <small>+1 shared</small></div><div class="src">model card</div></div>
+        <div class="stat"><div class="label">Hidden size</div><div class="value">4 096</div><div class="src">model card</div></div>
+        <div class="stat"><div class="label">Native context</div><div class="value">128 K <small>tokens</small></div><div class="src">docs.sarvam.ai · YaRN ×40</div></div>
+        <div class="stat"><div class="label">Pretraining tokens</div><div class="value">12 T</div><div class="src">docs.sarvam.ai</div></div>
+      </div>
+    </section>
+
+    <!-- ─────────── FORWARD PASS ─────────── -->
+    <section id="pass">
+      <div class="sec-head">
+        <div class="num">01 · Forward pass</div>
+        <div>
+          <h3>End-to-end signal flow</h3>
+          <p>A token id enters the left edge and a logit vector exits the right. The model card discloses tokenizer behaviour, embedding width, attention mechanism, MoE layer composition, and a 128 K context cap — but does not publish layer count or head count. Those slots are labelled unknown rather than guessed.</p>
+        </div>
+      </div>
+
+      <div class="pass">
+        <div class="step">
+          <div class="k">Input</div>
+          <div class="t">Token ids</div>
+          <div class="d">[B, T]</div>
+          <span class="badge">int</span>
+        </div>
+        <div class="step">
+          <div class="k">Pre</div>
+          <div class="t">Sarvam tokenizer</div>
+          <div class="d">22 langs · 12 scripts</div>
+          <span class="badge">custom</span>
+        </div>
+        <div class="step">
+          <div class="k">Pre</div>
+          <div class="t">Token embedding</div>
+          <div class="d">V → 4 096</div>
+          <span class="badge">trust_remote_code</span>
+        </div>
+        <div class="step stack">
+          <div class="k">Backbone · N layers</div>
+          <div class="t">MLA attention<br>+ Sparse MoE FFN</div>
+          <div class="d">d_model = 4 096</div>
+          <span class="badge">N = unknown</span>
+        </div>
+        <div class="step">
+          <div class="k">Post</div>
+          <div class="t">Final RMSNorm</div>
+          <div class="d">γ ∈ ℝ^4096</div>
+          <span class="badge">stabilization</span>
+        </div>
+        <div class="step">
+          <div class="k">Post</div>
+          <div class="t">LM head</div>
+          <div class="d">4 096 → V</div>
+          <span class="badge">linear</span>
+        </div>
+        <div class="step">
+          <div class="k">Output</div>
+          <div class="t">Logits → token</div>
+          <div class="d">[B, T, V]</div>
+          <span class="badge">bf16 / fp8</span>
+        </div>
+      </div>
+      <div class="pass-note">RMSNorm placement and norm count are inferred from the release blog's mention of "RMSNorm-based stabilization." Layer count, vocabulary size, and the exact placement of normalization within the block are <b>unknown in source inventory</b>.</div>
+    </section>
+
+    <!-- ─────────── DECODER BLOCK ─────────── -->
+    <section id="block">
+      <div class="sec-head">
+        <div class="num">02 · Decoder block</div>
+        <div>
+          <h3>Inside one transformer layer</h3>
+          <p>Sarvam-105B builds on the modern pre-norm decoder pattern. Two sub-modules per residual: an MLA attention block, then a sparse MoE feed-forward. RMSNorm gates each entry; the residual stream stays at width 4 096 from layer 1 to layer N.</p>
+        </div>
+      </div>
+
+      <div class="block-wrap">
+        <div class="block-svg-card">
+          <h4>Pre-norm block schematic</h4>
+          <svg viewBox="0 0 520 520">
+            <!-- residual stream guide -->
+            <line x1="40" y1="20" x2="40" y2="500" stroke="#D8D8D8" stroke-width="1" stroke-dasharray="3 3"/>
+            <text x="32" y="14" font-size="10" fill="#5E5E5E" text-anchor="end">residual</text>
+            <text x="32" y="510" font-size="10" fill="#5E5E5E" text-anchor="end">x'</text>
+
+            <!-- input arrow -->
+            <line x1="40" y1="40" x2="180" y2="40" stroke="#202020"/>
+            <polygon points="180,36 188,40 180,44" fill="#202020"/>
+
+            <!-- RMSNorm 1 -->
+            <rect x="188" y="24" width="120" height="32" fill="#fff" stroke="#202020"/>
+            <text x="248" y="44" font-size="12" text-anchor="middle">RMSNorm</text>
+
+            <line x1="308" y1="40" x2="370" y2="40" stroke="#202020"/>
+            <polygon points="370,36 378,40 370,44" fill="#202020"/>
+
+            <!-- MLA box -->
+            <rect x="378" y="14" width="124" height="120" fill="#E2F1EF" stroke="#1FA18D" stroke-width="1.5"/>
+            <text x="440" y="40" font-size="13" text-anchor="middle" font-weight="500" fill="#1FA18D">MLA</text>
+            <text x="440" y="60" font-size="10" text-anchor="middle" fill="#1FA18D">Multi-head Latent</text>
+            <text x="440" y="74" font-size="10" text-anchor="middle" fill="#1FA18D">Attention</text>
+            <line x1="388" y1="86" x2="492" y2="86" stroke="#1FA18D" stroke-dasharray="2 2"/>
+            <text x="440" y="100" font-size="9" text-anchor="middle" class="mono" fill="#1FA18D">q_head_dim=192</text>
+            <text x="440" y="113" font-size="9" text-anchor="middle" class="mono" fill="#1FA18D">v_head_dim=128</text>
+            <text x="440" y="126" font-size="9" text-anchor="middle" class="mono" fill="#1FA18D">head_dim=576</text>
+
+            <!-- arrow back to residual + sum -->
+            <line x1="440" y1="134" x2="440" y2="170" stroke="#1FA18D"/>
+            <line x1="440" y1="170" x2="40" y2="170" stroke="#1FA18D"/>
+            <circle cx="40" cy="170" r="9" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+            <text x="40" y="174" font-size="13" text-anchor="middle" font-weight="500">+</text>
+
+            <!-- 2nd path -->
+            <line x1="40" y1="200" x2="180" y2="200" stroke="#202020"/>
+            <polygon points="180,196 188,200 180,204" fill="#202020"/>
+
+            <!-- RMSNorm 2 -->
+            <rect x="188" y="184" width="120" height="32" fill="#fff" stroke="#202020"/>
+            <text x="248" y="204" font-size="12" text-anchor="middle">RMSNorm</text>
+
+            <line x1="308" y1="200" x2="370" y2="200" stroke="#202020"/>
+            <polygon points="370,196 378,200 370,204" fill="#202020"/>
+
+            <!-- router -->
+            <rect x="378" y="180" width="124" height="42" fill="#fff" stroke="#76B900" stroke-width="1.5"/>
+            <text x="440" y="200" font-size="12" text-anchor="middle" font-weight="500" fill="#5E9600">Router · softmax</text>
+            <text x="440" y="216" font-size="10" text-anchor="middle" class="mono" fill="#5E9600">top-8 of 128 · aux-free</text>
+
+            <!-- routed experts grid -->
+            <g transform="translate(160, 250)">
+              <text x="-12" y="-8" font-size="10" fill="#5E5E5E">routed experts (128)</text>
+              <g id="exp-grid"></g>
+            </g>
+
+            <!-- shared expert -->
+            <rect x="378" y="252" width="124" height="44" fill="#E8F4D6" stroke="#5E9600" stroke-width="1.5"/>
+            <text x="440" y="270" font-size="12" text-anchor="middle" font-weight="500" fill="#5E9600">+ Shared expert</text>
+            <text x="440" y="286" font-size="9" text-anchor="middle" class="mono" fill="#5E9600">always on · d_ff=2048</text>
+
+            <!-- weighted sum -->
+            <line x1="440" y1="296" x2="440" y2="340" stroke="#76B900"/>
+            <line x1="335" y1="330" x2="440" y2="330" stroke="#76B900"/>
+            <circle cx="440" cy="350" r="10" fill="#fff" stroke="#76B900" stroke-width="1.5"/>
+            <text x="440" y="354" font-size="12" text-anchor="middle" font-weight="500" fill="#5E9600">Σ</text>
+            <text x="490" y="354" font-size="9" font-style="italic" fill="#5E9600">× 2.5</text>
+
+            <!-- arrow back to residual + sum -->
+            <line x1="440" y1="360" x2="440" y2="400" stroke="#76B900"/>
+            <line x1="440" y1="400" x2="40" y2="400" stroke="#76B900"/>
+            <circle cx="40" cy="400" r="9" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+            <text x="40" y="404" font-size="13" text-anchor="middle" font-weight="500">+</text>
+
+            <!-- output -->
+            <line x1="40" y1="430" x2="180" y2="430" stroke="#202020"/>
+            <polygon points="180,426 188,430 180,434" fill="#202020"/>
+            <text x="200" y="434" font-size="12" font-weight="500">→ to layer ℓ+1</text>
+
+            <!-- legend left -->
+            <text x="40" y="478" font-size="10" fill="#5E5E5E">Pre-norm; residuals are linear adds.</text>
+            <text x="40" y="492" font-size="10" fill="#5E5E5E">routed scaling factor = 2.5 (model card)</text>
+          </svg>
+        </div>
+
+        <div class="block-prose">
+          <div class="eq">
+            <div class="lbl">Sub-layer 1 — Attention residual</div>
+<code>h = x + MLA( RMSNorm(x) )</code>
+          </div>
+          <div class="eq">
+            <div class="lbl">Sub-layer 2 — Sparse-MoE residual</div>
+<code>z   = RMSNorm(h)
+g   = softmax_top8( W_router · z )      // aux-loss-free balancing
+y_r = Σ_{i ∈ top-8}  g_i  ·  E_i(z)     // routed experts (of 128)
+y_s = E_shared(z)                        // always-on shared expert
+x'  = h + 2.5 · ( y_r + y_s )           // routed_scaling_factor</code>
+          </div>
+          <div class="eq">
+            <div class="lbl">Each expert (SwiGLU MLP, dim 2 048)</div>
+<code>E_i(z) = W_down_i · ( SiLU(W_gate_i · z) ⊙ (W_up_i · z) )</code>
+            <div style="font: var(--kui-caption); color: var(--kui-fg-muted); margin-top: 8px;">SwiGLU is the standard activation in this generation of Sarvam-style MoEs; the exact gate is not enumerated in the published model card, but the shape <code style="font-family: var(--kui-font-mono);">moe_intermediate_size = 2048</code> is.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── MLA ─────────── -->
+    <section id="mla">
+      <div class="sec-head">
+        <div class="num">03 · MLA attention</div>
+        <div>
+          <h3>Multi-head Latent Attention with decoupled QK</h3>
+          <p>Sarvam-105B's attention compresses the KV path into a single latent of width 576 per head, then re-projects on demand. Queries split into two independent channels — one carrying rotary position, one carrying no position at all. The split makes the rotary phase orthogonal to content, which is what makes YaRN-extrapolation to 128 K stable.</p>
+        </div>
+      </div>
+
+      <div class="mla-wrap">
+        <div class="mla-card">
+          <h4>Per-head channel budget</h4>
+          <div class="sub">Each head's 192-dim query is decoupled into a RoPE-rotated half and a no-position half; the value path is a separate 128-dim projection. The compressed KV latent (head_dim = 576) is what's actually cached.</div>
+
+          <div class="head-bar">
+            <div class="h"><span class="name">Q projection</span><span class="val">q_head_dim = 192</span></div>
+            <div class="seg">
+              <div class="a lbl" style="flex: 1;">RoPE half · positional</div>
+              <div class="b lbl" style="flex: 1;">NoPE half · pure content</div>
+            </div>
+          </div>
+
+          <div class="head-bar">
+            <div class="h"><span class="name">K projection</span><span class="val">matches Q · 192</span></div>
+            <div class="seg">
+              <div class="a lbl" style="flex: 1;">RoPE half · shared phase</div>
+              <div class="b lbl" style="flex: 1;">NoPE half · matches Q</div>
+            </div>
+          </div>
+
+          <div class="head-bar">
+            <div class="h"><span class="name">V projection</span><span class="val">v_head_dim = 128</span></div>
+            <div class="seg">
+              <div class="c lbl" style="flex: 1;">value vector (no positional split)</div>
+            </div>
+          </div>
+
+          <div class="head-bar">
+            <div class="h"><span class="name">Compressed KV cache</span><span class="val">head_dim = 576</span></div>
+            <div class="seg">
+              <div class="c lbl" style="flex: 1;">latent (cached); decompressed at attention time</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mla-card">
+          <h4>Why MLA</h4>
+          <div class="sub">Three operational properties relevant to a 105 B-class model serving 128 K context.</div>
+
+          <svg viewBox="0 0 460 320">
+            <!-- baseline: full MHA -->
+            <text x="0" y="20" font-size="11" font-weight="500">A · Standard MHA</text>
+            <rect x="0" y="30" width="440" height="20" fill="#F2F2F2" stroke="#D8D8D8"/>
+            <text x="220" y="44" font-size="10" text-anchor="middle">KV cache: 2 · H · d_head · T  (huge at 128 K)</text>
+
+            <!-- GQA -->
+            <text x="0" y="78" font-size="11" font-weight="500">B · GQA (e.g. Sarvam-30B uses kv_heads=4)</text>
+            <rect x="0" y="88" width="220" height="20" fill="#FDEFE6" stroke="#C54600"/>
+            <text x="110" y="102" font-size="10" text-anchor="middle">smaller KV — fewer KV heads</text>
+
+            <!-- MLA -->
+            <text x="0" y="136" font-size="11" font-weight="500" fill="#1FA18D">C · MLA — Sarvam-105B</text>
+            <rect x="0" y="146" width="120" height="20" fill="#E2F1EF" stroke="#1FA18D"/>
+            <text x="60" y="160" font-size="10" text-anchor="middle" fill="#1FA18D">latent KV · 576</text>
+
+            <line x1="0" y1="200" x2="460" y2="200" stroke="#D8D8D8"/>
+
+            <text x="0" y="226" font-size="11" font-weight="500">→ Properties claimed by the model card</text>
+            <text x="0" y="248" font-size="11" fill="#343434">·  Higher representational bandwidth per head (head_dim 576)</text>
+            <text x="0" y="266" font-size="11" fill="#343434">·  Hidden size stays at 4 096 — no width inflation</text>
+            <text x="0" y="284" font-size="11" fill="#343434">·  Long-context extrapolation: YaRN ×40 to 128 K</text>
+            <text x="0" y="302" font-size="11" fill="#343434">·  Inference: SGLang ships flashmla decode backend</text>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── ROPE/NOPE ─────────── -->
+    <section id="rope">
+      <div class="sec-head">
+        <div class="num">04 · Positional encoding</div>
+        <div>
+          <h3>RoPE and NoPE, sharing the same head</h3>
+          <p>The 192-dim query head is concatenated from two independently-projected sub-vectors. Half is rotated by Rotary Position Embedding (and re-scaled by YaRN at long context); half is left untouched — "NoPE." Attention scores are the sum of two dot products, one positional and one content-only.</p>
+        </div>
+      </div>
+
+      <div class="block-svg-card">
+        <h4>How the two halves combine into one attention score</h4>
+        <svg viewBox="0 0 1100 360">
+          <!-- token q -->
+          <text x="40" y="24" font-size="11" font-weight="500">Token query q (per head, 192-dim)</text>
+          <rect x="40" y="34" width="240" height="36" fill="#FDEFE6" stroke="#C54600"/>
+          <text x="160" y="56" font-size="11" text-anchor="middle" fill="#C54600" font-weight="500">q_rope  (96-dim)</text>
+          <rect x="280" y="34" width="240" height="36" fill="#F5E5EC" stroke="#851F41"/>
+          <text x="400" y="56" font-size="11" text-anchor="middle" fill="#851F41" font-weight="500">q_nope  (96-dim)</text>
+
+          <!-- key k -->
+          <text x="580" y="24" font-size="11" font-weight="500">Token key k (per head, from MLA-decompressed latent)</text>
+          <rect x="580" y="34" width="240" height="36" fill="#FDEFE6" stroke="#C54600"/>
+          <text x="700" y="56" font-size="11" text-anchor="middle" fill="#C54600" font-weight="500">k_rope  (96-dim · shared)</text>
+          <rect x="820" y="34" width="240" height="36" fill="#F5E5EC" stroke="#851F41"/>
+          <text x="940" y="56" font-size="11" text-anchor="middle" fill="#851F41" font-weight="500">k_nope  (96-dim)</text>
+
+          <!-- RoPE rotation -->
+          <line x1="160" y1="70" x2="160" y2="110" stroke="#C54600"/>
+          <line x1="700" y1="70" x2="700" y2="110" stroke="#C54600"/>
+          <rect x="80" y="110" width="160" height="32" fill="#fff" stroke="#C54600"/>
+          <text x="160" y="130" font-size="11" text-anchor="middle" fill="#C54600">RoPE(pos)  +  YaRN ×40</text>
+          <rect x="620" y="110" width="160" height="32" fill="#fff" stroke="#C54600"/>
+          <text x="700" y="130" font-size="11" text-anchor="middle" fill="#C54600">RoPE(pos)  +  YaRN ×40</text>
+
+          <!-- arrows down to dot product -->
+          <line x1="160" y1="142" x2="160" y2="180" stroke="#C54600"/>
+          <line x1="700" y1="142" x2="700" y2="180" stroke="#C54600"/>
+
+          <line x1="400" y1="70" x2="400" y2="180" stroke="#851F41"/>
+          <line x1="940" y1="70" x2="940" y2="180" stroke="#851F41"/>
+
+          <!-- inner products -->
+          <rect x="60" y="180" width="640" height="40" fill="#FDEFE6"/>
+          <text x="380" y="205" font-size="13" text-anchor="middle" font-weight="500" fill="#C54600" class="mono">⟨ q_rope, k_rope ⟩ — positional inner product</text>
+
+          <rect x="340" y="230" width="640" height="40" fill="#F5E5EC"/>
+          <text x="660" y="255" font-size="13" text-anchor="middle" font-weight="500" fill="#851F41" class="mono">⟨ q_nope, k_nope ⟩ — content inner product</text>
+
+          <!-- sum -->
+          <line x1="380" y1="220" x2="540" y2="290" stroke="#5E5E5E"/>
+          <line x1="660" y1="270" x2="540" y2="290" stroke="#5E5E5E"/>
+          <rect x="380" y="290" width="320" height="40" fill="#fff" stroke="#202020"/>
+          <text x="540" y="315" font-size="13" text-anchor="middle" font-weight="500" class="mono">score = ⟨q_rope,k_rope⟩ + ⟨q_nope,k_nope⟩</text>
+
+          <!-- softmax + value -->
+          <text x="760" y="298" font-size="11">→ softmax over T</text>
+          <text x="760" y="316" font-size="11">→ weighted sum of  v_head (128-dim)</text>
+        </svg>
+      </div>
+    </section>
+
+    <!-- ─────────── MOE ─────────── -->
+    <section id="moe">
+      <div class="sec-head">
+        <div class="num">05 · Sparse Mixture-of-Experts</div>
+        <div>
+          <h3>128 routed experts, top-8, plus one always-on shared expert</h3>
+          <p>Every transformer-block FFN slot is replaced with a sparse MoE bank. The router picks the eight best experts for each token, multiplies their outputs by the softmax gate weights, sums in a shared expert that fires for every token, and rescales by 2.5. Auxiliary-loss-free balancing keeps expert utilization even without a separate load-balancing loss.</p>
+        </div>
+      </div>
+
+      <div class="moe-wrap">
+        <div class="moe-card">
+          <h4>One routing event</h4>
+          <p>Each square is one of 128 routed experts. For the token currently being processed, the router has picked 8 — they fire, weighted by their gate score. The shared expert (right) fires for every token.</p>
+
+          <div class="moe-grid" id="moe-grid"></div>
+
+          <div class="moe-key">
+            <span><i style="background: var(--kui-n100);"></i> Idle expert</span>
+            <span><i style="background: var(--c-moe);"></i> Routed (top-8)</span>
+            <span><i style="background: var(--c-shared);"></i> Shared (always on)</span>
+          </div>
+
+          <div class="moe-numbers">
+            <div class="n"><div class="k">Routed experts</div><div class="v">128</div></div>
+            <div class="n"><div class="k">Top-k routing</div><div class="v">8 <small>per token</small></div></div>
+            <div class="n"><div class="k">Shared experts</div><div class="v">1 <small>always-on</small></div></div>
+            <div class="n"><div class="k">Expert FFN width</div><div class="v">2 048 <small>moe_intermediate</small></div></div>
+            <div class="n"><div class="k">Dense FFN width</div><div class="v">16 384 <small>intermediate_size</small></div></div>
+            <div class="n"><div class="k">Routed scaling factor</div><div class="v">2.5</div></div>
+          </div>
+        </div>
+
+        <div class="router-card">
+          <h4>Router pipeline</h4>
+          <svg viewBox="0 0 480 480">
+            <!-- token in -->
+            <rect x="180" y="14" width="120" height="32" fill="#fff" stroke="#202020"/>
+            <text x="240" y="34" font-size="12" text-anchor="middle">token hidden  z</text>
+
+            <line x1="240" y1="46" x2="240" y2="76" stroke="#202020"/>
+            <polygon points="236,76 240,84 244,76" fill="#202020"/>
+
+            <!-- router linear -->
+            <rect x="140" y="84" width="200" height="36" fill="#E8F4D6" stroke="#5E9600"/>
+            <text x="240" y="106" font-size="12" text-anchor="middle" font-weight="500" fill="#5E9600">W_router  ·  z   →   ℓ ∈ ℝ^128</text>
+
+            <line x1="240" y1="120" x2="240" y2="150" stroke="#5E9600"/>
+            <polygon points="236,150 240,158 244,150" fill="#5E9600"/>
+
+            <!-- aux-free balance -->
+            <rect x="80" y="158" width="320" height="36" fill="#fff" stroke="#5E9600"/>
+            <text x="240" y="180" font-size="12" text-anchor="middle" fill="#5E9600">aux-loss-free balancing bias  b_i  ←  ℓ_i</text>
+
+            <line x1="240" y1="194" x2="240" y2="222" stroke="#5E9600"/>
+            <polygon points="236,222 240,230 244,222" fill="#5E9600"/>
+
+            <!-- top-k + softmax -->
+            <rect x="100" y="230" width="280" height="40" fill="#E8F4D6" stroke="#5E9600"/>
+            <text x="240" y="254" font-size="12" text-anchor="middle" font-weight="500" fill="#5E9600">top-8 ( ℓ + b )  →  softmax  →  g ∈ ℝ^8</text>
+
+            <line x1="240" y1="270" x2="240" y2="298" stroke="#5E9600"/>
+            <polygon points="236,298 240,306 244,298" fill="#5E9600"/>
+
+            <!-- 8 experts fan out -->
+            <g>
+              <rect x="40" y="306" width="50" height="38" fill="#76B900"/>
+              <text x="65" y="328" font-size="11" text-anchor="middle" fill="#fff">E₃₁</text>
+              <rect x="100" y="306" width="50" height="38" fill="#76B900"/>
+              <text x="125" y="328" font-size="11" text-anchor="middle" fill="#fff">E₆₂</text>
+              <rect x="160" y="306" width="50" height="38" fill="#76B900"/>
+              <text x="185" y="328" font-size="11" text-anchor="middle" fill="#fff">E₇₇</text>
+              <rect x="220" y="306" width="50" height="38" fill="#76B900"/>
+              <text x="245" y="328" font-size="11" text-anchor="middle" fill="#fff">E₉₂</text>
+              <rect x="280" y="306" width="50" height="38" fill="#76B900"/>
+              <text x="305" y="328" font-size="11" text-anchor="middle" fill="#fff">E₁₀₆</text>
+              <rect x="340" y="306" width="50" height="38" fill="#76B900"/>
+              <text x="365" y="328" font-size="11" text-anchor="middle" fill="#fff">E₁₁₈</text>
+              <rect x="400" y="306" width="40" height="38" fill="#76B900"/>
+              <text x="420" y="328" font-size="11" text-anchor="middle" fill="#fff">+2</text>
+            </g>
+
+            <line x1="240" y1="350" x2="240" y2="376" stroke="#5E9600"/>
+            <polygon points="236,376 240,384 244,376" fill="#5E9600"/>
+
+            <!-- shared expert sum -->
+            <rect x="80" y="384" width="320" height="38" fill="#fff" stroke="#5E9600"/>
+            <text x="240" y="408" font-size="12" text-anchor="middle" fill="#5E9600">y = 2.5 · ( Σ gᵢ · Eᵢ(z)  +  E_shared(z) )</text>
+
+            <line x1="240" y1="422" x2="240" y2="450" stroke="#202020"/>
+            <polygon points="236,450 240,458 244,450" fill="#202020"/>
+
+            <text x="240" y="474" font-size="11" text-anchor="middle">→ residual add</text>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── CONTEXT ─────────── -->
+    <section id="context">
+      <div class="sec-head">
+        <div class="num">06 · Long context</div>
+        <div>
+          <h3>YaRN ×40 — how the model reaches 128 K</h3>
+          <p>The native rotary period is extended by a factor of 40 using YaRN, putting the trained context at 128 K tokens. The model card recommends evaluating with a maximum context of 65 536 tokens. Inference engines ship MLA-specific kernels (<code style="font-family: var(--kui-font-mono);">flashmla</code> in SGLang) to make the 576-dim KV latent affordable.</p>
+        </div>
+      </div>
+
+      <div class="ctx-wrap">
+        <div class="ctx-card">
+          <h4>Context schedule</h4>
+          <p>Native trained window vs. YaRN-extrapolated long context window. The orange band is the un-scaled RoPE region; the teal band is reached via YaRN re-scaling.</p>
+
+          <div class="ruler">
+            <div class="seg native"></div>
+            <div class="seg yarn"></div>
+            <div class="label">native (no rescale)</div>
+            <div class="val">≤ 32 K</div>
+          </div>
+          <div class="ruler-ax">
+            <span>0</span><span>32 K</span><span>65 K</span><span>96 K</span><span>128 K</span>
+          </div>
+          <div style="margin-top: 16px; font: var(--kui-caption); color: var(--kui-fg-muted); font-family: var(--kui-font-mono);">
+            YaRN factor 40 reported on the model card. The 32 K native boundary is matched by Sarvam-30B's reported config; the exact native window for Sarvam-105B before YaRN is <b>unknown in source inventory</b>.
+          </div>
+        </div>
+
+        <div class="ctx-card">
+          <h4>Recommended runtime settings</h4>
+          <p>From the model card "Inference" section and footnote.</p>
+
+          <div class="ident">
+            <div class="row"><span class="k">Max ctx for benchmarks</span><span class="v">65 536</span></div>
+            <div class="row"><span class="k">Reasoning runs</span><span class="v">T=1.0 · top_p=1.0</span></div>
+            <div class="row"><span class="k">max_new_tokens</span><span class="v">65 536</span></div>
+            <div class="row"><span class="k">Agentic runs</span><span class="v">T=0.5 · top_p=1.0</span></div>
+            <div class="row"><span class="k">Decode backend (SGLang)</span><span class="v">flashmla</span></div>
+            <div class="row"><span class="k">Prefill backend (SGLang)</span><span class="v">fa3</span></div>
+            <div class="row"><span class="k">MoE runner</span><span class="v">flashinfer_cutedsl</span></div>
+            <div class="row"><span class="k">Reasoning mode flag</span><span class="v">enable_thinking=True</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── TOKENIZER ─────────── -->
+    <section id="tokenizer">
+      <div class="sec-head">
+        <div class="num">07 · Tokenizer</div>
+        <div>
+          <h3>Custom Sarvam tokenizer for 22 Indic languages</h3>
+          <p>Sarvam released a bespoke tokenizer covering the 22 scheduled languages of India across 12 distinct scripts, alongside English and code. Vocabulary size and BPE-vs-Unigram details are not enumerated in the public model card.</p>
+        </div>
+      </div>
+
+      <div class="tok">
+        <div>
+          <h4>Coverage</h4>
+          <p>The release post reports state-of-the-art performance on 22 Indian languages and emphasizes tokenization optimized for diverse scripts. Twelve scripts span Brahmic, Perso-Arabic, and others.</p>
+
+          <div class="ident">
+            <div class="row"><span class="k">Languages covered</span><span class="v">22 + English</span></div>
+            <div class="row"><span class="k">Scripts</span><span class="v">12</span></div>
+            <div class="row"><span class="k">Vocab size</span><span class="v unk" style="text-align:right; color: var(--kui-fg-disabled); font-style:italic;">unknown</span></div>
+            <div class="row"><span class="k">Algorithm</span><span class="v unk" style="text-align:right; color: var(--kui-fg-disabled); font-style:italic;">not reported</span></div>
+            <div class="row"><span class="k">Chat template</span><span class="v">jinja · 3.14 kB</span></div>
+          </div>
+        </div>
+
+        <div>
+          <h4 style="font: var(--kui-h4); margin: 0 0 12px; letter-spacing: -0.25px;">Scripts (illustrative glyphs)</h4>
+          <div class="scripts">
+            <div class="s"><div class="glyph">अ</div><div class="nm">Devanagari</div></div>
+            <div class="s"><div class="glyph">অ</div><div class="nm">Bengali</div></div>
+            <div class="s"><div class="glyph">અ</div><div class="nm">Gujarati</div></div>
+            <div class="s"><div class="glyph">ਅ</div><div class="nm">Gurmukhi</div></div>
+            <div class="s"><div class="glyph">అ</div><div class="nm">Telugu</div></div>
+            <div class="s"><div class="glyph">அ</div><div class="nm">Tamil</div></div>
+            <div class="s"><div class="glyph">ಅ</div><div class="nm">Kannada</div></div>
+            <div class="s"><div class="glyph">അ</div><div class="nm">Malayalam</div></div>
+            <div class="s"><div class="glyph">ଅ</div><div class="nm">Odia</div></div>
+            <div class="s"><div class="glyph">ا</div><div class="nm">Perso-Arabic</div></div>
+            <div class="s"><div class="glyph">A</div><div class="nm">Latin</div></div>
+            <div class="s"><div class="glyph">ⵣ</div><div class="nm">+ 1 more</div></div>
+          </div>
+          <div style="font: var(--kui-caption); color: var(--kui-fg-muted); margin-top: 12px;">Script glyphs are illustrative; specific script set not enumerated in the public model card.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── TRAINING ─────────── -->
+    <section id="training">
+      <div class="sec-head">
+        <div class="num">08 · Training pipeline</div>
+        <div>
+          <h3>Pretraining → SFT → RL with a CISPO-inspired objective</h3>
+          <p>The release blog discloses the high-level shape of the training pipeline. Pretraining used 12 T tokens across code, math, multilingual, and web data. The RL phase swaps standard clipped-surrogate methods for a group-relative objective inspired by CISPO and omits the reference-model KL anchor.</p>
+        </div>
+      </div>
+
+      <div class="pipe">
+        <div class="track">
+          <div class="seg a"><div class="ph">Pretraining</div><div class="nm">12 T tokens · code · math · multilingual · web</div></div>
+          <div class="seg b"><div class="ph">SFT</div><div class="nm">Supervised fine-tune</div></div>
+          <div class="seg c"><div class="ph">RL</div><div class="nm">CISPO-inspired, no KL anchor</div></div>
+        </div>
+        <div class="ax">
+          <span>schedule order →</span>
+          <span class="mono">end: agentic + reasoning model</span>
+        </div>
+
+        <div class="detail">
+          <div class="it pre">
+            <h6>Pretraining</h6>
+            <p>12 T tokens total. Mixture spans code, math, multilingual web data, and a heavy weighting on the 22 Indian languages and 12 scripts the tokenizer was built around. Training infrastructure was provided by Yotta on the IndiaAI Mission's government-backed GPU pool; NVIDIA contributed technical support.</p>
+          </div>
+          <div class="it sft">
+            <h6>SFT</h6>
+            <p>Specific corpora, mixture weights, and SFT step counts are <b>not reported</b> in the model card or release blog. Chat template ships as a Jinja file in the repo.</p>
+          </div>
+          <div class="it rl">
+            <h6>RL alignment</h6>
+            <p>Custom group-relative objective inspired by CISPO. KL-divergence against a reference model is omitted to avoid the optimization conflict with reward maximization. Trajectory staleness is bounded by capping age of sampled trajectories vs. policy updates. Reward shaping promotes structured reasoning, concise responses, and correct tool usage.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── BENCHMARKS ─────────── -->
+    <section id="benchmarks">
+      <div class="sec-head">
+        <div class="num">09 · Benchmarks</div>
+        <div>
+          <h3>Source-reported scores from the model card</h3>
+          <p>All numbers below are reproduced from Sarvam-105B's published model card. All benchmarks evaluated at 65 536-token max context. Scores are <b>source-reported and not independently verified</b>.</p>
+        </div>
+      </div>
+
+      <div class="bench">
+        <div class="bench-card">
+          <h4>Reasoning &amp; Math</h4>
+          <div class="row">
+            <div class="name">Math500 <small>T=1.0, top_p=1.0</small></div>
+            <div class="bar-track"><div class="bar hi" style="width: 98.6%;"></div></div>
+            <div class="score">98.6</div>
+          </div>
+          <div class="row">
+            <div class="name">AIME 25 <small>w/ tools: 96.7</small></div>
+            <div class="bar-track">
+              <div class="bar tool" style="width: 96.7%;"></div>
+              <div class="bar" style="width: 88.3%;"></div>
+            </div>
+            <div class="score">88.3</div>
+          </div>
+          <div class="row">
+            <div class="name">HMMT (Feb 25) <small>w/o tools</small></div>
+            <div class="bar-track"><div class="bar" style="width: 85.8%;"></div></div>
+            <div class="score">85.8</div>
+          </div>
+          <div class="row">
+            <div class="name">HMMT (Nov 25) <small>w/o tools</small></div>
+            <div class="bar-track"><div class="bar" style="width: 85.8%;"></div></div>
+            <div class="score">85.8</div>
+          </div>
+          <div class="row">
+            <div class="name">GPQA Diamond <small>science reasoning</small></div>
+            <div class="bar-track"><div class="bar" style="width: 78.7%;"></div></div>
+            <div class="score">78.7</div>
+          </div>
+          <div class="row">
+            <div class="name">Beyond AIME <small>frontier math</small></div>
+            <div class="bar-track"><div class="bar" style="width: 69.1%;"></div></div>
+            <div class="score">69.1</div>
+          </div>
+        </div>
+
+        <div class="bench-card">
+          <h4>Knowledge &amp; Coding</h4>
+          <div class="row">
+            <div class="name">MMLU</div>
+            <div class="bar-track"><div class="bar" style="width: 90.6%;"></div></div>
+            <div class="score">90.6</div>
+          </div>
+          <div class="row">
+            <div class="name">IF Eval <small>instruction following</small></div>
+            <div class="bar-track"><div class="bar" style="width: 84.8%;"></div></div>
+            <div class="score">84.8</div>
+          </div>
+          <div class="row">
+            <div class="name">MMLU Pro</div>
+            <div class="bar-track"><div class="bar" style="width: 81.7%;"></div></div>
+            <div class="score">81.7</div>
+          </div>
+          <div class="row">
+            <div class="name">Writing Bench <small>WB critic scoring</small></div>
+            <div class="bar-track"><div class="bar" style="width: 80.5%;"></div></div>
+            <div class="score">80.5</div>
+          </div>
+          <div class="row">
+            <div class="name">Live Code Bench v6</div>
+            <div class="bar-track"><div class="bar" style="width: 71.7%;"></div></div>
+            <div class="score">71.7</div>
+          </div>
+          <div class="row">
+            <div class="name">Arena Hard v2</div>
+            <div class="bar-track"><div class="bar" style="width: 71.0%;"></div></div>
+            <div class="score">71.0</div>
+          </div>
+        </div>
+
+        <div class="bench-card">
+          <h4>Agentic</h4>
+          <div class="row">
+            <div class="name">τ² Bench (avg.) <small>T=0.5</small></div>
+            <div class="bar-track"><div class="bar hi" style="width: 68.3%;"></div></div>
+            <div class="score">68.3</div>
+          </div>
+          <div class="row">
+            <div class="name">BrowseComp <small>web-search agent</small></div>
+            <div class="bar-track"><div class="bar hi" style="width: 49.5%;"></div></div>
+            <div class="score">49.5</div>
+          </div>
+          <div class="row">
+            <div class="name">SWE Bench Verified <small>SWE-Agent harness</small></div>
+            <div class="bar-track"><div class="bar" style="width: 45.0%;"></div></div>
+            <div class="score">45.0</div>
+          </div>
+          <div class="bench-foot">Indic-language pairwise comparisons: 90 % win rate reported by Sarvam, but no detailed per-benchmark table is published — figure not chartable here.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── SPEC SHEET ─────────── -->
+    <section id="specs">
+      <div class="sec-head">
+        <div class="num">10 · Spec sheet</div>
+        <div>
+          <h3>Confirmed numbers, in one place</h3>
+          <p>Italic / faded values are <b>unknown in source inventory</b> — not reported on the public model card, release blog, or HF repo file list.</p>
+        </div>
+      </div>
+
+      <div class="specs">
+        <div class="group"><h5>Parameters</h5></div>
+        <div class="cell"><div class="k">Total</div><div class="v">106 B</div><div class="n">model card · safetensors</div></div>
+        <div class="cell"><div class="k">Active / token</div><div class="v">10.3 B</div><div class="n">model card</div></div>
+        <div class="cell"><div class="k">Architecture class</div><div class="v">SarvamMLAForCausalLM</div><div class="n">HF config</div></div>
+        <div class="cell"><div class="k">License</div><div class="v">Apache-2.0</div><div class="n">model card</div></div>
+
+        <div class="group"><h5>Attention (MLA)</h5></div>
+        <div class="cell"><div class="k">Hidden size</div><div class="v">4 096</div><div class="n">model card</div></div>
+        <div class="cell"><div class="k">q_head_dim</div><div class="v">192 <span style="font-size:12px;">(96 RoPE + 96 NoPE)</span></div><div class="n">model card</div></div>
+        <div class="cell"><div class="k">v_head_dim</div><div class="v">128</div><div class="n">model card</div></div>
+        <div class="cell"><div class="k">head_dim (latent KV)</div><div class="v">576</div><div class="n">model card</div></div>
+        <div class="cell"><div class="k">num_attention_heads</div><div class="v unk">unknown</div><div class="n">not in model card text</div></div>
+        <div class="cell"><div class="k">num_key_value_heads</div><div class="v unk">unknown</div><div class="n">MLA latent, not GQA</div></div>
+        <div class="cell"><div class="k">Positional</div><div class="v">RoPE + NoPE</div><div class="n">decoupled per head</div></div>
+        <div class="cell"><div class="k">Long-ctx scaling</div><div class="v">YaRN ×40</div><div class="n">model card</div></div>
+
+        <div class="group"><h5>Feed-forward (MoE)</h5></div>
+        <div class="cell"><div class="k">Routed experts</div><div class="v">128</div><div class="n">model card</div></div>
+        <div class="cell"><div class="k">Top-k</div><div class="v">8</div><div class="n">model card</div></div>
+        <div class="cell"><div class="k">Shared experts</div><div class="v">1</div><div class="n">model card</div></div>
+        <div class="cell"><div class="k">moe_intermediate_size</div><div class="v">2 048</div><div class="n">model card</div></div>
+        <div class="cell"><div class="k">intermediate_size (dense)</div><div class="v">16 384</div><div class="n">model card</div></div>
+        <div class="cell"><div class="k">routed_scaling_factor</div><div class="v">2.5</div><div class="n">model card</div></div>
+        <div class="cell"><div class="k">Load-balancing</div><div class="v">aux-loss-free</div><div class="n">model card</div></div>
+        <div class="cell"><div class="k">Layer count (N)</div><div class="v unk">unknown</div><div class="n">not enumerated publicly</div></div>
+
+        <div class="group"><h5>Tokenizer &amp; context</h5></div>
+        <div class="cell"><div class="k">Native context</div><div class="v">128 K</div><div class="n">docs.sarvam.ai</div></div>
+        <div class="cell"><div class="k">Bench max ctx</div><div class="v">65 536</div><div class="n">model card footnote</div></div>
+        <div class="cell"><div class="k">Vocab size</div><div class="v unk">unknown</div><div class="n">not in public model card</div></div>
+        <div class="cell"><div class="k">Language coverage</div><div class="v">22 + EN</div><div class="n">12 scripts</div></div>
+
+        <div class="group"><h5>Training</h5></div>
+        <div class="cell"><div class="k">Pretrain tokens</div><div class="v">12 T</div><div class="n">docs.sarvam.ai</div></div>
+        <div class="cell"><div class="k">RL objective</div><div class="v">CISPO-inspired</div><div class="n">release blog</div></div>
+        <div class="cell"><div class="k">KL anchor</div><div class="v">none</div><div class="n">release blog</div></div>
+        <div class="cell"><div class="k">Knowledge cutoff</div><div class="v unk">~ Jun 2025*</div><div class="n">third-party report, not in model card</div></div>
+
+        <div class="group"><h5>Release artefacts</h5></div>
+        <div class="cell"><div class="k">Repo (fp32)</div><div class="v">sarvamai/sarvam-105b</div><div class="n">424 GB · 85 shards</div></div>
+        <div class="cell"><div class="k">Quantized (fp8)</div><div class="v">sarvamai/sarvam-105b-fp8</div><div class="n">NVIDIA ModelOpt E4M3</div></div>
+        <div class="cell"><div class="k">Community fp8</div><div class="v">RedHatAI/sarvam-105b-FP8-dynamic</div><div class="n">LLM Compressor</div></div>
+        <div class="cell"><div class="k">Inference engines</div><div class="v">HF · vLLM · SGLang</div><div class="n">model card</div></div>
+      </div>
+    </section>
+
+    <!-- ─────────── CAVEATS ─────────── -->
+    <section id="caveats">
+      <div class="sec-head">
+        <div class="num">11 · Unknowns &amp; caveats</div>
+        <div>
+          <h3>Where the public sources stop</h3>
+          <p>Facts we did <em>not</em> see in the model card, the release blog, or the public file listing. Nothing on this page is inferred from neighbouring model families; missing facts are left as such.</p>
+        </div>
+      </div>
+
+      <div class="caveats">
+        <h4>Not confirmed in source inventory</h4>
+        <ul>
+          <li><b>Exact layer count (num_hidden_layers).</b> Public model card describes the block but does not enumerate depth. The configuration_sarvam_moe.py module exists in the HF repo but its contents were not parsed for this brief.</li>
+          <li><b>Number of attention heads (Q heads) and KV groups.</b> MLA replaces the standard GQA grouping with a compressed latent; the head count is not published in the model card.</li>
+          <li><b>Vocabulary size.</b> A custom tokenizer for 22 scheduled languages across 12 scripts is reported, but vocab size and BPE/Unigram details are not in the public model card.</li>
+          <li><b>Indic-language benchmark table.</b> The release post claims a 90 % pairwise win rate on Indian-language benchmarks but does not publish the per-task comparison matrix in the public materials surveyed.</li>
+          <li><b>SFT and RL training corpora.</b> RL <em>objective</em> (CISPO-inspired, no KL anchor) and reward shaping principles are reported. Specific datasets, mixture weights, and step counts are <em>not reported</em>.</li>
+          <li><b>Knowledge cutoff date.</b> Third-party coverage reports ~June 2025; the model card itself does not list a cutoff.</li>
+          <li><b>Native (pre-YaRN) context window.</b> Sarvam-30B reports a 32 K conversational window. For Sarvam-105B, only the <em>extended</em> 128 K (with YaRN ×40) is reported.</li>
+          <li><b>Activation function inside experts.</b> SwiGLU is conventional for this generation but the public model card prose does not state it explicitly; <code>configuration_sarvam_moe.py</code> in the repo would be authoritative.</li>
+        </ul>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <div class="row">
+    <span>Sources: <a href="https://huggingface.co/sarvamai/sarvam-105b">sarvamai/sarvam-105b</a> · <a href="https://huggingface.co/sarvamai/sarvam-105b-fp8">sarvamai/sarvam-105b-fp8</a> · <a href="https://docs.sarvam.ai/api-reference-docs/getting-started/models/sarvam-105b">docs.sarvam.ai</a> · <a href="https://www.sarvam.ai/blogs/sarvam-30b-105b">Sarvam release blog</a></span>
+    <span class="mono">Compiled 2026 · architecture brief</span>
+  </div>
+</footer>
+
+<script>
+  // ─── Render the 128-expert MoE grid: 8 routed active + 1 shared
+  (function () {
+    const grid = document.getElementById('moe-grid');
+    if (!grid) return;
+    const ACTIVE = new Set([6, 17, 22, 33, 41, 58, 77, 92]); // pseudo-random top-8
+    const SHARED = 127; // last cell drawn as the shared
+    for (let i = 0; i < 128; i++) {
+      const e = document.createElement('div');
+      e.className = 'e';
+      if (ACTIVE.has(i)) { e.classList.add('active'); e.setAttribute('data-r', i); }
+      grid.appendChild(e);
+    }
+    // append shared expert cell separately as a 129th tile
+    const sh = document.createElement('div');
+    sh.className = 'e shared';
+    sh.setAttribute('data-r', 'S');
+    sh.title = 'Shared expert · always on';
+    grid.appendChild(sh);
+  })();
+
+  // ─── In-block expert mini-grid for the schematic
+  (function () {
+    const host = document.getElementById('exp-grid');
+    if (!host) return;
+    const cols = 16, rows = 8;
+    const svgns = 'http://www.w3.org/2000/svg';
+    const ACTIVE = new Set([5, 19, 27, 44, 71, 88, 102, 119]);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const i = r * cols + c;
+        const rect = document.createElementNS(svgns, 'rect');
+        rect.setAttribute('x', c * 12);
+        rect.setAttribute('y', r * 10);
+        rect.setAttribute('width', 10);
+        rect.setAttribute('height', 8);
+        rect.setAttribute('fill', ACTIVE.has(i) ? '#76B900' : '#E3E3E3');
+        host.appendChild(rect);
+      }
+    }
+  })();
+
+  // ─── Scrollspy for left rail
+  (function () {
+    const links = Array.from(document.querySelectorAll('.rail a[href^="#"]'));
+    const sections = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+    function onScroll () {
+      const y = window.scrollY + 120;
+      let current = sections[0];
+      for (const s of sections) {
+        if (s.offsetTop <= y) current = s;
+      }
+      links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + current.id));
+    }
+    document.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
+
+</body>
+</html>

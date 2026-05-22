@@ -1,0 +1,1709 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GLM-5.1 744B-A69B Architecture</title>
+<link rel="stylesheet" href="kaizen/colors_and_type.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--kui-bg-canvas); color: var(--kui-fg-strong); font-family: var(--kui-font-sans); }
+  body { font: var(--kui-body); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-decoration: none; }
+  code { font-family: var(--kui-font-mono); font-size: 12px; background: var(--kui-n050); padding: 1px 5px; }
+
+  /* per-mechanism palette */
+  :root {
+    --c-mla:      #0D69D4;      /* full-attention MLA layers (F) */
+    --c-mla-bg:   #E9F4FB;
+    --c-mla-dk:   #08498F;
+    --c-dsa:      #7C3AED;      /* sparse-attention DSA layers (S) */
+    --c-dsa-bg:   #F1ECFB;
+    --c-dsa-dk:   #5B21B6;
+    --c-moe:      #76B900;
+    --c-moe-bg:   #E8F4D6;
+    --c-moe-dk:   #5E9600;
+    --c-mtp:      #1FA18D;      /* multi-token prediction head */
+    --c-mtp-bg:   #E6F5F2;
+    --c-mtp-dk:   #156D5F;
+    --c-slime:    #C54600;      /* Slime async RL */
+    --c-slime-bg: #FDEFE6;
+    --c-ascend:   #B23A48;      /* Huawei Ascend / MindSpore */
+    --c-ascend-bg:#FCEBEE;
+    --c-ascend-dk:#7A1F2A;
+    --c-dense:    #5E5E5E;
+    --c-norm:     #5E5E5E;
+  }
+
+  /* top bar */
+  .top-bar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 32px;
+    background: #000; color: #fff;
+    border-bottom: 4px solid var(--kui-brand-green);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .top-bar .wordmark { height: 22px; }
+  .top-bar .divider { width: 1px; height: 18px; background: rgba(255,255,255,0.25); }
+  .top-bar h1 { font: 500 15px/1 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0; }
+  .top-bar .home-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border: 1px solid rgba(255,255,255,0.25);
+    font: var(--kui-text-sm); color: rgba(255,255,255,0.85);
+    transition: border-color 120ms ease-out, background 120ms ease-out;
+  }
+  .top-bar .home-link:hover { border-color: var(--kui-brand-green); background: rgba(118,185,0,0.1); color: #fff; }
+  .top-bar .home-link::before { content: "←"; }
+  .top-bar .meta { margin-left: auto; display: flex; gap: 24px; font: var(--kui-text-sm); color: rgba(255,255,255,0.7); }
+  .top-bar .meta b { color: #fff; font-weight: 500; }
+
+  /* shell */
+  .shell { display: grid; grid-template-columns: 240px 1fr; min-height: calc(100vh - 56px); }
+  @media (max-width: 1100px) { .shell { grid-template-columns: 1fr; } .sidebar { display: none; } }
+
+  .sidebar {
+    position: sticky; top: 56px; align-self: start; height: calc(100vh - 56px);
+    background: #fff; border-right: 1px solid var(--kui-border-default);
+    padding: 24px 0; overflow-y: auto;
+  }
+  .sidebar .nav-label {
+    padding: 0 24px 8px; font-size: 10px; color: var(--kui-fg-muted);
+    letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500;
+  }
+  .sidebar .nav-label + .nav-label { margin-top: 20px; }
+  .sidebar nav a {
+    display: flex; align-items: baseline; gap: 12px;
+    padding: 7px 24px; font-size: 13px; color: var(--kui-fg-default);
+    border-left: 2px solid transparent;
+    transition: background 120ms ease-out, border-color 120ms ease-out;
+  }
+  .sidebar nav a:hover { background: var(--kui-n050); }
+  .sidebar nav a.active { border-left-color: var(--kui-brand-green); background: var(--kui-n050); color: var(--kui-fg-strong); font-weight: 500; }
+  .sidebar nav a .idx { font-family: var(--kui-font-mono); color: var(--kui-fg-muted); font-size: 10px; width: 18px; }
+  .sidebar .source-box { padding: 16px 24px 0; font-size: 11px; color: var(--kui-fg-muted); line-height: 1.55; border-top: 1px solid var(--kui-border-default); margin-top: 24px; }
+  .sidebar .source-box a { color: var(--c-mla); }
+
+  /* main */
+  .main { min-width: 0; }
+  section { padding: 64px 56px; border-bottom: 1px solid var(--kui-border-default); }
+  @media (max-width: 700px) { section { padding: 48px 24px; } }
+  section:last-of-type { border-bottom: 0; }
+
+  .sec-head { max-width: 920px; margin-bottom: 32px; }
+  .sec-head .num {
+    font: var(--kui-overline); letter-spacing: 0.15em; color: var(--kui-fg-muted);
+    text-transform: uppercase; margin-bottom: 10px;
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .sec-head .num::before { content: ""; width: 24px; height: 1px; background: var(--kui-brand-green); display: inline-block; }
+  .sec-head h2 { font: 500 32px/1.15 var(--kui-font-sans); letter-spacing: -0.5px; margin: 0 0 12px; }
+  .sec-head p.lede { font-size: 16px; line-height: 1.55; color: var(--kui-fg-default); margin: 0; max-width: 72ch; }
+  .sec-head p.lede b { font-weight: 500; color: var(--kui-fg-strong); }
+  .sec-head p.lede em { font-style: italic; color: var(--kui-fg-default); }
+
+  /* hero */
+  .hero { background: #fff; padding: 56px 56px 48px; border-bottom: 1px solid var(--kui-border-default); position: relative; }
+  .hero::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 6px; background: var(--kui-brand-green); }
+  .hero .eyebrow { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.15em; color: var(--kui-fg-muted); margin-bottom: 16px; }
+  .hero h2 { font: 500 44px/1.05 var(--kui-font-sans); letter-spacing: -0.75px; margin: 0 0 20px; max-width: 22ch; }
+  .hero h2 .accent { color: var(--kui-brand-green); }
+  .hero h2 .vio { color: var(--c-dsa-dk); }
+  .hero .lede { font-size: 17px; line-height: 1.55; color: var(--kui-fg-default); max-width: 78ch; margin: 0 0 32px; }
+
+  .badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 32px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; font: 12px/1 var(--kui-font-mono);
+    border: 1px solid var(--kui-border-default); background: #fff; color: var(--kui-fg-default);
+  }
+  .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--kui-fg-default); }
+  .badge.brand { border-color: var(--kui-brand-green); background: var(--c-moe-bg); color: var(--c-moe-dk); } .badge.brand .dot { background: var(--c-moe-dk); }
+  .badge.mla { border-color: var(--c-mla); color: var(--c-mla); background: var(--c-mla-bg); } .badge.mla .dot { background: var(--c-mla); }
+  .badge.dsa { border-color: var(--c-dsa); color: var(--c-dsa-dk); background: var(--c-dsa-bg); } .badge.dsa .dot { background: var(--c-dsa); }
+  .badge.mtp { border-color: var(--c-mtp); color: var(--c-mtp-dk); background: var(--c-mtp-bg); } .badge.mtp .dot { background: var(--c-mtp); }
+  .badge.slime { border-color: var(--c-slime); color: var(--c-slime); background: var(--c-slime-bg); } .badge.slime .dot { background: var(--c-slime); }
+  .badge.ascend { border-color: var(--c-ascend); color: var(--c-ascend-dk); background: var(--c-ascend-bg); } .badge.ascend .dot { background: var(--c-ascend); }
+
+  .hero-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); }
+  @media (max-width: 1100px) { .hero-stats { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 700px) { .hero-stats { grid-template-columns: repeat(2, 1fr); } }
+  .hero-stats .stat { background: #fff; padding: 18px 18px 16px; position: relative; }
+  .hero-stats .stat.flag { background: #FFFBF0; }
+  .hero-stats .stat.flag::before { content: "!"; position: absolute; top: 14px; right: 16px; width: 16px; height: 16px; border-radius: 50%; background: var(--kui-warning); color: #fff; font: 700 11px/16px var(--kui-font-sans); text-align: center; }
+  .hero-stats .label { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.1em; color: var(--kui-fg-muted); margin-bottom: 8px; font-size: 10px; }
+  .hero-stats .value { font: 500 22px/1 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .hero-stats .value small { font: 400 13px/1 var(--kui-font-sans); color: var(--kui-fg-muted); margin-left: 4px; letter-spacing: 0; }
+  .hero-stats .value.unk { color: var(--kui-fg-muted); font-style: italic; font-size: 13px; font-weight: 400; }
+  .hero-stats .sub { font-size: 11px; color: var(--kui-fg-muted); margin-top: 6px; font-family: var(--kui-font-mono); }
+
+  .hero-extras { margin-top: 32px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 1100px) { .hero-extras { grid-template-columns: 1fr; } }
+  .extra-card { border: 1px solid var(--kui-border-default); padding: 18px; background: #fff; }
+  .extra-card h5 { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.1em; color: var(--kui-fg-muted); margin: 0 0 10px; font-size: 10px; }
+  .extra-card .row { display: flex; flex-wrap: wrap; gap: 4px; }
+  .extra-card .chip {
+    display: inline-flex; align-items: center; padding: 2px 8px;
+    font: 12px/1.4 var(--kui-font-mono); background: var(--kui-n050); border: 1px solid var(--kui-border-default);
+  }
+  .extra-card .chip.brand { background: var(--c-moe-bg); border-color: var(--kui-brand-green); color: var(--c-moe-dk); }
+  .extra-card .chip.vio { background: var(--c-dsa-bg); border-color: var(--c-dsa); color: var(--c-dsa-dk); }
+  .extra-card .chip.ascend { background: var(--c-ascend-bg); border-color: var(--c-ascend); color: var(--c-ascend-dk); }
+
+  /* discrepancy banner */
+  .name-banner {
+    margin-top: 32px;
+    padding: 14px 18px;
+    background: #FFFBF0; border: 1px solid var(--kui-warning);
+    border-left: 4px solid var(--kui-warning);
+    font: 13px/1.55 var(--kui-font-sans); color: var(--kui-fg-default);
+  }
+  .name-banner b { color: var(--kui-fg-strong); font-weight: 500; }
+  .name-banner code { background: #fff; }
+
+  /* forward-pass band */
+  .pass {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    background: #fff; border: 1px solid var(--kui-border-default);
+  }
+  @media (max-width: 1100px) { .pass { grid-template-columns: repeat(2, 1fr); } }
+  .pass .step { padding: 20px 18px; border-right: 1px solid var(--kui-border-default); border-bottom: 1px solid transparent; position: relative; }
+  .pass .step:last-child { border-right: 0; }
+  @media (max-width: 1100px) { .pass .step:nth-child(2n) { border-right: 0; } .pass .step { border-bottom: 1px solid var(--kui-border-default); } }
+  .pass .step.stack { background: #FAFAFA; }
+  .pass .step .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; color: var(--kui-fg-muted); font-size: 10px; margin-bottom: 6px; }
+  .pass .step .t { font: 500 15px/1.25 var(--kui-font-sans); letter-spacing: -0.25px; margin-bottom: 6px; }
+  .pass .step .d { font: 11px/1.45 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .pass .step .badge-mini { display: inline-block; margin-top: 8px; font: 10px/1 var(--kui-font-mono); padding: 3px 6px; background: var(--kui-n050); border: 1px solid var(--kui-border-default); color: var(--kui-fg-default); }
+
+  /* 78-layer ribbon */
+  .ribbon-wrap { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .ribbon-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; margin-bottom: 16px; gap: 12px; }
+  .ribbon-head h4 { font: 500 18px/1.2 var(--kui-font-sans); margin: 0; letter-spacing: -0.25px; }
+  .ribbon-head .key { display: flex; flex-wrap: wrap; gap: 14px; font: var(--kui-text-sm); color: var(--kui-fg-default); }
+  .ribbon-head .key span { display: inline-flex; align-items: center; gap: 6px; }
+  .ribbon-head .key i { width: 12px; height: 12px; display: inline-block; }
+  .ribbon { display: grid; grid-template-columns: repeat(78, 1fr); gap: 2px; height: 116px; align-items: stretch; }
+  .ribbon .cell { position: relative; }
+  .ribbon .cell .attn { width: 100%; height: 58px; }
+  .ribbon .cell.F .attn  { background: var(--c-mla); }
+  .ribbon .cell.S .attn  { background: var(--c-dsa); }
+  .ribbon .cell .ffn { width: 100%; height: 38px; background: var(--c-moe); margin-top: 2px; }
+  .ribbon .cell.dense .ffn { background: var(--c-dense); }
+  .ribbon .cell .num { position: absolute; bottom: -18px; left: 0; right: 0; text-align: center; font: 8px/1 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .ribbon-caveat { margin-top: 36px; padding: 12px 14px; background: var(--c-dsa-bg); border-left: 3px solid var(--c-dsa); font: 12px/1.55 var(--kui-font-sans); color: var(--kui-fg-default); }
+  .ribbon-caveat b { color: var(--kui-fg-strong); font-weight: 500; }
+  .ribbon-caveat code { background: #fff; font-size: 11px; }
+  .ribbon-notes { margin-top: 20px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 1100px) { .ribbon-notes { grid-template-columns: repeat(2, 1fr); } }
+  .ribbon-notes .note { padding: 14px 16px; border: 1px solid var(--kui-border-default); }
+  .ribbon-notes .note .h { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; color: var(--kui-fg-muted); margin-bottom: 6px; font-size: 10px; }
+  .ribbon-notes .note .v { font: 500 22px/1 var(--kui-font-sans); margin-bottom: 4px; letter-spacing: -0.25px; }
+  .ribbon-notes .note .l { font: 12px/1.45 var(--kui-font-sans); color: var(--kui-fg-default); }
+  .ribbon-notes .note.A .v { color: var(--c-mla); }
+  .ribbon-notes .note.B .v { color: var(--c-dsa-dk); }
+  .ribbon-notes .note.M .v { color: var(--c-moe-dk); }
+  .ribbon-notes .note.D .v { color: var(--kui-fg-muted); }
+
+  /* block diagram side-by-side */
+  .block-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .block-wrap { grid-template-columns: 1fr; } }
+  .block-svg { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .block-svg h4 { font: 500 14px/1.2 var(--kui-font-sans); margin: 0 0 4px; letter-spacing: -0.25px; }
+  .block-svg .ann { font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); margin-bottom: 12px; }
+  .block-svg svg { display: block; width: 100%; height: auto; }
+
+  /* deep dives */
+  .deep { background: #fff; border: 1px solid var(--kui-border-default); }
+  .deep-head { padding: 22px 26px; display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid var(--kui-border-default); }
+  .deep-head .e { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; color: var(--kui-fg-muted); font-size: 10px; margin-bottom: 4px; }
+  .deep-head h3 { font: 500 22px/1.15 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0; }
+  .deep-head .strip { width: 36px; height: 4px; }
+  .deep-body { display: grid; grid-template-columns: 1.4fr 1fr; gap: 0; }
+  @media (max-width: 1100px) { .deep-body { grid-template-columns: 1fr; } }
+  .deep-body .diagram { padding: 28px; border-right: 1px solid var(--kui-border-default); background: var(--kui-bg-canvas); }
+  @media (max-width: 1100px) { .deep-body .diagram { border-right: 0; border-bottom: 1px solid var(--kui-border-default); } }
+  .deep-body .side { padding: 28px; }
+  .deep-body .side p { font-size: 14px; line-height: 1.55; color: var(--kui-fg-default); margin: 0 0 14px; }
+  .spec-grid { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; padding-top: 14px; border-top: 1px solid var(--kui-border-default); font: 13px/1.4 var(--kui-font-sans); }
+  .spec-grid .k { color: var(--kui-fg-muted); }
+  .spec-grid .v { font: 500 13px/1.4 var(--kui-font-mono); color: var(--kui-fg-strong); text-align: right; }
+  .spec-grid .v.unk { color: var(--kui-fg-muted); font-style: italic; font-weight: 400; }
+
+  /* math panel */
+  .math-panel { background: var(--kui-n050); border: 1px solid var(--kui-border-default); padding: 16px; margin-top: 16px; font: 13px/1.65 var(--kui-font-mono); color: var(--kui-fg-strong); }
+  .math-panel .lbl { color: var(--kui-fg-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; font-family: var(--kui-font-sans); }
+  .math-panel .eq { padding: 4px 0; }
+  .math-panel .eq b.mla { color: var(--c-mla); font-weight: 700; }
+  .math-panel .eq b.dsa { color: var(--c-dsa-dk); font-weight: 700; }
+  .math-panel .eq b.moe { color: var(--c-moe-dk); font-weight: 700; }
+  .math-panel .eq b.mtp { color: var(--c-mtp-dk); font-weight: 700; }
+  .math-panel .comment { color: var(--kui-fg-muted); font-size: 11px; }
+
+  /* MoE viz */
+  .moe-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .moe-grid { grid-template-columns: 1fr; } }
+  .moe-svg { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .moe-stats { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+  .moe-stats .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 10px 0; border-top: 1px solid var(--kui-border-subtle); }
+  .moe-stats .row:first-child { border-top: 0; }
+  .moe-stats .row .k { font: 13px/1.3 var(--kui-font-sans); color: var(--kui-fg-default); }
+  .moe-stats .row .k small { display: block; color: var(--kui-fg-muted); font-family: var(--kui-font-mono); font-size: 11px; margin-top: 2px; }
+  .moe-stats .row .v { font: 500 20px/1 var(--kui-font-sans); letter-spacing: -0.25px; color: var(--c-moe-dk); text-align: right; }
+  .moe-stats .row .v.unk { color: var(--kui-fg-muted); font-style: italic; font-size: 13px; font-weight: 400; }
+
+  .experts-grid { display: grid; grid-template-columns: repeat(32, 1fr); gap: 2px; margin-top: 16px; }
+  .experts-grid .ex { aspect-ratio: 1 / 1; background: var(--kui-n100); }
+  .experts-grid .ex.r { background: var(--c-moe); }
+  .experts-grid .ex.s { background: var(--c-mtp); }
+  .experts-legend { font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 12px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .experts-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .experts-legend i { width: 10px; height: 10px; display: inline-block; }
+
+  /* MTP track */
+  .mtp-track { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .mtp-track svg { display: block; width: 100%; height: auto; }
+
+  /* training pipeline */
+  .pipe { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; background: #fff; border: 1px solid var(--kui-border-default); }
+  @media (max-width: 1100px) { .pipe { grid-template-columns: repeat(2, 1fr); } }
+  .pipe .step { padding: 18px 16px; border-right: 1px solid var(--kui-border-default); position: relative; }
+  .pipe .step:last-child { border-right: 0; }
+  @media (max-width: 1100px) { .pipe .step:nth-child(2n) { border-right: 0; } .pipe .step { border-bottom: 1px solid var(--kui-border-default); } }
+  .pipe .step .num { font: 11px/1 var(--kui-font-mono); color: var(--kui-brand-green); font-weight: 700; }
+  .pipe .step h6 { font: 500 14px/1.2 var(--kui-font-sans); margin: 6px 0 6px; letter-spacing: -0.25px; }
+  .pipe .step p { font: 12px/1.45 var(--kui-font-sans); color: var(--kui-fg-default); margin: 0; }
+  .pipe .step .vol { font: 10px/1 var(--kui-font-mono); color: var(--kui-fg-muted); display: inline-block; margin-top: 8px; padding: 3px 6px; background: var(--kui-n050); border: 1px solid var(--kui-border-default); }
+  .pipe .step .vol.unk { color: var(--kui-fg-muted); font-style: italic; }
+  .pipe .step .vol.brand { background: var(--c-moe-bg); border-color: var(--kui-brand-green); color: var(--c-moe-dk); font-style: normal; }
+  .pipe .step .vol.slime { background: var(--c-slime-bg); border-color: var(--c-slime); color: var(--c-slime); font-style: normal; }
+
+  /* Slime/RL viz */
+  .slime-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .slime-grid { grid-template-columns: 1fr; } }
+  .slime-svg { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .slime-side { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .slime-side h5 { font: 500 14px/1.2 var(--kui-font-sans); margin: 0 0 4px; letter-spacing: -0.25px; }
+  .slime-side .sub { font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); margin-bottom: 14px; }
+  .slime-side ul { margin: 0; padding: 0 0 0 16px; }
+  .slime-side ul li { font: 13px/1.55 var(--kui-font-sans); color: var(--kui-fg-default); margin-bottom: 8px; }
+
+  /* hardware panel */
+  .hw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .hw-grid { grid-template-columns: 1fr; } }
+  .hw-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .hw-card h4 { font: 500 16px/1.25 var(--kui-font-sans); margin: 0 0 6px; letter-spacing: -0.25px; }
+  .hw-card .sub { font: 12px/1.4 var(--kui-font-sans); color: var(--kui-fg-muted); margin-bottom: 16px; }
+  .footprint-row { display: grid; grid-template-columns: 120px 1fr 90px; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--kui-border-subtle); font-size: 13px; }
+  .footprint-row:first-of-type { border-top: 0; }
+  .footprint-row .lbl { font: 13px/1.3 var(--kui-font-sans); }
+  .footprint-row .bar { height: 10px; background: var(--kui-n100); position: relative; }
+  .footprint-row .bar > div { height: 100%; background: var(--c-ascend); }
+  .footprint-row .bar > div.full { background: var(--kui-fg-muted); }
+  .footprint-row .bar > div.brand { background: var(--c-moe); }
+  .footprint-row .val { text-align: right; font: 500 13px/1 var(--kui-font-mono); }
+  .ascend-grid { display: grid; grid-template-columns: repeat(50, 1fr); gap: 1px; margin-top: 8px; }
+  .ascend-grid .ch { aspect-ratio: 1 / 1; background: var(--c-ascend); opacity: 0.85; }
+
+  /* benchmarks */
+  .bench-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 1100px) { .bench-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 700px) { .bench-grid { grid-template-columns: 1fr; } }
+  .bench-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 20px; }
+  .bench-card h5 { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; color: var(--kui-fg-muted); font-size: 10px; margin: 0 0 12px; }
+  .bench-row { display: grid; grid-template-columns: 1fr 72px 64px; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--kui-border-subtle); font-size: 13px; }
+  .bench-row:first-of-type { border-top: 0; }
+  .bench-row .lbl { color: var(--kui-fg-default); }
+  .bench-row .bar { height: 6px; background: var(--kui-n100); position: relative; }
+  .bench-row .bar > div { height: 100%; background: var(--c-moe); }
+  .bench-row .bar > div.alt { background: var(--c-mla); }
+  .bench-row .bar > div.alt2 { background: var(--c-dsa); }
+  .bench-row .val { font: 500 13px/1 var(--kui-font-mono); color: var(--kui-fg-strong); text-align: right; }
+  .bench-row .val.unk { color: var(--kui-fg-muted); font-style: italic; font-size: 11px; }
+
+  /* head-to-head */
+  .vs-wrap { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .vs-wrap h4 { font: 500 16px/1.25 var(--kui-font-sans); margin: 0 0 6px; letter-spacing: -0.25px; }
+  .vs-wrap .sub { font: 12px/1.4 var(--kui-font-sans); color: var(--kui-fg-muted); margin-bottom: 16px; }
+  .vs-key { display: flex; gap: 16px; flex-wrap: wrap; font: 11px/1 var(--kui-font-mono); color: var(--kui-fg-muted); margin-bottom: 12px; }
+  .vs-key span { display: inline-flex; align-items: center; gap: 6px; }
+  .vs-key i { width: 10px; height: 10px; display: inline-block; }
+  .vs-row { display: grid; grid-template-columns: 220px 1fr 90px; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--kui-border-subtle); }
+  .vs-row:first-of-type { border-top: 0; }
+  .vs-row .lbl { font: 13px/1.3 var(--kui-font-sans); }
+  .vs-row .lbl small { display: block; color: var(--kui-fg-muted); font-family: var(--kui-font-mono); font-size: 11px; margin-top: 2px; }
+  .vs-row .bars { display: flex; flex-direction: column; gap: 4px; }
+  .vs-row .bars .b { height: 12px; background: var(--kui-n100); position: relative; display: flex; align-items: center; }
+  .vs-row .bars .b > div { height: 100%; }
+  .vs-row .bars .b > div.k { background: var(--c-moe); }
+  .vs-row .bars .b > div.p1 { background: var(--kui-fg-muted); opacity: 0.65; }
+  .vs-row .bars .b > div.p2 { background: var(--kui-fg-muted); opacity: 0.35; }
+  .vs-row .bars .b span { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font: 10px/1 var(--kui-font-mono); color: var(--kui-fg-strong); }
+  .vs-row .val { text-align: right; font: 500 14px/1 var(--kui-font-mono); color: var(--c-moe-dk); }
+  .vs-row .val.neg { color: var(--kui-fg-muted); }
+  .vs-row .val small { display: block; color: var(--kui-fg-muted); font-size: 11px; margin-top: 4px; font-weight: 400; }
+
+  /* caveats */
+  .caveats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  @media (max-width: 1100px) { .caveats { grid-template-columns: 1fr; } }
+  .caveat {
+    background: #FFFBF0; border-left: 3px solid var(--kui-warning); padding: 16px 20px;
+    border-top: 1px solid var(--kui-border-default); border-right: 1px solid var(--kui-border-default); border-bottom: 1px solid var(--kui-border-default);
+  }
+  .caveat h6 { font: 500 13px/1.25 var(--kui-font-sans); margin: 0 0 6px; color: var(--kui-fg-strong); }
+  .caveat p { font: 13px/1.5 var(--kui-font-sans); color: var(--kui-fg-default); margin: 0; }
+  .caveat code { background: #fff; }
+
+  /* footer */
+  footer { padding: 24px 56px; background: #fff; border-top: 1px solid var(--kui-border-default); font: 12px/1.5 var(--kui-font-sans); color: var(--kui-fg-muted); }
+  footer .row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  footer a { color: var(--c-mla); }
+
+  /* SVG defaults */
+  svg text { font-family: var(--kui-font-sans); fill: var(--kui-fg-strong); }
+  svg .mono { font-family: var(--kui-font-mono); }
+  svg .muted { fill: var(--kui-fg-muted); }
+  svg .white { fill: #fff; }
+</style>
+</head>
+<body class="kui">
+
+<header class="top-bar">
+  <a class="home-link" href="../../index.html">Atlas home</a>
+  <div class="divider"></div>
+  <img src="kaizen/NVIDIA-wordmark.svg" class="wordmark" alt="NVIDIA">
+  <div class="divider"></div>
+  <h1>GLM-5.1 744B-A69B Architecture</h1>
+  <div class="meta">
+    <div><b>Z.ai (Zhipu AI / THUDM)</b> · April 7, 2026</div>
+    <div>MIT license</div>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="nav-label">Overview</div>
+    <nav>
+      <a href="#hero" class="active"><span class="idx">00</span><span>Identity &amp; headline specs</span></a>
+      <a href="#flow"><span class="idx">01</span><span>End-to-end forward pass</span></a>
+      <a href="#stack"><span class="idx">02</span><span>78-layer F/S stack</span></a>
+      <a href="#block"><span class="idx">03</span><span>Decoder block · two variants</span></a>
+    </nav>
+    <div class="nav-label">Mechanisms</div>
+    <nav>
+      <a href="#mla"><span class="idx">04</span><span>MLA · full-attention layers</span></a>
+      <a href="#dsa"><span class="idx">05</span><span>DSA · sparse-attention layers</span></a>
+      <a href="#moe"><span class="idx">06</span><span>Sparse MoE · 256 experts</span></a>
+      <a href="#mtp"><span class="idx">07</span><span>MTP · multi-token prediction</span></a>
+    </nav>
+    <div class="nav-label">Training &amp; deployment</div>
+    <nav>
+      <a href="#train"><span class="idx">08</span><span>Pretraining</span></a>
+      <a href="#slime"><span class="idx">09</span><span>Slime async RL</span></a>
+      <a href="#hardware"><span class="idx">10</span><span>Ascend hardware</span></a>
+      <a href="#bench"><span class="idx">11</span><span>Benchmarks</span></a>
+      <a href="#caveats"><span class="idx">12</span><span>Caveats &amp; unknowns</span></a>
+    </nav>
+    <div class="source-box">
+      Primary sources: <a href="https://huggingface.co/zai-org/GLM-5.1">huggingface.co/zai-org/GLM-5.1</a>, <a href="https://github.com/zai-org/GLM-5">github.com/zai-org/GLM-5</a>, GLM-5 technical report (arXiv via GitHub), <a href="https://huggingface.co/lukealonso/GLM-5.1-NVFP4">community NVFP4 quant card</a>, llm-stats.com, Z.ai blog &amp; release notes (Apr 7-8 2026).
+    </div>
+  </aside>
+
+  <main class="main">
+
+  <!-- ───────── HERO ───────── -->
+  <section class="hero" id="hero">
+    <div class="eyebrow">Release · 2026-04-07 · Z.ai (formerly Zhipu AI · THUDM)</div>
+    <h2>A <span class="accent">744 B</span>-parameter MoE with <span class="vio">DeepSeek Sparse Attention</span>.</h2>
+    <p class="lede">
+      <b>GLM-5.1</b> is the open-weight, MIT-licensed flagship from Z.ai (formerly Zhipu AI), released as a
+      post-training upgrade to GLM-5. Architecture is unchanged from GLM-5: a <b>sparse Mixture-of-Experts
+      decoder-only Transformer</b>, 744 B total parameters and <b>40 B active per token</b>, built around the
+      <b>DeepSeek Sparse Attention (DSA)</b> module &mdash; an MLA-based attention with a Lightning Indexer that
+      sparsifies the long-context path. A Multi-Token Prediction (<b>MTP</b>) head is shipped for speculative
+      decoding. The 5.1 release targets long-horizon agentic coding through a revised RL pipeline
+      (<b>Slime</b>), not new pretraining compute.
+    </p>
+
+    <div class="badge-row">
+      <span class="badge brand"><span class="dot"></span>Sparse MoE · 256 experts</span>
+      <span class="badge mla"><span class="dot"></span>MLA (full)</span>
+      <span class="badge dsa"><span class="dot"></span>DSA (sparse)</span>
+      <span class="badge mtp"><span class="dot"></span>MTP · NEXTN k=3</span>
+      <span class="badge slime"><span class="dot"></span>Slime async RL</span>
+      <span class="badge ascend"><span class="dot"></span>Huawei Ascend 910B</span>
+    </div>
+
+    <div class="hero-stats">
+      <div class="stat">
+        <div class="label">Total params</div>
+        <div class="value">744 B</div>
+        <div class="sub">model card · GitHub</div>
+      </div>
+      <div class="stat flag">
+        <div class="label">Active / token</div>
+        <div class="value">40 B</div>
+        <div class="sub" style="color:var(--kui-warning);">primary sources, not 69 B</div>
+      </div>
+      <div class="stat">
+        <div class="label">Layers</div>
+        <div class="value">78<small> (4 dense + 74 MoE)</small></div>
+        <div class="sub">decoder-only</div>
+      </div>
+      <div class="stat">
+        <div class="label">Experts / MoE layer</div>
+        <div class="value">256<small> · top-8</small></div>
+        <div class="sub">+ shared experts</div>
+      </div>
+      <div class="stat">
+        <div class="label">Context length</div>
+        <div class="value">200 K</div>
+        <div class="sub">131 K max output</div>
+      </div>
+      <div class="stat">
+        <div class="label">Pre-train tokens</div>
+        <div class="value">28.5 T</div>
+        <div class="sub">GLM-5 base · 5.1 = post-train</div>
+      </div>
+    </div>
+
+    <div class="hero-extras">
+      <div class="extra-card">
+        <h5>Released checkpoints</h5>
+        <div class="row">
+          <span class="chip brand">zai-org/GLM-5.1 (BF16)</span>
+          <span class="chip brand">zai-org/GLM-5.1-FP8</span>
+          <span class="chip">~1.65 TB BF16</span>
+        </div>
+      </div>
+      <div class="extra-card">
+        <h5>Inference engines (day-zero)</h5>
+        <div class="row">
+          <span class="chip">vLLM</span>
+          <span class="chip">SGLang</span>
+          <span class="chip">Transformers</span>
+          <span class="chip">KTransformers</span>
+          <span class="chip">xLLM</span>
+        </div>
+      </div>
+      <div class="extra-card">
+        <h5>Training stack</h5>
+        <div class="row">
+          <span class="chip ascend">Huawei Ascend 910B × 100K</span>
+          <span class="chip ascend">MindSpore</span>
+          <span class="chip vio">Slime RL</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="name-banner">
+      <b>Naming note &mdash; inventory vs primary sources.</b>
+      The local inventory titles this model "GLM-5.1 744B-A69B" (implying 69 B active parameters).
+      Every primary source we located &mdash; the official <code>zai-org/GLM-5</code> GitHub repository, the
+      <code>zai-org/GLM-5.1</code> Hugging Face card, the community NVFP4 quantization card, llm-stats.com,
+      and Unsloth's deployment docs &mdash; reports <b>40 B active</b> (sometimes "744B-A40B"). The "A69B" suffix
+      is <b>not confirmed by any primary source</b>; we use the inventory title but report the source-backed
+      active-parameter count throughout this page.
+    </div>
+  </section>
+
+  <!-- ───────── 01 · FORWARD PASS ───────── -->
+  <section id="flow">
+    <div class="sec-head">
+      <div class="num">01 · Forward pass</div>
+      <h2>From tokens to speculative draft.</h2>
+      <p class="lede">
+        GLM-5.1 is a pure text decoder &mdash; no native vision or audio tower in this release. Tokens enter a
+        BPE embedding, traverse <b>78 decoder layers</b> (4 dense + 74 MoE) where each layer's attention is
+        either <b>full MLA</b> or <b>sparse DSA</b> per a fixed per-layer pattern, then exit through the LM
+        head and an <b>MTP NEXTN head</b> that drafts up to 3 future tokens for speculative decoding.
+      </p>
+    </div>
+
+    <div class="pass">
+      <div class="step">
+        <div class="k">A · Tokenize</div>
+        <div class="t">BPE tokenizer</div>
+        <div class="d">Text → IDs<br>chat template: glm45/glm47</div>
+        <span class="badge-mini">vocab unknown</span>
+      </div>
+      <div class="step">
+        <div class="k">B · Embed</div>
+        <div class="t">Token embedding</div>
+        <div class="d">ID → ℝ^d_model<br>d_model not reported</div>
+        <span class="badge-mini">tied to LM head: unknown</span>
+      </div>
+      <div class="step stack">
+        <div class="k">C · Layers 0–3</div>
+        <div class="t">Dense warm-up</div>
+        <div class="d">RMSNorm → MLA → +<br>RMSNorm → SwiGLU MLP → +</div>
+        <span class="badge-mini">dense MLP · no routing</span>
+      </div>
+      <div class="step stack">
+        <div class="k">D · Layers 4–77</div>
+        <div class="t">MoE × 74</div>
+        <div class="d">RMSNorm → MLA <em>or</em> DSA → +<br>RMSNorm → 256-expert MoE → +</div>
+        <span class="badge-mini">F/S pattern · top-8</span>
+      </div>
+      <div class="step">
+        <div class="k">E · Final norm</div>
+        <div class="t">RMSNorm</div>
+        <div class="d">Stabilize before<br>logit projection</div>
+      </div>
+      <div class="step">
+        <div class="k">F · LM head</div>
+        <div class="t">Logits over vocab</div>
+        <div class="d">Softmax + sampling<br>tool_call / reasoning fields</div>
+        <span class="badge-mini">glm47 tool parser</span>
+      </div>
+      <div class="step">
+        <div class="k">G · MTP head</div>
+        <div class="t">+3 speculative tokens</div>
+        <div class="d">NEXTN algorithm<br>probabilistic rejection sample</div>
+        <span class="badge-mini">num_speculative_tokens = 3</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 02 · 78-LAYER STACK ───────── -->
+  <section id="stack">
+    <div class="sec-head">
+      <div class="num">02 · Layer stack</div>
+      <h2>78 layers, a per-layer F/S sparse-attention pattern.</h2>
+      <p class="lede">
+        The shipping <code>config.json</code> exposes 78 decoder layers and an <b><code>index_topk_pattern</code></b>
+        string of length 78: each character is <code>F</code> (full MLA attention) or <code>S</code> (sparse DSA
+        attention with Lightning Indexer). Layers 0–3 are <em>dense</em> MLPs &mdash; the warm-up before routing
+        begins; layers 4–77 are MoE with 256 experts and top-8 routing per token. The F/S choice is
+        baked into the checkpoint and is not learned at inference time.
+      </p>
+    </div>
+
+    <div class="ribbon-wrap">
+      <div class="ribbon-head">
+        <h4>Layer 0 → 77 · per-layer attention mode (top band) &amp; feed-forward type (bottom band)</h4>
+        <div class="key">
+          <span><i style="background:var(--c-mla)"></i> Full MLA attention (F)</span>
+          <span><i style="background:var(--c-dsa)"></i> Sparse DSA attention (S)</span>
+          <span><i style="background:var(--c-dense)"></i> Dense MLP (layers 0–3)</span>
+          <span><i style="background:var(--c-moe)"></i> MoE 256/top-8 (layers 4–77)</span>
+        </div>
+      </div>
+
+      <div class="ribbon" id="ribbon"></div>
+
+      <div class="ribbon-notes">
+        <div class="note A">
+          <div class="h">Full MLA layers</div>
+          <div class="v" id="cnt-F">—</div>
+          <div class="l">Full-context MLA attention. Used where dense token-to-token information flow matters most.</div>
+        </div>
+        <div class="note B">
+          <div class="h">Sparse DSA layers</div>
+          <div class="v" id="cnt-S">—</div>
+          <div class="l">DeepSeek Sparse Attention &mdash; Lightning Indexer selects the top-k key tokens per query.</div>
+        </div>
+        <div class="note D">
+          <div class="h">Dense MLPs</div>
+          <div class="v">4 layers</div>
+          <div class="l">Layers 0–3 only &mdash; standard SwiGLU, no routing. Per the NVFP4 quant card, these stay in BF16.</div>
+        </div>
+        <div class="note M">
+          <div class="h">MoE layers</div>
+          <div class="v">74 layers</div>
+          <div class="l">256 routed experts + shared experts; top-8 selection per token.</div>
+        </div>
+      </div>
+
+      <div class="ribbon-caveat">
+        <b>Source for the pattern.</b> The 78-character F/S string above is reproduced verbatim from the
+        community NVFP4 quant card (<code>lukealonso/GLM-5.1-NVFP4</code>), which lists the
+        <code>HF_OVERRIDES.index_topk_pattern</code> as
+        <code>FFSFSSSFSSFFFSSSFFFSFSSSSSSFFSFFSFFSSFFFFFFSFFFFFSFFSSSSSSFSFFFSFSSSFSFFSFFSSSF</code>.
+        The same card identifies the architecture as <code>glm_moe_dsa</code> with dense MLPs at layers 0–3.
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 03 · DECODER BLOCK ───────── -->
+  <section id="block">
+    <div class="sec-head">
+      <div class="num">03 · Decoder block</div>
+      <h2>Pre-norm residual block · attention path is the only switch.</h2>
+      <p class="lede">
+        Every block follows the standard pre-norm pattern: RMSNorm → attention → residual → RMSNorm
+        → feed-forward → residual. The only variable is which attention module sits in the upper arm:
+        <b>full MLA</b> on <code>F</code> layers, <b>DSA with Lightning Indexer</b> on <code>S</code> layers.
+        Below: the two block variants drawn side-by-side.
+      </p>
+    </div>
+
+    <div class="block-wrap">
+      <div class="block-svg">
+        <h4>F-layer block · MLA + MoE (or dense for layers 0–3)</h4>
+        <div class="ann">attention does dense softmax over all past tokens</div>
+        <svg viewBox="0 0 380 540" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" fill="#202020"/>
+            </marker>
+          </defs>
+          <line x1="190" y1="8" x2="190" y2="44" stroke="#202020" stroke-width="1.5" marker-end="url(#arr)"/>
+          <text x="200" y="28" font-size="11" class="muted">x_ℓ</text>
+
+          <line x1="50" y1="44" x2="50" y2="510" stroke="var(--c-norm)" stroke-width="1.5" stroke-dasharray="3 3"/>
+          <text x="32" y="280" font-size="10" class="muted mono" transform="rotate(-90 32 280)">residual</text>
+
+          <rect x="120" y="52" width="140" height="32" fill="#fff" stroke="var(--c-norm)" stroke-width="1.5"/>
+          <text x="190" y="73" text-anchor="middle" font-size="12" font-weight="500">RMSNorm</text>
+
+          <rect x="90" y="96" width="200" height="100" fill="var(--c-mla-bg)" stroke="var(--c-mla)" stroke-width="1.5"/>
+          <text x="190" y="116" text-anchor="middle" font-size="13" font-weight="500" fill="var(--c-mla-dk)">MLA · full attention</text>
+          <text x="190" y="135" text-anchor="middle" font-size="10" class="mono muted">↓ low-rank c_t^KV cache</text>
+          <text x="190" y="151" text-anchor="middle" font-size="10" class="mono muted">↑ per-head W_UK / W_UV</text>
+          <text x="190" y="167" text-anchor="middle" font-size="10" class="mono muted">decoupled RoPE branch</text>
+          <text x="190" y="185" text-anchor="middle" font-size="10" class="mono" fill="var(--c-mla-dk)">softmax over all past keys</text>
+
+          <circle cx="50" cy="225" r="14" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+          <text x="50" y="229" text-anchor="middle" font-size="14" font-weight="500">+</text>
+          <line x1="190" y1="198" x2="190" y2="225" stroke="#202020" stroke-width="1.5"/>
+          <line x1="190" y1="225" x2="64" y2="225" stroke="#202020" stroke-width="1.5" marker-end="url(#arr)"/>
+
+          <rect x="120" y="260" width="140" height="32" fill="#fff" stroke="var(--c-norm)" stroke-width="1.5"/>
+          <text x="190" y="281" text-anchor="middle" font-size="12" font-weight="500">RMSNorm</text>
+          <line x1="50" y1="239" x2="190" y2="239" stroke="#202020" stroke-width="1.5"/>
+          <line x1="190" y1="239" x2="190" y2="260" stroke="#202020" stroke-width="1.5" marker-end="url(#arr)"/>
+
+          <rect x="80" y="304" width="220" height="160" fill="var(--c-moe-bg)" stroke="var(--c-moe)" stroke-width="1.5"/>
+          <text x="190" y="324" text-anchor="middle" font-size="13" font-weight="500" fill="var(--c-moe-dk)">MoE feed-forward</text>
+          <text x="190" y="342" text-anchor="middle" font-size="10" class="mono muted">layers 4–77</text>
+          <text x="190" y="362" text-anchor="middle" font-size="10" class="mono">router → top-8 of 256</text>
+          <text x="190" y="382" text-anchor="middle" font-size="10" class="mono">+ shared expert(s)</text>
+          <text x="190" y="412" text-anchor="middle" font-size="9" class="mono muted" style="font-style:italic">layers 0–3: dense SwiGLU MLP</text>
+          <text x="190" y="430" text-anchor="middle" font-size="9" class="mono muted" style="font-style:italic">(no routing)</text>
+
+          <circle cx="50" cy="490" r="14" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+          <text x="50" y="494" text-anchor="middle" font-size="14" font-weight="500">+</text>
+          <line x1="190" y1="464" x2="190" y2="490" stroke="#202020" stroke-width="1.5"/>
+          <line x1="190" y1="490" x2="64" y2="490" stroke="#202020" stroke-width="1.5" marker-end="url(#arr)"/>
+
+          <line x1="50" y1="504" x2="50" y2="530" stroke="#202020" stroke-width="1.5" marker-end="url(#arr)"/>
+          <text x="60" y="524" font-size="11" class="muted">x_{ℓ+1}</text>
+        </svg>
+      </div>
+
+      <div class="block-svg">
+        <h4>S-layer block · DSA + MoE</h4>
+        <div class="ann">Lightning Indexer picks top-k key tokens per query; attention runs sparse</div>
+        <svg viewBox="0 0 380 540" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" fill="#202020"/>
+            </marker>
+          </defs>
+          <line x1="190" y1="8" x2="190" y2="44" stroke="#202020" stroke-width="1.5" marker-end="url(#arr2)"/>
+          <text x="200" y="28" font-size="11" class="muted">x_ℓ</text>
+
+          <line x1="50" y1="44" x2="50" y2="510" stroke="var(--c-norm)" stroke-width="1.5" stroke-dasharray="3 3"/>
+          <text x="32" y="280" font-size="10" class="muted mono" transform="rotate(-90 32 280)">residual</text>
+
+          <rect x="120" y="52" width="140" height="32" fill="#fff" stroke="var(--c-norm)" stroke-width="1.5"/>
+          <text x="190" y="73" text-anchor="middle" font-size="12" font-weight="500">RMSNorm</text>
+
+          <rect x="90" y="96" width="200" height="100" fill="var(--c-dsa-bg)" stroke="var(--c-dsa)" stroke-width="1.5"/>
+          <text x="190" y="116" text-anchor="middle" font-size="13" font-weight="500" fill="var(--c-dsa-dk)">DSA · sparse attention</text>
+          <text x="190" y="135" text-anchor="middle" font-size="10" class="mono muted">→ Lightning Indexer scores keys</text>
+          <text x="190" y="151" text-anchor="middle" font-size="10" class="mono muted">→ top-k selection (k ≪ N)</text>
+          <text x="190" y="167" text-anchor="middle" font-size="10" class="mono muted">→ MLA decompress on selected only</text>
+          <text x="190" y="185" text-anchor="middle" font-size="10" class="mono" fill="var(--c-dsa-dk)">softmax over k of N keys</text>
+
+          <circle cx="50" cy="225" r="14" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+          <text x="50" y="229" text-anchor="middle" font-size="14" font-weight="500">+</text>
+          <line x1="190" y1="198" x2="190" y2="225" stroke="#202020" stroke-width="1.5"/>
+          <line x1="190" y1="225" x2="64" y2="225" stroke="#202020" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+          <rect x="120" y="260" width="140" height="32" fill="#fff" stroke="var(--c-norm)" stroke-width="1.5"/>
+          <text x="190" y="281" text-anchor="middle" font-size="12" font-weight="500">RMSNorm</text>
+          <line x1="50" y1="239" x2="190" y2="239" stroke="#202020" stroke-width="1.5"/>
+          <line x1="190" y1="239" x2="190" y2="260" stroke="#202020" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+          <rect x="80" y="304" width="220" height="160" fill="var(--c-moe-bg)" stroke="var(--c-moe)" stroke-width="1.5"/>
+          <text x="190" y="324" text-anchor="middle" font-size="13" font-weight="500" fill="var(--c-moe-dk)">MoE feed-forward</text>
+          <text x="190" y="342" text-anchor="middle" font-size="10" class="mono muted">same router · top-8 of 256</text>
+          <text x="190" y="362" text-anchor="middle" font-size="10" class="mono">+ shared expert(s)</text>
+          <text x="190" y="392" text-anchor="middle" font-size="9" class="mono muted" style="font-style:italic">F-layers and S-layers share</text>
+          <text x="190" y="408" text-anchor="middle" font-size="9" class="mono muted" style="font-style:italic">the same expert population</text>
+
+          <circle cx="50" cy="490" r="14" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+          <text x="50" y="494" text-anchor="middle" font-size="14" font-weight="500">+</text>
+          <line x1="190" y1="464" x2="190" y2="490" stroke="#202020" stroke-width="1.5"/>
+          <line x1="190" y1="490" x2="64" y2="490" stroke="#202020" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+          <line x1="50" y1="504" x2="50" y2="530" stroke="#202020" stroke-width="1.5" marker-end="url(#arr2)"/>
+          <text x="60" y="524" font-size="11" class="muted">x_{ℓ+1}</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 04 · MLA ───────── -->
+  <section id="mla">
+    <div class="sec-head">
+      <div class="num">04 · Attention · F layers</div>
+      <h2>Multi-head Latent Attention &mdash; the dense backbone.</h2>
+      <p class="lede">
+        On <code>F</code> layers, GLM-5.1 runs the same MLA module DeepSeek introduced with V2/V3:
+        keys and values are compressed into a low-rank latent <code>c_t^KV</code> per token, then up-projected
+        per head at attention time. Position is carried by a small decoupled RoPE branch. The per-token KV
+        cache is dominated by <code>c_t^KV</code> (independent of head count), which is what makes 200K
+        context affordable.
+      </p>
+    </div>
+
+    <div class="deep">
+      <div class="deep-head">
+        <div>
+          <div class="e">Attention module · F-pattern layers only</div>
+          <h3>MLA · low-rank KV compression + decoupled RoPE</h3>
+        </div>
+        <div class="strip" style="background:var(--c-mla)"></div>
+      </div>
+      <div class="deep-body">
+        <div class="diagram">
+          <svg viewBox="0 0 580 360" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <marker id="arr2x" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="#202020"/>
+              </marker>
+              <marker id="arr2b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="var(--c-mla)"/>
+              </marker>
+            </defs>
+
+            <rect x="20" y="156" width="100" height="48" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+            <text x="70" y="178" text-anchor="middle" font-size="12" font-weight="500">token x_t</text>
+            <text x="70" y="194" text-anchor="middle" font-size="10" class="mono muted">d = d_model</text>
+
+            <line x1="120" y1="170" x2="180" y2="80" stroke="#202020" stroke-width="1.5" marker-end="url(#arr2x)"/>
+            <rect x="180" y="60" width="120" height="42" fill="var(--c-mla-bg)" stroke="var(--c-mla)" stroke-width="1.5"/>
+            <text x="240" y="78" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-mla-dk)">W_Q · query</text>
+            <text x="240" y="94" text-anchor="middle" font-size="10" class="mono muted">→ Qᵢ ∈ ℝ^{d_h}</text>
+
+            <line x1="120" y1="180" x2="180" y2="180" stroke="var(--c-mla)" stroke-width="1.5" marker-end="url(#arr2b)"/>
+            <rect x="180" y="160" width="140" height="42" fill="var(--c-mla-bg)" stroke="var(--c-mla)" stroke-width="1.5"/>
+            <text x="250" y="178" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-mla-dk)">W_DKV · down-proj</text>
+            <text x="250" y="194" text-anchor="middle" font-size="10" class="mono muted">x → c_t^KV (low rank)</text>
+
+            <rect x="340" y="155" width="100" height="52" fill="#fff" stroke="var(--c-mla)" stroke-width="2" stroke-dasharray="4 3"/>
+            <text x="390" y="174" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-mla-dk)">KV cache</text>
+            <text x="390" y="190" text-anchor="middle" font-size="10" class="mono muted">c_t^KV</text>
+            <text x="390" y="202" text-anchor="middle" font-size="10" class="mono" fill="var(--c-mla-dk)">+ k_t^RoPE</text>
+            <line x1="320" y1="181" x2="340" y2="181" stroke="var(--c-mla)" stroke-width="1.5" marker-end="url(#arr2b)"/>
+
+            <rect x="460" y="100" width="100" height="36" fill="#fff" stroke="var(--c-mla)" stroke-width="1.5"/>
+            <text x="510" y="122" text-anchor="middle" font-size="11" fill="var(--c-mla-dk)" font-weight="500">W_UK → Kᵢ</text>
+            <rect x="460" y="146" width="100" height="36" fill="#fff" stroke="var(--c-mla)" stroke-width="1.5"/>
+            <text x="510" y="168" text-anchor="middle" font-size="11" fill="var(--c-mla-dk)" font-weight="500">W_UV → Vᵢ</text>
+            <line x1="440" y1="170" x2="460" y2="118" stroke="var(--c-mla)" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr2b)"/>
+            <line x1="440" y1="180" x2="460" y2="164" stroke="var(--c-mla)" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr2b)"/>
+
+            <rect x="180" y="230" width="200" height="44" fill="var(--c-dsa-bg)" stroke="var(--c-dsa)" stroke-width="1.5"/>
+            <text x="280" y="250" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-dsa-dk)">decoupled RoPE branch</text>
+            <text x="280" y="266" text-anchor="middle" font-size="10" class="mono muted">small d_r subset · carries position</text>
+            <line x1="120" y1="190" x2="180" y2="245" stroke="var(--c-dsa)" stroke-width="1.5" marker-end="url(#arr2x)"/>
+
+            <rect x="240" y="300" width="180" height="44" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+            <text x="330" y="320" text-anchor="middle" font-size="12" font-weight="500">softmax(QKᵀ / √d_h) · V</text>
+            <text x="330" y="336" text-anchor="middle" font-size="10" class="mono muted">causal · over <em>all</em> 200K context</text>
+
+            <line x1="240" y1="100" x2="330" y2="300" stroke="#202020" stroke-width="1" stroke-dasharray="3 3"/>
+            <line x1="510" y1="136" x2="380" y2="300" stroke="#202020" stroke-width="1" stroke-dasharray="3 3"/>
+            <line x1="510" y1="182" x2="400" y2="300" stroke="#202020" stroke-width="1" stroke-dasharray="3 3"/>
+            <line x1="280" y1="274" x2="320" y2="300" stroke="var(--c-dsa)" stroke-width="1" stroke-dasharray="3 3"/>
+
+            <rect x="450" y="306" width="100" height="32" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+            <text x="500" y="326" text-anchor="middle" font-size="11" font-weight="500">W_O</text>
+            <line x1="420" y1="322" x2="450" y2="322" stroke="#202020" stroke-width="1.5" marker-end="url(#arr2x)"/>
+            <text x="500" y="354" text-anchor="middle" font-size="10" class="mono muted">→ residual stream</text>
+          </svg>
+        </div>
+        <div class="side">
+          <p>
+            MLA is the same module used in DeepSeek-V3 and Kimi K2: cache the low-rank
+            <code>c_t^KV</code> per token, absorb the up-projections <code>W_UK</code> and <code>W_UV</code>
+            into the query path at inference, and carry RoPE on a small dedicated subset of the head
+            dimension so the absorption trick stays valid.
+          </p>
+          <p>
+            On <code>F</code>-pattern layers GLM-5.1 attends over the <em>full</em> 200K context window —
+            this is what the Lightning Indexer on <code>S</code>-layers shortcuts past. The two attention
+            modes share the same MLA weights; only the key-selection step differs.
+          </p>
+          <div class="math-panel">
+            <div class="lbl">MLA forward (per F-layer, per token)</div>
+            <div class="eq">c_t^KV = <b class="mla">W_DKV</b> · x_t</div>
+            <div class="eq">K = <b class="mla">W_UK</b> · c_t^KV ‖ k_t^RoPE</div>
+            <div class="eq">V = <b class="mla">W_UV</b> · c_t^KV</div>
+            <div class="eq">o = softmax(Q Kᵀ / √d_h) · V · <b class="mla">W_O</b></div>
+            <div class="comment">cache per token ≈ |c_t^KV| + |k_t^RoPE| · independent of head count</div>
+          </div>
+          <div class="spec-grid">
+            <div class="k">Attention heads</div><div class="v unk">not reported</div>
+            <div class="k">d_model (hidden size)</div><div class="v unk">not reported</div>
+            <div class="k">d_h (per-head dim)</div><div class="v unk">not reported</div>
+            <div class="k">KV-cache form</div><div class="v">latent c_t^KV + k^RoPE</div>
+            <div class="k">RoPE rank d_r</div><div class="v unk">not reported</div>
+            <div class="k">Max context</div><div class="v">200,000</div>
+            <div class="k">F-layer count</div><div class="v" id="cnt-F-spec">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 05 · DSA ───────── -->
+  <section id="dsa">
+    <div class="sec-head">
+      <div class="num">05 · Attention · S layers</div>
+      <h2>DeepSeek Sparse Attention &mdash; the cost-control surface.</h2>
+      <p class="lede">
+        DSA is the same mechanism Z.ai describes on GitHub: a <b>Lightning Indexer</b> scores every past key
+        cheaply, the top-<em>k</em> are selected, and the heavyweight MLA softmax runs <em>only</em> over those
+        selected tokens. The result is sub-quadratic attention with a learned key-selection policy &mdash; the
+        published GLM-5 launch positions it as "largely reducing deployment cost while preserving long-context
+        capacity." The per-layer top-k parameter is part of the config (the <code>index_topk_pattern</code>);
+        the exact <em>k</em> values per layer are not enumerated in the public model card.
+      </p>
+    </div>
+
+    <div class="deep">
+      <div class="deep-head">
+        <div>
+          <div class="e">Attention module · S-pattern layers only</div>
+          <h3>DSA · Lightning Indexer + top-k key selection</h3>
+        </div>
+        <div class="strip" style="background:var(--c-dsa)"></div>
+      </div>
+      <div class="deep-body">
+        <div class="diagram">
+          <svg viewBox="0 0 600 380" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <marker id="arrd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="#202020"/>
+              </marker>
+              <marker id="arrdv" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="var(--c-dsa)"/>
+              </marker>
+            </defs>
+
+            <!-- query -->
+            <rect x="20" y="180" width="100" height="44" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+            <text x="70" y="200" text-anchor="middle" font-size="12" font-weight="500">query x_t</text>
+            <text x="70" y="216" text-anchor="middle" font-size="10" class="mono muted">at position t</text>
+
+            <!-- key cache strip -->
+            <rect x="20" y="48" width="560" height="58" fill="#fff" stroke="var(--c-mla)" stroke-width="1" stroke-dasharray="3 3"/>
+            <text x="40" y="34" font-size="11" font-weight="500" fill="var(--c-mla-dk)">KV cache · all past tokens (latent c_τ^KV)</text>
+            <g id="keystrip">
+              <!-- 32 keys, generated in JS for tightness, but we put placeholders here -->
+            </g>
+
+            <!-- lightning indexer -->
+            <rect x="170" y="180" width="180" height="56" fill="var(--c-dsa-bg)" stroke="var(--c-dsa)" stroke-width="1.5"/>
+            <text x="260" y="200" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-dsa-dk)">Lightning Indexer</text>
+            <text x="260" y="216" text-anchor="middle" font-size="10" class="mono muted">cheap scorer: φ(q_t, c_τ^KV) ∈ ℝ</text>
+            <text x="260" y="230" text-anchor="middle" font-size="10" class="mono muted">runs over all N past keys</text>
+
+            <line x1="120" y1="202" x2="170" y2="202" stroke="#202020" stroke-width="1.5" marker-end="url(#arrd)"/>
+
+            <!-- top-k selector -->
+            <rect x="380" y="180" width="170" height="56" fill="var(--c-dsa)" stroke="var(--c-dsa-dk)" stroke-width="1.5"/>
+            <text x="465" y="200" text-anchor="middle" font-size="12" font-weight="500" class="white">TopK selector</text>
+            <text x="465" y="216" text-anchor="middle" font-size="10" class="mono white">k ≪ N</text>
+            <text x="465" y="230" text-anchor="middle" font-size="10" class="mono white">→ indices 𝒯</text>
+
+            <line x1="350" y1="208" x2="380" y2="208" stroke="var(--c-dsa)" stroke-width="1.5" marker-end="url(#arrdv)"/>
+
+            <!-- pull selected keys from cache -->
+            <line x1="465" y1="180" x2="465" y2="106" stroke="var(--c-dsa)" stroke-width="1" stroke-dasharray="3 3"/>
+            <text x="475" y="160" font-size="10" class="mono muted" fill="var(--c-dsa-dk)">selects k of N keys</text>
+
+            <!-- MLA softmax over selected -->
+            <rect x="220" y="280" width="280" height="50" fill="var(--c-mla-bg)" stroke="var(--c-mla)" stroke-width="1.5"/>
+            <text x="360" y="300" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-mla-dk)">MLA softmax (over <em>selected</em> keys)</text>
+            <text x="360" y="318" text-anchor="middle" font-size="10" class="mono muted">o_t = softmax(Q_t K_𝒯ᵀ / √d_h) · V_𝒯 · W_O</text>
+
+            <line x1="465" y1="236" x2="400" y2="280" stroke="var(--c-mla)" stroke-width="1.5" marker-end="url(#arrd)"/>
+            <line x1="70" y1="224" x2="220" y2="305" stroke="#202020" stroke-width="1.2" marker-end="url(#arrd)"/>
+
+            <line x1="360" y1="330" x2="360" y2="360" stroke="#202020" stroke-width="1.5" marker-end="url(#arrd)"/>
+            <text x="370" y="354" font-size="10" class="mono muted">→ residual</text>
+
+            <!-- annotation -->
+            <text x="40" y="135" font-size="10" class="muted">Two-stage attention: Indexer is cheap (over all N), MLA softmax is heavy but runs only over the selected <em>k</em>.</text>
+            <text x="40" y="150" font-size="10" class="muted">Net: O(N) indexer + O(k · d_h) attention per query &mdash; sub-quadratic in N.</text>
+          </svg>
+        </div>
+        <div class="side">
+          <p>
+            DSA's key contribution is decoupling <em>"which tokens matter"</em> from <em>"compute attention"</em>.
+            The Lightning Indexer is a small scoring head that runs over the entire history at low cost;
+            the MLA softmax then only operates on the top-<em>k</em> keys it returns. This is the trick that
+            lets GLM-5.1 hold 200K context windows at deployment cost similar to a much smaller dense model.
+          </p>
+          <p>
+            The position of S-layers in the stack is <em>not</em> uniform: the
+            <code>index_topk_pattern</code> string interleaves them in a fixed, presumably trained pattern.
+            The first three layers are all <code>F</code> (paired with dense MLPs); sparse layers cluster in
+            the middle and tail.
+          </p>
+          <div class="math-panel">
+            <div class="lbl">DSA forward (per S-layer, per token at position t)</div>
+            <div class="eq">s_τ = <b class="dsa">φ</b>(q_t, c_τ^KV) &nbsp;&nbsp;<span class="comment">∀ τ &lt; t · cheap scoring head</span></div>
+            <div class="eq">𝒯 = TopK(s, k) &nbsp;&nbsp;<span class="comment">indices of k most-relevant past tokens</span></div>
+            <div class="eq">K_𝒯, V_𝒯 = <b class="mla">W_UK</b> · c_𝒯^KV, &nbsp;<b class="mla">W_UV</b> · c_𝒯^KV</div>
+            <div class="eq">o_t = softmax(Q_t K_𝒯ᵀ / √d_h) · V_𝒯 · <b class="mla">W_O</b></div>
+            <div class="comment">attention complexity drops from O(N · d_h) to O(N + k · d_h)</div>
+          </div>
+          <div class="spec-grid">
+            <div class="k">Mechanism family</div><div class="v">DeepSeek Sparse Attention</div>
+            <div class="k">Indexer</div><div class="v">Lightning Indexer (DeepSeek)</div>
+            <div class="k">Top-k per layer</div><div class="v unk">pattern stored in checkpoint; values not enumerated</div>
+            <div class="k">S-layer count</div><div class="v" id="cnt-S-spec">—</div>
+            <div class="k">Heritage</div><div class="v">DeepSeek-V3.2-Exp</div>
+            <div class="k">Replaced over GLM-5</div><div class="v">added in GLM-5 line (not in GLM-4.5)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 06 · MOE ───────── -->
+  <section id="moe">
+    <div class="sec-head">
+      <div class="num">06 · Feed-forward</div>
+      <h2>256 routed experts, top-8 per token, plus shared.</h2>
+      <p class="lede">
+        Layers 4–77 replace the dense MLP with a routed Mixture-of-Experts: <b>256 experts per MoE layer</b>,
+        <b>top-8 selection</b>, plus one or more <b>shared experts</b> that run on every token regardless of
+        routing (their existence is confirmed by the NVFP4 quant card, which excludes them from
+        quantization; the exact count is not enumerated in the public model card). The 40 B active-per-token
+        figure is what falls out of routing the dense path through 8 of 256 experts.
+      </p>
+    </div>
+
+    <div class="moe-grid">
+      <div class="moe-svg">
+        <svg viewBox="0 0 600 340" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" fill="#202020"/>
+            </marker>
+            <marker id="arr3g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" fill="var(--c-moe-dk)"/>
+            </marker>
+          </defs>
+
+          <rect x="30" y="148" width="100" height="44" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+          <text x="80" y="168" text-anchor="middle" font-size="12" font-weight="500">x_t (post-norm)</text>
+          <text x="80" y="184" text-anchor="middle" font-size="10" class="mono muted">d = d_model</text>
+
+          <rect x="180" y="60" width="140" height="60" fill="var(--c-moe-bg)" stroke="var(--c-moe)" stroke-width="1.5"/>
+          <text x="250" y="80" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-moe-dk)">Router</text>
+          <text x="250" y="96" text-anchor="middle" font-size="10" class="mono muted">scores = W_r · x</text>
+          <text x="250" y="112" text-anchor="middle" font-size="10" class="mono" fill="var(--c-moe-dk)">→ top-8 of 256</text>
+
+          <line x1="130" y1="160" x2="180" y2="100" stroke="#202020" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+          <g>
+            <rect x="365" y="40" width="60" height="46" fill="var(--c-moe)" stroke="var(--c-moe-dk)" stroke-width="1.5"/>
+            <text x="395" y="60" text-anchor="middle" font-size="11" class="white">E_017</text>
+            <text x="395" y="76" text-anchor="middle" font-size="9" class="mono white">SwiGLU</text>
+            <rect x="365" y="98" width="60" height="46" fill="var(--c-moe)" stroke="var(--c-moe-dk)" stroke-width="1.5"/>
+            <text x="395" y="118" text-anchor="middle" font-size="11" class="white">E_062</text>
+            <text x="395" y="134" text-anchor="middle" font-size="9" class="mono white">SwiGLU</text>
+            <rect x="365" y="156" width="60" height="46" fill="var(--c-moe)" stroke="var(--c-moe-dk)" stroke-width="1.5"/>
+            <text x="395" y="176" text-anchor="middle" font-size="11" class="white">E_191</text>
+            <text x="395" y="192" text-anchor="middle" font-size="9" class="mono white">SwiGLU</text>
+            <text x="395" y="220" text-anchor="middle" font-size="10" class="mono muted">… 5 more …</text>
+            <rect x="365" y="234" width="60" height="32" fill="#fff" stroke="var(--kui-n300)" stroke-width="1.5"/>
+            <text x="395" y="254" text-anchor="middle" font-size="10" class="mono muted">E_248 (skip)</text>
+          </g>
+
+          <text x="345" y="62" text-anchor="end" font-size="9" class="mono" fill="var(--c-moe-dk)">g=0.27</text>
+          <text x="345" y="120" text-anchor="end" font-size="9" class="mono" fill="var(--c-moe-dk)">g=0.22</text>
+          <text x="345" y="178" text-anchor="end" font-size="9" class="mono" fill="var(--c-moe-dk)">g=0.16</text>
+          <text x="345" y="254" text-anchor="end" font-size="9" class="mono muted">g=0.00</text>
+
+          <line x1="320" y1="80" x2="365" y2="62" stroke="var(--c-moe-dk)" stroke-width="1.2" marker-end="url(#arr3g)"/>
+          <line x1="320" y1="92" x2="365" y2="120" stroke="var(--c-moe-dk)" stroke-width="1.2" marker-end="url(#arr3g)"/>
+          <line x1="320" y1="105" x2="365" y2="178" stroke="var(--c-moe-dk)" stroke-width="1.2" marker-end="url(#arr3g)"/>
+          <line x1="320" y1="115" x2="365" y2="250" stroke="var(--kui-n300)" stroke-width="1" stroke-dasharray="3 3"/>
+
+          <rect x="180" y="240" width="140" height="50" fill="var(--c-mtp-bg)" stroke="var(--c-mtp)" stroke-width="1.5"/>
+          <text x="250" y="260" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-mtp-dk)">Shared expert(s)</text>
+          <text x="250" y="276" text-anchor="middle" font-size="10" class="mono muted">always on · count not reported</text>
+          <line x1="130" y1="180" x2="180" y2="260" stroke="var(--c-mtp)" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+          <circle cx="500" cy="170" r="18" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+          <text x="500" y="174" text-anchor="middle" font-size="14" font-weight="500">Σ</text>
+          <line x1="425" y1="60" x2="482" y2="160" stroke="#202020" stroke-width="1.2"/>
+          <line x1="425" y1="120" x2="482" y2="165" stroke="#202020" stroke-width="1.2"/>
+          <line x1="425" y1="178" x2="482" y2="172" stroke="#202020" stroke-width="1.2"/>
+          <line x1="320" y1="266" x2="486" y2="184" stroke="var(--c-mtp)" stroke-width="1.2"/>
+
+          <line x1="518" y1="170" x2="568" y2="170" stroke="#202020" stroke-width="1.5" marker-end="url(#arr3)"/>
+          <text x="555" y="160" text-anchor="middle" font-size="10" class="mono muted">+ residual</text>
+        </svg>
+
+        <div class="experts-grid" aria-label="256 experts; 8 routed + shared"></div>
+        <div class="experts-legend">
+          <span><i style="background:var(--c-moe)"></i> Routed expert active (8 of 256)</span>
+          <span><i style="background:var(--c-mtp)"></i> Shared expert (always on)</span>
+          <span><i style="background:var(--kui-n100)"></i> Inactive on this token</span>
+        </div>
+      </div>
+
+      <div class="moe-stats">
+        <div class="row">
+          <div class="k">Routed experts <small>per MoE layer</small></div>
+          <div class="v">256</div>
+        </div>
+        <div class="row">
+          <div class="k">Selected per token <small>top-k</small></div>
+          <div class="v">8</div>
+        </div>
+        <div class="row">
+          <div class="k">Shared experts <small>always on</small></div>
+          <div class="v unk">count not reported</div>
+        </div>
+        <div class="row">
+          <div class="k">Expert activation</div>
+          <div class="v">SwiGLU</div>
+        </div>
+        <div class="row">
+          <div class="k">MoE layers <small>of 78 total</small></div>
+          <div class="v">74</div>
+        </div>
+        <div class="row">
+          <div class="k">Sparsity factor <small>active / total</small></div>
+          <div class="v">5.4 % <small style="font-weight:400;color:var(--kui-fg-muted)">40 B / 744 B</small></div>
+        </div>
+        <div class="row">
+          <div class="k">Router scoring</div>
+          <div class="v unk">function not reported</div>
+        </div>
+        <div class="row">
+          <div class="k">Load-balancing loss</div>
+          <div class="v unk">not reported</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="math-panel" style="margin-top:24px;">
+      <div class="lbl">MoE feed-forward (per token, layers 4 → 77)</div>
+      <div class="eq">s = score(<b class="moe">W_r</b> · norm(x)) ∈ ℝ^256 &nbsp;<span class="comment"># router scores; affinity fn not reported</span></div>
+      <div class="eq">𝒯 = TopK(s, k=8) &nbsp;<span class="comment"># indices of 8 winning experts</span></div>
+      <div class="eq">y = Σ_{i ∈ 𝒯} g_i · <b class="moe">SwiGLU_i</b>(x) &nbsp;+&nbsp; <b class="mtp">SwiGLU_shared</b>(x)</div>
+      <div class="eq">x_out = x + y &nbsp;<span class="comment"># residual</span></div>
+    </div>
+  </section>
+
+  <!-- ───────── 07 · MTP ───────── -->
+  <section id="mtp">
+    <div class="sec-head">
+      <div class="num">07 · MTP head</div>
+      <h2>Multi-Token Prediction &mdash; speculative drafting in the model.</h2>
+      <p class="lede">
+        GLM-5.1 ships an auxiliary <b>MTP head</b> (Multi-Token Prediction, also called <code>NEXTN</code>)
+        attached to the main trunk. At inference, the head drafts <b>up to 3 future tokens</b> in a single
+        forward pass; the verifier accepts them via probabilistic rejection sampling. Community
+        deployments wire it through vLLM's <code>speculative_config</code> with
+        <code>method: "mtp", num_speculative_tokens: 3</code>. MTP cuts latency at the cost of a small
+        accept-rate-dependent compute overhead per token.
+      </p>
+    </div>
+
+    <div class="mtp-track">
+      <svg viewBox="0 0 980 280" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <marker id="arrmtp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="#202020"/>
+          </marker>
+          <marker id="arrmtpt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--c-mtp)"/>
+          </marker>
+        </defs>
+
+        <!-- Main trunk box -->
+        <rect x="20" y="80" width="180" height="80" fill="var(--c-moe-bg)" stroke="var(--c-moe)" stroke-width="1.5"/>
+        <text x="110" y="106" text-anchor="middle" font-size="13" font-weight="500" fill="var(--c-moe-dk)">78-layer trunk</text>
+        <text x="110" y="124" text-anchor="middle" font-size="10" class="mono muted">MLA + DSA + MoE</text>
+        <text x="110" y="140" text-anchor="middle" font-size="10" class="mono muted">final hidden h_t</text>
+
+        <!-- LM head -->
+        <rect x="250" y="40" width="150" height="56" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+        <text x="325" y="60" text-anchor="middle" font-size="12" font-weight="500">LM head</text>
+        <text x="325" y="76" text-anchor="middle" font-size="10" class="mono muted">→ p(token t+1)</text>
+        <text x="325" y="90" text-anchor="middle" font-size="10" class="mono">argmax / sample</text>
+        <line x1="200" y1="105" x2="250" y2="80" stroke="#202020" stroke-width="1.5" marker-end="url(#arrmtp)"/>
+
+        <!-- MTP head boxes (3 of them) -->
+        <rect x="250" y="140" width="150" height="56" fill="var(--c-mtp-bg)" stroke="var(--c-mtp)" stroke-width="1.5"/>
+        <text x="325" y="160" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-mtp-dk)">MTP head · NEXTN</text>
+        <text x="325" y="176" text-anchor="middle" font-size="10" class="mono muted">light transformer</text>
+        <text x="325" y="190" text-anchor="middle" font-size="10" class="mono" fill="var(--c-mtp-dk)">drafts t+1, t+2, t+3</text>
+        <line x1="200" y1="135" x2="250" y2="160" stroke="var(--c-mtp)" stroke-width="1.5" marker-end="url(#arrmtpt)"/>
+
+        <!-- candidate tokens -->
+        <g>
+          <rect x="450" y="40" width="70" height="40" fill="#fff" stroke="#202020" stroke-width="1.5"/>
+          <text x="485" y="58" text-anchor="middle" font-size="11" font-weight="500">t+1</text>
+          <text x="485" y="72" text-anchor="middle" font-size="9" class="mono muted">verifier</text>
+
+          <rect x="540" y="120" width="70" height="40" fill="var(--c-mtp-bg)" stroke="var(--c-mtp)" stroke-width="1.5"/>
+          <text x="575" y="138" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-mtp-dk)">t+2</text>
+          <text x="575" y="152" text-anchor="middle" font-size="9" class="mono" fill="var(--c-mtp-dk)">draft</text>
+          <rect x="540" y="170" width="70" height="40" fill="var(--c-mtp-bg)" stroke="var(--c-mtp)" stroke-width="1.5"/>
+          <text x="575" y="188" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-mtp-dk)">t+3</text>
+          <text x="575" y="202" text-anchor="middle" font-size="9" class="mono" fill="var(--c-mtp-dk)">draft</text>
+          <rect x="540" y="220" width="70" height="40" fill="var(--c-mtp-bg)" stroke="var(--c-mtp)" stroke-width="1.5"/>
+          <text x="575" y="238" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-mtp-dk)">t+4</text>
+          <text x="575" y="252" text-anchor="middle" font-size="9" class="mono" fill="var(--c-mtp-dk)">draft</text>
+        </g>
+        <line x1="400" y1="60" x2="450" y2="60" stroke="#202020" stroke-width="1.5" marker-end="url(#arrmtp)"/>
+        <line x1="400" y1="168" x2="540" y2="140" stroke="var(--c-mtp)" stroke-width="1.5" marker-end="url(#arrmtpt)"/>
+        <line x1="400" y1="178" x2="540" y2="190" stroke="var(--c-mtp)" stroke-width="1.5" marker-end="url(#arrmtpt)"/>
+        <line x1="400" y1="188" x2="540" y2="240" stroke="var(--c-mtp)" stroke-width="1.5" marker-end="url(#arrmtpt)"/>
+
+        <!-- verify gate -->
+        <rect x="660" y="120" width="150" height="80" fill="#fff" stroke="var(--c-mtp)" stroke-width="2"/>
+        <text x="735" y="142" text-anchor="middle" font-size="12" font-weight="500" fill="var(--c-mtp-dk)">Verifier accept</text>
+        <text x="735" y="158" text-anchor="middle" font-size="10" class="mono muted">probabilistic</text>
+        <text x="735" y="172" text-anchor="middle" font-size="10" class="mono muted">rejection sample</text>
+        <text x="735" y="190" text-anchor="middle" font-size="10" class="mono" fill="var(--c-mtp-dk)">keep prefix · resume</text>
+        <line x1="610" y1="140" x2="660" y2="148" stroke="var(--c-mtp)" stroke-width="1.5" marker-end="url(#arrmtpt)"/>
+        <line x1="610" y1="190" x2="660" y2="180" stroke="var(--c-mtp)" stroke-width="1.5" marker-end="url(#arrmtpt)"/>
+        <line x1="610" y1="240" x2="660" y2="195" stroke="var(--c-mtp)" stroke-width="1.5" marker-end="url(#arrmtpt)"/>
+
+        <rect x="860" y="140" width="100" height="40" fill="var(--c-moe-bg)" stroke="var(--c-moe)" stroke-width="1.5"/>
+        <text x="910" y="158" text-anchor="middle" font-size="11" font-weight="500" fill="var(--c-moe-dk)">accepted</text>
+        <text x="910" y="172" text-anchor="middle" font-size="9" class="mono muted">streamed out</text>
+        <line x1="810" y1="160" x2="860" y2="160" stroke="#202020" stroke-width="1.5" marker-end="url(#arrmtp)"/>
+
+        <text x="490" y="30" text-anchor="middle" font-size="10" class="muted">Verifier path · runs the trunk once</text>
+        <text x="490" y="280" text-anchor="middle" font-size="10" class="muted">Draft path · MTP head produces 3 lookahead tokens in parallel</text>
+      </svg>
+    </div>
+
+    <div class="math-panel">
+      <div class="lbl">Speculative decoding loop (per accepted prefix length ℓ ∈ {1..4})</div>
+      <div class="eq">1. Trunk forward at position t → h_t</div>
+      <div class="eq">2. LM head: y_{t+1} ~ p(· | h_t) &nbsp;<span class="comment"># verifier token</span></div>
+      <div class="eq">3. <b class="mtp">MTP head</b>(h_t) → ŷ_{t+2}, ŷ_{t+3}, ŷ_{t+4} &nbsp;<span class="comment"># 3 drafts in one shot</span></div>
+      <div class="eq">4. Verify drafts against trunk; accept longest prefix where draft prob aligns</div>
+      <div class="eq">5. Resume at t + ℓ</div>
+      <div class="comment">vLLM config (per NVFP4 quant card): method=mtp · num_speculative_tokens=3 · rejection_sample_method=probabilistic</div>
+    </div>
+  </section>
+
+  <!-- ───────── 08 · TRAINING ───────── -->
+  <section id="train">
+    <div class="sec-head">
+      <div class="num">08 · Pretraining</div>
+      <h2>GLM-5 base, 28.5 T tokens &mdash; 5.1 inherits.</h2>
+      <p class="lede">
+        GLM-5.1 is explicitly a <b>post-training upgrade</b>: the architecture, vocabulary, embeddings, and
+        pretrained checkpoint are inherited from GLM-5 (February 11, 2026). GLM-5's launch describes scaling
+        from GLM-4.5's 355B/32B-active to <b>744B/40B-active</b> and growing pretraining data from
+        <b>23T → 28.5T tokens</b>. The release adds DSA as a deployment-cost optimization that was not
+        present in the GLM-4.5 line.
+      </p>
+    </div>
+
+    <div class="pipe">
+      <div class="step">
+        <div class="num">01</div>
+        <h6>Data corpus</h6>
+        <p>Mix of web text, code, math, knowledge. Exact ratios not disclosed publicly.</p>
+        <span class="vol brand">28.5 T tokens</span>
+      </div>
+      <div class="step">
+        <div class="num">02</div>
+        <h6>Pretraining</h6>
+        <p>Causal LM objective on Huawei Ascend cluster, MindSpore framework. Optimizer not specified in public release.</p>
+        <span class="vol unk">batch / schedule not reported</span>
+      </div>
+      <div class="step">
+        <div class="num">03</div>
+        <h6>DSA integration</h6>
+        <p>S-layer pattern and Lightning Indexer trained as part of base. Replaces dense attention on majority of layers.</p>
+        <span class="vol unk">DSA training schedule not reported</span>
+      </div>
+      <div class="step">
+        <div class="num">04</div>
+        <h6>Long-context extension</h6>
+        <p>Final context length is 200 K tokens with 131 K max output. Extension procedure not publicly documented.</p>
+        <span class="vol unk">extension recipe not reported</span>
+      </div>
+      <div class="step">
+        <div class="num">05</div>
+        <h6>MTP head</h6>
+        <p>Auxiliary NEXTN head attached for speculative decoding. Training signal: next-N-token prediction at multiple offsets.</p>
+        <span class="vol brand">k = 3 speculative tokens</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 09 · SLIME ───────── -->
+  <section id="slime">
+    <div class="sec-head">
+      <div class="num">09 · Post-training</div>
+      <h2>Slime &mdash; the real GLM-5.1 release.</h2>
+      <p class="lede">
+        Z.ai's repo (<code>github.com/zai-org/GLM-5</code>) names <b>Slime</b> as a "novel asynchronous RL
+        infrastructure that substantially improves training throughput and efficiency, enabling more
+        fine-grained post-training iterations." The framework is open-sourced separately at
+        <code>THUDM/slime</code>. GLM-5.1's delta over GLM-5 is described as predominantly an RL pipeline
+        revision targeting <b>long-horizon coding</b>, <b>agentic tool use</b>, and <b>autonomous execution</b>;
+        not additional pretraining.
+      </p>
+    </div>
+
+    <div class="slime-grid">
+      <div class="slime-svg">
+        <svg viewBox="0 0 600 320" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <marker id="arrs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" fill="#202020"/>
+            </marker>
+            <marker id="arrsr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" fill="var(--c-slime)"/>
+            </marker>
+          </defs>
+
+          <!-- actor cluster -->
+          <rect x="20" y="80" width="170" height="120" fill="var(--c-slime-bg)" stroke="var(--c-slime)" stroke-width="1.5"/>
+          <text x="105" y="102" text-anchor="middle" font-size="13" font-weight="500" fill="var(--c-slime)">Rollout actors</text>
+          <text x="105" y="118" text-anchor="middle" font-size="10" class="mono muted">generate code, run tests,</text>
+          <text x="105" y="132" text-anchor="middle" font-size="10" class="mono muted">use tools, iterate</text>
+          <g>
+            <circle cx="50" cy="160" r="6" fill="var(--c-slime)"/>
+            <circle cx="75" cy="160" r="6" fill="var(--c-slime)"/>
+            <circle cx="100" cy="160" r="6" fill="var(--c-slime)"/>
+            <circle cx="125" cy="160" r="6" fill="var(--c-slime)"/>
+            <circle cx="150" cy="160" r="6" fill="var(--c-slime)"/>
+            <text x="105" y="186" text-anchor="middle" font-size="10" class="mono muted">N parallel actors</text>
+          </g>
+
+          <!-- async replay buffer -->
+          <rect x="225" y="80" width="150" height="120" fill="#fff" stroke="#202020" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <text x="300" y="102" text-anchor="middle" font-size="13" font-weight="500">Async buffer</text>
+          <text x="300" y="120" text-anchor="middle" font-size="10" class="mono muted">decouples generation</text>
+          <text x="300" y="134" text-anchor="middle" font-size="10" class="mono muted">from learning</text>
+          <text x="300" y="160" text-anchor="middle" font-size="10" class="mono" fill="var(--c-slime)">trajectories + rewards</text>
+          <text x="300" y="180" text-anchor="middle" font-size="10" class="mono muted">no sync barrier</text>
+          <line x1="190" y1="140" x2="225" y2="140" stroke="var(--c-slime)" stroke-width="1.5" marker-end="url(#arrsr)"/>
+
+          <!-- learner -->
+          <rect x="410" y="80" width="170" height="120" fill="var(--c-moe-bg)" stroke="var(--c-moe)" stroke-width="1.5"/>
+          <text x="495" y="102" text-anchor="middle" font-size="13" font-weight="500" fill="var(--c-moe-dk)">Policy learner</text>
+          <text x="495" y="118" text-anchor="middle" font-size="10" class="mono muted">batched gradient updates</text>
+          <text x="495" y="132" text-anchor="middle" font-size="10" class="mono muted">on stored trajectories</text>
+          <text x="495" y="160" text-anchor="middle" font-size="10" class="mono" fill="var(--c-moe-dk)">fine-grained iteration</text>
+          <text x="495" y="178" text-anchor="middle" font-size="10" class="mono muted">→ higher throughput</text>
+          <line x1="375" y1="140" x2="410" y2="140" stroke="#202020" stroke-width="1.5" marker-end="url(#arrs)"/>
+
+          <!-- weight push back -->
+          <line x1="495" y1="80" x2="495" y2="40" stroke="var(--c-moe)" stroke-width="1.2"/>
+          <line x1="495" y1="40" x2="105" y2="40" stroke="var(--c-moe)" stroke-width="1.2"/>
+          <line x1="105" y1="40" x2="105" y2="80" stroke="var(--c-moe)" stroke-width="1.2" marker-end="url(#arrs)"/>
+          <text x="300" y="34" text-anchor="middle" font-size="10" class="mono" fill="var(--c-moe-dk)">periodic weight sync</text>
+
+          <!-- caption -->
+          <text x="300" y="240" text-anchor="middle" font-size="11" class="muted">Asynchronous RL: actors keep rolling out at full speed; the learner pulls from a buffer.</text>
+          <text x="300" y="258" text-anchor="middle" font-size="11" class="muted">Removes the lock-step bottleneck of synchronous PPO/GRPO at LLM scale.</text>
+          <text x="300" y="290" text-anchor="middle" font-size="10" class="mono muted">framework: THUDM/slime · open-sourced separately</text>
+        </svg>
+      </div>
+      <div class="slime-side">
+        <h5>What 5.1 changes vs 5</h5>
+        <div class="sub">all per Z.ai's release notes and the GLM-5.1 model card; specific recipes not disclosed</div>
+        <ul>
+          <li><b>Long-horizon coding.</b> Z.ai demonstrated GLM-5.1 running an 8-hour autonomous coding session
+              (655 iterations, building a Linux desktop environment from scratch).</li>
+          <li><b>Agentic tool use.</b> Tool-call parser identified as <code>glm47</code>; reasoning parser as
+              <code>glm45</code> (per community deployment configs).</li>
+          <li><b>RL throughput.</b> Slime's async design lets Z.ai run more post-training cycles per unit of
+              compute &mdash; the stated driver of 5.1's gains over 5.</li>
+          <li><b>Same weights at the base.</b> Architecture identical to GLM-5; the 5.1 checkpoint differs
+              only in post-training-modified parameters.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 10 · HARDWARE ───────── -->
+  <section id="hardware">
+    <div class="sec-head">
+      <div class="num">10 · Hardware</div>
+      <h2>Trained on 100,000 Huawei Ascend 910B &mdash; no NVIDIA GPUs.</h2>
+      <p class="lede">
+        Reporting consistent across multiple outlets places the GLM-5 / GLM-5.1 training cluster on
+        <b>Huawei Ascend 910B</b> chips (HiSilicon design, SMIC 7nm) running the <b>MindSpore</b> framework
+        &mdash; a fully domestic Chinese stack. Z.ai has been on the US Entity List since January 2025, ruling
+        out NVIDIA, AMD, and Intel accelerators for their training runs. The deployment side is hardware-agnostic
+        and runs on NVIDIA inference engines (vLLM, SGLang) via standard FP8/BF16 paths.
+      </p>
+    </div>
+
+    <div class="hw-grid">
+      <div class="hw-card">
+        <h4>Training cluster</h4>
+        <div class="sub">Per Let's Data Science / NxCode reporting · February 2026</div>
+        <div class="footprint-row">
+          <div class="lbl">Chip</div>
+          <div class="bar"><div style="width:100%"></div></div>
+          <div class="val">Ascend 910B</div>
+        </div>
+        <div class="footprint-row">
+          <div class="lbl">Process node</div>
+          <div class="bar"><div style="width:70%"></div></div>
+          <div class="val">SMIC 7 nm</div>
+        </div>
+        <div class="footprint-row">
+          <div class="lbl">Cluster size</div>
+          <div class="bar"><div style="width:100%"></div></div>
+          <div class="val">100,000 chips</div>
+        </div>
+        <div class="footprint-row">
+          <div class="lbl">Framework</div>
+          <div class="bar"><div style="width:80%"></div></div>
+          <div class="val">MindSpore</div>
+        </div>
+        <div class="footprint-row">
+          <div class="lbl">FP16 peak / chip</div>
+          <div class="bar"><div style="width:32%"></div></div>
+          <div class="val">~320 TFLOPS</div>
+        </div>
+        <div class="ascend-grid" id="ascendgrid" aria-label="100,000 Ascend 910B chips — 1 dot ≈ 100 chips"></div>
+        <div class="experts-legend" style="margin-top:6px;">
+          <span><i style="background:var(--c-ascend); opacity:0.85"></i> 1 dot ≈ 100 chips · 1,000 dots total</span>
+        </div>
+      </div>
+      <div class="hw-card">
+        <h4>Inference footprint by precision</h4>
+        <div class="sub">All paths reported by community quantization cards</div>
+        <div class="footprint-row">
+          <div class="lbl">BF16 (shipped)</div>
+          <div class="bar"><div class="full" style="width:100%"></div></div>
+          <div class="val">~1.65 TB</div>
+        </div>
+        <div class="footprint-row">
+          <div class="lbl">FP8 (shipped)</div>
+          <div class="bar"><div class="full" style="width:50%"></div></div>
+          <div class="val">~820 GB</div>
+        </div>
+        <div class="footprint-row">
+          <div class="lbl">NVFP4 (community)</div>
+          <div class="bar"><div style="width:25%"></div></div>
+          <div class="val">~420 GB</div>
+        </div>
+        <div class="footprint-row">
+          <div class="lbl">MLX 4-bit (community)</div>
+          <div class="bar"><div style="width:25%"></div></div>
+          <div class="val">419 GB</div>
+        </div>
+        <div class="footprint-row">
+          <div class="lbl">UD-Q2_K_XL (Unsloth)</div>
+          <div class="bar"><div class="brand" style="width:13%"></div></div>
+          <div class="val">~220 GB</div>
+        </div>
+        <div class="footprint-row">
+          <div class="lbl">Minimum inference</div>
+          <div class="bar"><div class="brand" style="width:50%"></div></div>
+          <div class="val">8× A100 80GB</div>
+        </div>
+        <div class="footprint-row">
+          <div class="lbl">Reported throughput</div>
+          <div class="bar"><div class="brand" style="width:60%"></div></div>
+          <div class="val">~17 tok/s</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 11 · BENCHMARKS ───────── -->
+  <section id="bench">
+    <div class="sec-head">
+      <div class="num">11 · Benchmarks</div>
+      <h2>Source-reported scores. Not independently verified.</h2>
+      <p class="lede">
+        Numbers below are aggregated from Z.ai's release blog, the GLM-5 technical report, and secondary
+        outlets that quote Z.ai's evaluation harness. GLM-5.1-specific scores are still partial at release
+        time; where only GLM-5 is publicly scored, the entry is marked. Competitor settings vary by
+        benchmark; treat as vendor-comparable, not third-party independent.
+      </p>
+    </div>
+
+    <div class="bench-grid">
+      <div class="bench-card">
+        <h5>Coding · GLM-5.1</h5>
+        <div class="bench-row"><div class="lbl">SWE-Bench Pro</div><div class="bar"><div style="width:58.4%"></div></div><div class="val">58.4</div></div>
+        <div class="bench-row"><div class="lbl">Coding composite</div><div class="bar"><div style="width:54.9%"></div></div><div class="val">54.9</div></div>
+        <div class="bench-row"><div class="lbl">SWE-Bench Verified <small style="color:var(--kui-fg-muted)">(GLM-5)</small></div><div class="bar"><div class="alt" style="width:77.8%"></div></div><div class="val">77.8</div></div>
+        <div class="bench-row"><div class="lbl">Terminal-Bench 2.0 <small style="color:var(--kui-fg-muted)">(GLM-5)</small></div><div class="bar"><div class="alt" style="width:56.2%"></div></div><div class="val">56.2</div></div>
+      </div>
+      <div class="bench-card">
+        <h5>Reasoning · GLM-5</h5>
+        <div class="bench-row"><div class="lbl">HLE (text-only)</div><div class="bar"><div class="alt" style="width:50.4%"></div></div><div class="val">50.4</div></div>
+        <div class="bench-row"><div class="lbl">BrowseComp</div><div class="bar"><div class="alt" style="width:75.9%"></div></div><div class="val">75.9</div></div>
+        <div class="bench-row"><div class="lbl">AIME 2026</div><div class="bar"><div class="alt" style="width:0%"></div></div><div class="val unk">not reported</div></div>
+        <div class="bench-row"><div class="lbl">GPQA-Diamond</div><div class="bar"><div class="alt" style="width:0%"></div></div><div class="val unk">not reported</div></div>
+      </div>
+      <div class="bench-card">
+        <h5>Calibration · GLM-5</h5>
+        <div class="bench-row"><div class="lbl">AA-Omniscience Index</div><div class="bar"><div class="alt2" style="width:100%"></div></div><div class="val">#1 open</div></div>
+        <div class="bench-row"><div class="lbl">Halluc. rate vs GLM-4.7</div><div class="bar"><div class="alt2" style="width:38%"></div></div><div class="val">90 → 34 %</div></div>
+        <div class="bench-row"><div class="lbl">Δ vs Sonnet 4.5 record</div><div class="bar"><div class="alt2" style="width:35%"></div></div><div class="val">+35 pp</div></div>
+        <div class="bench-row"><div class="lbl">AA-Omni absolute score</div><div class="bar"><div class="alt2" style="width:50%"></div></div><div class="val">−1</div></div>
+      </div>
+    </div>
+
+    <div class="vs-wrap" style="margin-top:24px;">
+      <h4>SWE-Bench Pro · GLM-5.1 vs proprietary peers</h4>
+      <div class="sub">Z.ai-published head-to-head at the GLM-5.1 release. Single benchmark; broader coding composite still has Claude Opus 4.6 ahead.</div>
+      <div class="vs-key">
+        <span><i style="background:var(--c-moe)"></i> GLM-5.1 (open · MIT)</span>
+        <span><i style="background:var(--kui-fg-muted); opacity:0.65"></i> GPT-5.4</span>
+        <span><i style="background:var(--kui-fg-muted); opacity:0.35"></i> Claude Opus 4.6</span>
+      </div>
+      <div class="vs-row">
+        <div class="lbl">GLM-5.1<small>open · MIT</small></div>
+        <div class="bars"><div class="b"><div class="k" style="width:58.4%"></div><span>58.4</span></div></div>
+        <div class="val">58.4 <small>SWE-Bench Pro</small></div>
+      </div>
+      <div class="vs-row">
+        <div class="lbl">GPT-5.4<small>closed</small></div>
+        <div class="bars"><div class="b"><div class="p1" style="width:57.7%"></div><span>57.7</span></div></div>
+        <div class="val neg">57.7</div>
+      </div>
+      <div class="vs-row">
+        <div class="lbl">Claude Opus 4.6<small>closed</small></div>
+        <div class="bars"><div class="b"><div class="p2" style="width:57.3%"></div><span>57.3</span></div></div>
+        <div class="val neg">57.3</div>
+      </div>
+      <div class="vs-row">
+        <div class="lbl">Coding composite <small>SWE-Pro + Terminal + NL2Repo avg</small></div>
+        <div class="bars">
+          <div class="b"><div class="k" style="width:54.9%"></div><span>54.9</span></div>
+          <div class="b"><div class="p2" style="width:57.5%"></div><span>57.5 Opus 4.6</span></div>
+        </div>
+        <div class="val">54.9 <small>vs 57.5 Opus 4.6</small></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 12 · CAVEATS ───────── -->
+  <section id="caveats">
+    <div class="sec-head">
+      <div class="num">12 · Caveats</div>
+      <h2>What the public sources do not pin down.</h2>
+      <p class="lede">
+        The GLM-5.1 release is unusually opaque about architectural micro-detail compared to the
+        DeepSeek-V3 or Kimi K2 papers it lineages from. The model card lists the high-level topology and
+        ships the weights, but several dimensions that would normally appear in a foundation-model brief
+        are absent. Below is an explicit ledger.
+      </p>
+    </div>
+
+    <div class="caveats">
+      <div class="caveat">
+        <h6>Active-parameter count: 40 B vs "A69B"</h6>
+        <p>The atlas inventory titles this model "GLM-5.1 744B-A69B." No primary source we located uses
+        69 B. The official GitHub README, the Hugging Face model card, llm-stats.com, Unsloth's deploy guide,
+        and the community NVFP4 quant card all say <b>40 B active</b>. We use 40 B everywhere in this page.</p>
+      </div>
+      <div class="caveat">
+        <h6>Hidden size · attention heads · per-head dim</h6>
+        <p>d_model, head count, and d_h are not enumerated in the published Z.ai materials. The
+        community NVFP4 quant card reads them from the checkpoint config but does not republish them.
+        <b>Unknown in source inventory.</b></p>
+      </div>
+      <div class="caveat">
+        <h6>Vocabulary size &amp; tokenizer</h6>
+        <p>Tokenizer identity, BPE corpus, and vocab size are not stated on the GLM-5.1 model card or in
+        Z.ai's release blog. <b>Unknown in source inventory.</b></p>
+      </div>
+      <div class="caveat">
+        <h6>DSA top-k values per layer</h6>
+        <p>The 78-character F/S pattern is published but the actual <em>k</em> selected by the Lightning
+        Indexer at each S-layer is not. Top-k presumably varies per layer (the parameter exists in the
+        config and is supplied as an env override), but the values are not enumerated. <b>Not reported.</b></p>
+      </div>
+      <div class="caveat">
+        <h6>Shared-expert count</h6>
+        <p>The NVFP4 card confirms shared experts exist (they are excluded from quantization) but does
+        not name how many. Configurations from the DeepSeek-V3 family use one shared expert; GLM-5.1 may
+        differ. <b>Count not reported.</b></p>
+      </div>
+      <div class="caveat">
+        <h6>Router scoring &amp; load balancing</h6>
+        <p>The model card lists <code>n_experts = 256</code> and <code>top-k = 8</code> but does not
+        specify the router affinity function (softmax vs sigmoid), the auxiliary load-balance loss, or
+        any bias-routing scheme. <b>Unknown in source inventory.</b></p>
+      </div>
+      <div class="caveat">
+        <h6>Optimizer · LR schedule · training compute</h6>
+        <p>The 28.5 T pretraining token count is from Z.ai's GitHub README. Optimizer, batch size, learning
+        rate schedule, and total training-step count for the GLM-5 base or the 5.1 post-training delta
+        are <b>not disclosed</b> for either model.</p>
+      </div>
+      <div class="caveat">
+        <h6>Slime RL recipe</h6>
+        <p>Slime is open-sourced as infrastructure, but the GLM-5.1 RL <em>recipe</em> &mdash; reward model,
+        algorithm (PPO / GRPO / DAPO / other), KL constraints, prompt mix &mdash; is not published.
+        <b>Recipe not disclosed.</b></p>
+      </div>
+      <div class="caveat">
+        <h6>Modalities</h6>
+        <p>GLM-5.1 is a text-only decoder; no vision, audio, or video tower in this release. The
+        <code>chat.z.ai</code> product surfaces images, but as a separate tool layer above the model.
+        <b>Confirmed by model card.</b></p>
+      </div>
+      <div class="caveat">
+        <h6>Vendor benchmark methodology</h6>
+        <p>SWE-Bench Pro 58.4 / coding composite 54.9 / HLE 50.4 / BrowseComp 75.9 are all Z.ai-published
+        figures, some inherited from GLM-5. Competitor scores were not all re-run under Z.ai's harness;
+        treat all bars as vendor-comparable, not independent third-party measurements.</p>
+      </div>
+    </div>
+  </section>
+
+  </main>
+</div>
+
+<footer>
+  <div class="row">
+    <div>
+      Primary sources · <a href="https://huggingface.co/zai-org/GLM-5.1">huggingface.co/zai-org/GLM-5.1</a> ·
+      <a href="https://github.com/zai-org/GLM-5">github.com/zai-org/GLM-5</a> ·
+      <a href="https://huggingface.co/lukealonso/GLM-5.1-NVFP4">NVFP4 quant card</a> ·
+      <a href="https://llm-stats.com/models/glm-5.1">llm-stats.com</a> ·
+      <a href="https://unsloth.ai/docs/models/glm-5.1">Unsloth deploy guide</a>
+    </div>
+    <div>Architecture atlas · rendered with the NVIDIA Kaizen design system</div>
+  </div>
+</footer>
+
+<script>
+  // ─── 78-layer ribbon, from the index_topk_pattern ──────────────────
+  (function() {
+    const ribbon = document.getElementById('ribbon');
+    if (!ribbon) return;
+    // verbatim from lukealonso/GLM-5.1-NVFP4 model card HF_OVERRIDES.index_topk_pattern
+    const PATTERN = "FFSFSSSFSSFFFSSSFFFSFSSSSSSFFSFFSFFSSFFFFFFSFFFFFSFFSSSSSSFSFFFSFSSSFSFFSFFSSSF";
+    const N = PATTERN.length;
+    // Override grid track count if pattern length differs from CSS default
+    ribbon.style.gridTemplateColumns = 'repeat(' + N + ', 1fr)';
+    let fCount = 0, sCount = 0;
+    for (let i = 0; i < N; i++) {
+      const ch = PATTERN[i];
+      const cell = document.createElement('div');
+      cell.className = 'cell ' + ch + (i < 4 ? ' dense' : '');
+      const attn = document.createElement('div'); attn.className = 'attn';
+      const ffn = document.createElement('div'); ffn.className = 'ffn';
+      cell.appendChild(attn);
+      cell.appendChild(ffn);
+      if (i === 0 || i === 19 || i === 39 || i === 59 || i === N - 1) {
+        const num = document.createElement('div'); num.className = 'num'; num.textContent = i;
+        cell.appendChild(num);
+      }
+      cell.title = 'Layer ' + i + ' · ' + (ch === 'F' ? 'full MLA' : 'sparse DSA') +
+                   ' · ' + (i < 4 ? 'dense MLP' : 'MoE (256, top-8)');
+      ribbon.appendChild(cell);
+      if (ch === 'F') fCount++; else sCount++;
+    }
+    document.getElementById('cnt-F').textContent = fCount + ' layers';
+    document.getElementById('cnt-S').textContent = sCount + ' layers';
+    const fSpec = document.getElementById('cnt-F-spec');
+    const sSpec = document.getElementById('cnt-S-spec');
+    if (fSpec) fSpec.textContent = fCount + ' of 78';
+    if (sSpec) sSpec.textContent = sCount + ' of 78';
+  })();
+
+  // ─── 256-expert grid (8 routed + 1 shared sample) ──────────────────
+  (function() {
+    const g = document.querySelector('.experts-grid');
+    if (!g) return;
+    const total = 256;
+    const routed = new Set([17, 32, 62, 95, 134, 191, 218, 240]);
+    const shared = new Set([5]);
+    for (let i = 0; i < total; i++) {
+      const ex = document.createElement('div');
+      ex.className = 'ex';
+      if (routed.has(i)) ex.classList.add('r');
+      else if (shared.has(i)) ex.classList.add('s');
+      ex.title = 'Expert #' + i;
+      g.appendChild(ex);
+    }
+  })();
+
+  // ─── Ascend chip grid (1000 dots ≈ 100k chips) ─────────────────────
+  (function() {
+    const g = document.getElementById('ascendgrid');
+    if (!g) return;
+    for (let i = 0; i < 1000; i++) {
+      const c = document.createElement('div');
+      c.className = 'ch';
+      g.appendChild(c);
+    }
+  })();
+
+  // ─── DSA key strip · 32 cached keys, indexer scores, top-k highlight ─
+  (function() {
+    const ns = 'http://www.w3.org/2000/svg';
+    const g = document.getElementById('keystrip');
+    if (!g) return;
+    const N = 32, kSelected = new Set([2, 7, 8, 14, 19, 25]);
+    const x0 = 30, y = 60, w = 540 / N - 2, h = 32;
+    for (let i = 0; i < N; i++) {
+      const x = x0 + i * (540 / N);
+      const r = document.createElementNS(ns, 'rect');
+      r.setAttribute('x', x); r.setAttribute('y', y);
+      r.setAttribute('width', w); r.setAttribute('height', h);
+      const sel = kSelected.has(i);
+      r.setAttribute('fill', sel ? 'var(--c-dsa)' : '#fff');
+      r.setAttribute('stroke', sel ? 'var(--c-dsa-dk)' : 'var(--c-mla)');
+      r.setAttribute('stroke-width', sel ? '1.5' : '1');
+      g.appendChild(r);
+      if (i % 4 === 0) {
+        const t = document.createElementNS(ns, 'text');
+        t.setAttribute('x', x + w/2); t.setAttribute('y', y - 2);
+        t.setAttribute('text-anchor', 'middle');
+        t.setAttribute('font-size', '8');
+        t.setAttribute('class', 'mono muted');
+        t.textContent = 'τ=' + i;
+        g.appendChild(t);
+      }
+    }
+  })();
+
+  // ─── sidebar active section on scroll ─────────────────────────────
+  (function() {
+    const links = Array.from(document.querySelectorAll('.sidebar nav a'));
+    const ids = links.map(a => a.getAttribute('href').slice(1));
+    const sections = ids.map(id => document.getElementById(id)).filter(Boolean);
+    const setActive = () => {
+      const y = window.scrollY + 120;
+      let cur = sections[0]?.id;
+      for (const s of sections) {
+        if (s.offsetTop <= y) cur = s.id;
+      }
+      links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + cur));
+    };
+    window.addEventListener('scroll', setActive, { passive: true });
+    setActive();
+  })();
+</script>
+</body>
+</html>

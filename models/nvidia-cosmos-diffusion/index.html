@@ -1,0 +1,1684 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NVIDIA Cosmos Diffusion Architecture</title>
+<style>
+/* =========================================================
+   Kaizen tokens (subset, inlined for offline use)
+   ========================================================= */
+:root {
+  --kui-brand-green:#76B900; --kui-brand-green-darker:#5E9600;
+  --kui-n000:#FFFFFF; --kui-n050:#F2F2F2; --kui-n100:#E3E3E3; --kui-n150:#D8D8D8;
+  --kui-n200:#C6C6C6; --kui-n300:#8F8F8F; --kui-n400:#767676; --kui-n500:#6B6B6B;
+  --kui-n600:#5E5E5E; --kui-n700:#343434; --kui-n800:#202020; --kui-n900:#0D0D0D; --kui-n950:#050505;
+  --kui-fg-strong:#202020; --kui-fg-default:#343434; --kui-fg-muted:#5E5E5E; --kui-fg-subtle:#6B6B6B;
+  --kui-bg-canvas:#F2F2F2; --kui-bg-mid:#FFFFFF;
+  --kui-border-subtle:#E3E3E3; --kui-border-default:#D8D8D8; --kui-border-strong:#767676;
+  --kui-success:#007D00; --kui-success-bg:#E8F4D6;
+  --kui-info:#0D69D4; --kui-info-bg:#E9F4FB; --kui-info-text:#2378CA;
+  --kui-warning:#C54600; --kui-warning-bg:#FDEFE6;
+  --kui-danger:#DC3528; --kui-danger-bg:#FCE9E8;
+  --kui-accent-teal:#1FA18D; --kui-accent-teal-dk:#006B5E;
+  --kui-accent-magenta:#851F41; --kui-accent-purple:#A05AB4;
+  --kui-accent-violet:#9747FF; --kui-accent-pink-bg:#FBEEFE; --kui-accent-blue-bg:#E9F4FB;
+  --kui-accent-sky:#9ACCF2;
+  --kui-radius-xs:2px; --kui-radius-sm:4px; --kui-radius-lg:8px;
+  --kui-font-sans:"NVIDIA Sans","DM Sans",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --kui-font-display:"Inter","NVIDIA Sans","DM Sans",system-ui,sans-serif;
+  --kui-font-mono:"Roboto Mono",ui-monospace,"SF Mono",Consolas,monospace;
+
+  /* lane accents */
+  --t2w:#1FA18D;        /* text2world: teal */
+  --t2w-dk:#006B5E;
+  --t2w-bg:#E3F2EF;
+  --v2w:#9747FF;        /* video2world: violet */
+  --v2w-dk:#6A2EBC;
+  --v2w-bg:#F2E9FE;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font:400 14px/1.5 var(--kui-font-sans);
+  color:var(--kui-fg-strong);
+  background:var(--kui-bg-canvas);
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+}
+h1,h2,h3,h4,p{margin:0}
+a{color:var(--kui-info);text-decoration:none}
+a:hover{text-decoration:underline}
+code,kbd,.mono{font-family:var(--kui-font-mono);font-size:12px}
+em{font-style:italic}
+
+/* =========================================================
+   Layout
+   ========================================================= */
+.page{max-width:1320px;margin:0 auto;padding:24px 32px 96px}
+
+/* ---- Top bar ---- */
+.topbar{
+  display:flex;align-items:center;gap:16px;
+  padding:10px 0 18px;border-bottom:1px solid var(--kui-border-default);
+  margin-bottom:24px;
+}
+.home-link{
+  display:inline-flex;align-items:center;gap:6px;
+  min-height:32px;padding:0 10px;
+  border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);
+  background:var(--kui-bg-mid);
+  color:var(--kui-fg-default);
+  font-size:12px;font-weight:700;
+}
+.home-link:hover{border-color:var(--kui-brand-green);text-decoration:none}
+.topbar .nvlogo{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:0.5px}
+.topbar .crumb{color:var(--kui-fg-muted);font-size:12px;letter-spacing:.4px;text-transform:uppercase}
+.topbar .crumb .sep{margin:0 8px;color:var(--kui-n200)}
+.topbar .spacer{flex:1}
+.topbar .meta{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--kui-fg-muted)}
+.topbar .meta .dot{width:6px;height:6px;background:var(--kui-brand-green);border-radius:50%}
+
+/* =========================================================
+   Hero — Cosmos as two-lane platform
+   ========================================================= */
+.hero{
+  display:grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap:24px;
+  margin-bottom:32px;
+}
+.hero .left{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:32px;
+  position:relative;overflow:hidden;
+}
+.hero .left::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--kui-brand-green);
+}
+.hero .eyebrow{
+  font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--kui-fg-muted);margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+}
+.hero .eyebrow .tag{
+  background:var(--kui-n900);color:#fff;padding:3px 7px;border-radius:2px;font-size:10px;letter-spacing:1px
+}
+.hero h1{
+  font:700 42px/1.06 var(--kui-font-display);letter-spacing:-1px;
+  color:var(--kui-fg-strong);margin-bottom:14px;
+}
+.hero h1 .accent{color:var(--kui-brand-green-darker)}
+.hero .lede{
+  font:400 16px/1.55 var(--kui-font-sans);color:var(--kui-fg-default);max-width:62ch;
+}
+.hero .lede strong{font-weight:500;color:var(--kui-fg-strong)}
+
+.hero .keyfacts{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;
+  margin-top:24px;border-top:1px solid var(--kui-border-default);
+}
+.hero .keyfacts .kf{
+  border-bottom:1px solid var(--kui-border-default);
+  border-right:1px solid var(--kui-border-default);
+  padding:14px 16px;
+}
+.hero .keyfacts .kf:nth-child(2n){border-right:none}
+.hero .keyfacts .kf:nth-last-child(-n+2){border-bottom:none}
+.hero .keyfacts .label{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--kui-fg-muted);margin-bottom:4px}
+.hero .keyfacts .value{font:700 22px/1.1 var(--kui-font-display);color:var(--kui-fg-strong);font-variant-numeric:tabular-nums}
+.hero .keyfacts .value .unit{font-size:14px;color:var(--kui-fg-muted);font-weight:500}
+.hero .keyfacts .sub{font-size:11px;color:var(--kui-fg-muted);margin-top:2px}
+
+/* Right hero — lanes */
+.hero .right{
+  background:var(--kui-n950);color:#E3E3E3;
+  border:1px solid var(--kui-n800);
+  border-radius:var(--kui-radius-sm);
+  padding:22px;display:flex;flex-direction:column;gap:14px;
+  position:relative;overflow:hidden;
+}
+.hero .right .ribbon{
+  font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#C6C6C6;
+  display:flex;align-items:center;gap:8px;
+}
+.hero .right .ribbon::before{
+  content:"";width:8px;height:8px;background:var(--kui-brand-green);display:inline-block;
+}
+.hero .right h3{
+  font:500 18px/1.3 var(--kui-font-sans);color:#fff;letter-spacing:-.2px
+}
+.hero-lanes{
+  display:grid;grid-template-rows:1fr 1fr;gap:10px;margin-top:6px;
+}
+.lane{
+  border:1px solid #1a1a1a;border-radius:2px;
+  padding:14px 16px;background:#0d0d0d;
+  display:grid;grid-template-columns: 110px 1fr 110px;gap:14px;align-items:center;
+  position:relative;
+}
+.lane.t2w{border-left:3px solid var(--t2w)}
+.lane.v2w{border-left:3px solid var(--v2w)}
+.lane .lane-tag{
+  font:500 10px/1 var(--kui-font-mono);letter-spacing:1.5px;text-transform:uppercase;
+}
+.lane.t2w .lane-tag{color:var(--t2w)}
+.lane.v2w .lane-tag{color:var(--v2w)}
+.lane .lane-name{font:500 13px/1.2 var(--kui-font-sans);color:#fff;letter-spacing:-.1px}
+.lane .lane-name .sub{display:block;font-weight:400;color:#8F8F8F;font-size:11px;margin-top:3px}
+.lane .lane-strip{
+  display:flex;gap:3px;align-items:center;justify-content:flex-end;
+  font-family:var(--kui-font-mono);font-size:10px;color:#5E5E5E;
+}
+.lane .lane-strip .cell{width:10px;height:10px;background:#202020;border:1px solid #2a2a2a;display:inline-block}
+.lane .lane-strip .cell.on{background:var(--t2w);border-color:var(--t2w)}
+.lane.v2w .lane-strip .cell.on{background:var(--v2w);border-color:var(--v2w)}
+.lane .lane-strip .cell.partial{background:#343434}
+.lane .arrow{
+  position:absolute;left:35%;top:50%;width:14%;height:1px;background:#343434;
+}
+
+.hero-foot{
+  margin-top:auto;padding-top:12px;border-top:1px solid #1a1a1a;
+  display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:#8F8F8F;
+}
+.hero-foot .item{display:inline-flex;align-items:center;gap:6px}
+.hero-foot .item .sw{width:8px;height:8px;display:inline-block}
+
+/* =========================================================
+   Sections
+   ========================================================= */
+.section{margin-bottom:48px}
+.section-head{
+  display:flex;align-items:baseline;justify-content:space-between;gap:24px;
+  margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--kui-border-default);
+}
+.section-head .label{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.section-head .num{
+  font:500 11px/1 var(--kui-font-mono);letter-spacing:1.2px;color:var(--kui-fg-muted);
+  border:1px solid var(--kui-border-default);padding:5px 7px;border-radius:2px;
+}
+.section-head h2{font:500 22px/1.2 var(--kui-font-sans);letter-spacing:-.2px}
+.section-head .lede{color:var(--kui-fg-muted);font-size:13px;max-width:54ch;text-align:right;line-height:1.55}
+
+/* Card primitive */
+.card{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:20px;
+}
+.card .title{font:500 14px/1.25 var(--kui-font-sans);letter-spacing:-.2px;margin-bottom:4px}
+.card .sub{font-size:12px;color:var(--kui-fg-muted);margin-bottom:14px;line-height:1.5}
+
+/* Grid helpers */
+.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+
+/* Tag chips */
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:11px;font-weight:500;letter-spacing:.2px;
+  padding:3px 8px;border-radius:2px;border:1px solid var(--kui-border-default);
+  color:var(--kui-fg-default);background:var(--kui-bg-mid);
+}
+.chip.green{background:var(--kui-success-bg);border-color:#bfd99a;color:#3e5b07}
+.chip.info{background:var(--kui-info-bg);border-color:#bfd9f4;color:var(--kui-info-text)}
+.chip.warn{background:var(--kui-warning-bg);border-color:#f3c7a4;color:var(--kui-warning)}
+.chip.teal{background:#E3F2EF;border-color:#9fd6c9;color:var(--kui-accent-teal-dk)}
+.chip.violet{background:var(--v2w-bg);border-color:#d8b8f4;color:var(--v2w-dk)}
+.chip.solid{background:var(--kui-n900);color:#fff;border-color:var(--kui-n900)}
+.chip.code{font-family:var(--kui-font-mono);font-weight:400}
+
+/* =========================================================
+   §01 — Variant cards
+   ========================================================= */
+.var-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.variant{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:0;overflow:hidden;
+  display:flex;flex-direction:column;
+}
+.variant .top{
+  padding:14px 16px 12px;border-bottom:1px solid var(--kui-border-default);
+  position:relative;
+}
+.variant.t2w .top{border-top:3px solid var(--t2w)}
+.variant.v2w .top{border-top:3px solid var(--v2w)}
+.variant .top .badge{
+  font:500 10px/1 var(--kui-font-mono);letter-spacing:1.4px;text-transform:uppercase;
+  color:var(--kui-fg-muted);
+}
+.variant.t2w .top .badge{color:var(--t2w-dk)}
+.variant.v2w .top .badge{color:var(--v2w-dk)}
+.variant .top .name{
+  font:600 18px/1.15 var(--kui-font-display);color:var(--kui-fg-strong);margin-top:6px;letter-spacing:-.3px;
+}
+.variant .top .name .scale{color:var(--kui-brand-green-darker);font-weight:700}
+.variant .top .one-liner{font-size:12px;color:var(--kui-fg-muted);margin-top:6px;line-height:1.5}
+
+.variant .spec{
+  padding:0;flex:1;display:flex;flex-direction:column;
+}
+.variant .spec .row{
+  display:flex;justify-content:space-between;align-items:baseline;
+  padding:8px 16px;border-bottom:1px solid var(--kui-border-subtle);
+  font-size:12px;
+}
+.variant .spec .row:last-of-type{border-bottom:none}
+.variant .spec .row .k{color:var(--kui-fg-muted);letter-spacing:.2px}
+.variant .spec .row .v{font-family:var(--kui-font-mono);font-variant-numeric:tabular-nums;color:var(--kui-fg-strong)}
+.variant .spec .row .v.unk{color:var(--kui-fg-muted);font-family:var(--kui-font-sans);font-style:italic}
+
+.variant .foot{
+  padding:10px 16px;background:var(--kui-n050);border-top:1px solid var(--kui-border-default);
+  display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--kui-fg-muted);
+}
+.variant .foot .checkpoint{font-family:var(--kui-font-mono);font-size:10px}
+
+/* =========================================================
+   §02 / §03 — Lane pipelines
+   ========================================================= */
+.lane-pipe{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:0;overflow:hidden;
+}
+.lane-pipe .lp-head{
+  display:flex;align-items:center;gap:14px;
+  padding:14px 20px;border-bottom:1px solid var(--kui-border-default);
+}
+.lane-pipe.t2w .lp-head{border-top:3px solid var(--t2w)}
+.lane-pipe.v2w .lp-head{border-top:3px solid var(--v2w)}
+.lane-pipe .lp-head .lp-tag{
+  font:500 10px/1 var(--kui-font-mono);letter-spacing:1.4px;text-transform:uppercase;
+  padding:4px 8px;border-radius:2px;
+}
+.lane-pipe.t2w .lp-head .lp-tag{background:var(--t2w-bg);color:var(--t2w-dk)}
+.lane-pipe.v2w .lp-head .lp-tag{background:var(--v2w-bg);color:var(--v2w-dk)}
+.lane-pipe .lp-head .lp-name{font:500 16px/1.2 var(--kui-font-sans);letter-spacing:-.2px}
+.lane-pipe .lp-head .lp-eq{
+  margin-left:auto;font-family:var(--kui-font-mono);font-size:12px;color:var(--kui-fg-muted);
+}
+.lp-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;align-items:stretch}
+.lp-step{
+  padding:16px 18px;
+  border-right:1px dashed var(--kui-border-default);
+  display:flex;flex-direction:column;gap:8px;position:relative;
+}
+.lp-step:last-child{border-right:none}
+.lp-step .idx{
+  font:500 10px/1 var(--kui-font-mono);
+  letter-spacing:1.2px;color:var(--kui-fg-muted);
+}
+.lane-pipe.t2w .lp-step .idx{color:var(--t2w-dk)}
+.lane-pipe.v2w .lp-step .idx{color:var(--v2w-dk)}
+.lp-step .name{font:500 14px/1.2 var(--kui-font-sans);letter-spacing:-.2px}
+.lp-step .desc{font-size:12px;line-height:1.55;color:var(--kui-fg-muted)}
+.lp-step .vis{
+  margin-top:6px;border:1px solid var(--kui-border-subtle);background:var(--kui-n050);
+  border-radius:2px;padding:10px;min-height:96px;
+  display:flex;flex-direction:column;justify-content:center;align-items:center;
+}
+
+.lp-foot{
+  border-top:1px solid var(--kui-border-default);
+  padding:12px 20px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;
+  font-size:12px;color:var(--kui-fg-muted);
+}
+
+/* video-frame strip */
+.framestrip{display:flex;gap:2px}
+.framestrip .fr{
+  width:14px;height:18px;background:var(--kui-n200);
+}
+.framestrip .fr.cond{background:var(--v2w);border:1px solid var(--v2w-dk)}
+.framestrip .fr.fresh{background:var(--t2w)}
+.framestrip .fr.fresh.v{background:var(--v2w)}
+.framestrip .fr.noise{
+  background:repeating-linear-gradient(45deg,#767676 0 2px,#5e5e5e 2px 4px);
+}
+.framestrip .fr.latent{background:#0D0D0D}
+
+/* Noise lattice */
+.lattice{
+  display:grid;gap:1px;background:var(--kui-border-subtle);
+  border:1px solid var(--kui-border-default);width:100%;
+}
+.lattice.t-large{grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(4,1fr)}
+.lattice .px{aspect-ratio:1/1;background:#fff}
+.lattice .px.n1{background:#D8D8D8}
+.lattice .px.n2{background:#8F8F8F}
+.lattice .px.n3{background:#5E5E5E}
+.lattice .px.n4{background:#343434}
+.lattice .px.n5{background:#0D0D0D}
+.lattice .px.t{background:var(--t2w)}
+.lattice .px.v{background:var(--v2w)}
+
+.lattice-label{
+  font:500 10px/1 var(--kui-font-mono);letter-spacing:1.2px;color:var(--kui-fg-muted);
+  text-transform:uppercase;margin-bottom:6px;
+}
+
+/* =========================================================
+   §04 — Tokenizer compression diagram
+   ========================================================= */
+.tok-card{padding:0;overflow:hidden}
+.tok-head{
+  display:grid;grid-template-columns:1.1fr 0.9fr;gap:0;border-bottom:1px solid var(--kui-border-default);
+}
+.tok-head .blurb{padding:20px 24px;border-right:1px solid var(--kui-border-default)}
+.tok-head .blurb h3{font:500 18px/1.25 var(--kui-font-sans);letter-spacing:-.2px;margin-bottom:6px}
+.tok-head .blurb p{font-size:13px;color:var(--kui-fg-default);line-height:1.55;margin-bottom:10px;max-width:54ch}
+.tok-head .blurb .chips{display:flex;gap:6px;flex-wrap:wrap}
+.tok-head .ratios{padding:20px 24px}
+.tok-head .ratios .h{font:500 10px/1 var(--kui-font-mono);letter-spacing:1.2px;color:var(--kui-fg-muted);text-transform:uppercase;margin-bottom:14px}
+.ratio-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.ratio{
+  border:1px solid var(--kui-border-default);border-radius:2px;padding:10px 12px;
+  display:grid;grid-template-columns:1fr auto;gap:6px;
+}
+.ratio.cv{border-left:3px solid var(--t2w)}
+.ratio.dv{border-left:3px solid var(--v2w)}
+.ratio .lbl{font:500 11px/1.1 var(--kui-font-mono);color:var(--kui-fg-strong);letter-spacing:.2px}
+.ratio .ratio-val{font:500 14px/1 var(--kui-font-display);color:var(--kui-fg-strong);grid-row:span 2;align-self:center;font-variant-numeric:tabular-nums}
+.ratio .desc{font-size:11px;color:var(--kui-fg-muted)}
+.ratio.featured{background:#FBFEF4;border-color:var(--kui-brand-green)}
+.ratio.featured .ratio-val{color:var(--kui-brand-green-darker)}
+
+/* the wavelet → encoder → latents → decoder visualization */
+.tok-viz{
+  padding:24px;
+}
+.tok-viz svg{display:block;width:100%;height:auto}
+
+.tok-grid{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--kui-border-default)}
+.tok-grid .col{padding:20px 24px;border-right:1px solid var(--kui-border-default)}
+.tok-grid .col:last-child{border-right:none}
+.tok-grid .col h4{font:500 13px/1.2 var(--kui-font-sans);letter-spacing:-.1px;margin-bottom:10px}
+.tok-grid .col .row{
+  display:flex;justify-content:space-between;align-items:baseline;
+  padding:7px 0;border-bottom:1px solid var(--kui-border-subtle);font-size:12px;
+}
+.tok-grid .col .row:last-child{border-bottom:none}
+.tok-grid .col .row .k{color:var(--kui-fg-muted)}
+.tok-grid .col .row .v{font-family:var(--kui-font-mono);color:var(--kui-fg-strong);font-variant-numeric:tabular-nums}
+
+/* =========================================================
+   §05 — DiT block
+   ========================================================= */
+.dit-grid{
+  display:grid;grid-template-columns:1.1fr 0.9fr;gap:16px;
+}
+.dit-diagram{
+  background:var(--kui-n950);color:#E3E3E3;
+  border:1px solid var(--kui-n800);
+  border-radius:var(--kui-radius-sm);padding:20px;
+}
+.dit-diagram .title{color:#fff;font:500 14px/1.25 var(--kui-font-sans);margin-bottom:4px}
+.dit-diagram .sub{color:#8F8F8F;font-size:12px;margin-bottom:16px;line-height:1.5}
+.dit-diagram svg{display:block;width:100%;height:auto}
+
+.spec-table{width:100%;border-collapse:collapse}
+.spec-table th,.spec-table td{
+  text-align:left;padding:9px 12px;border-bottom:1px solid var(--kui-border-default);
+  font-size:13px;vertical-align:top;
+}
+.spec-table th{
+  font:500 11px/1 var(--kui-font-mono);letter-spacing:1.2px;
+  color:var(--kui-fg-muted);text-transform:uppercase;padding:8px 12px;
+  background:var(--kui-n050);
+}
+.spec-table td.val{font-family:var(--kui-font-mono);font-size:12.5px;color:var(--kui-fg-strong);font-variant-numeric:tabular-nums}
+.spec-table td.val.unknown{color:var(--kui-fg-muted);font-style:italic;font-family:var(--kui-font-sans)}
+.spec-table .src{font-size:11px;color:var(--kui-fg-muted)}
+
+/* =========================================================
+   §06 — Platform components
+   ========================================================= */
+.platform{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;
+  border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm);overflow:hidden;background:var(--kui-bg-mid)}
+.plat{
+  padding:18px 20px;border-right:1px solid var(--kui-border-default);
+  display:flex;flex-direction:column;gap:8px;
+}
+.plat:last-child{border-right:none}
+.plat .ptag{
+  font:500 10px/1 var(--kui-font-mono);letter-spacing:1.2px;color:var(--kui-fg-muted);text-transform:uppercase;
+}
+.plat .pname{font:500 16px/1.2 var(--kui-font-sans);letter-spacing:-.2px}
+.plat .pdesc{font-size:12px;line-height:1.55;color:var(--kui-fg-default)}
+.plat .pmeta{
+  margin-top:auto;padding-top:10px;border-top:1px dashed var(--kui-border-default);
+  font:500 11px/1.5 var(--kui-font-mono);color:var(--kui-fg-muted);
+}
+.plat.safety{background:var(--kui-danger-bg)}
+.plat.safety .pname{color:var(--kui-danger)}
+
+/* =========================================================
+   §07 — Benchmarks / inference cost
+   ========================================================= */
+.bench-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.bench-card{padding:0;overflow:hidden}
+.bench-card .bh{
+  padding:14px 18px;border-bottom:1px solid var(--kui-border-default);
+}
+.bench-card .bh .title{font:500 14px/1.2 var(--kui-font-sans)}
+.bench-card .bh .sub{font-size:11px;color:var(--kui-fg-muted);margin-top:4px}
+
+.bench-tab{width:100%;border-collapse:collapse}
+.bench-tab th,.bench-tab td{
+  padding:8px 14px;border-bottom:1px solid var(--kui-border-subtle);font-size:12px;
+  text-align:right;
+}
+.bench-tab th{
+  font:500 10px/1 var(--kui-font-mono);letter-spacing:1.2px;color:var(--kui-fg-muted);
+  text-transform:uppercase;background:var(--kui-n050);padding:8px 14px;
+}
+.bench-tab th:first-child,.bench-tab td:first-child{text-align:left;color:var(--kui-fg-default)}
+.bench-tab td.num{font-family:var(--kui-font-mono);font-variant-numeric:tabular-nums;color:var(--kui-fg-strong)}
+.bench-tab tr:last-child td{border-bottom:none}
+.bench-tab tr.h7B td{background:#FBFEF4}
+.bench-tab tr.h14B td{background:#FDF7FF}
+
+.bench-foot{padding:10px 14px;background:var(--kui-n050);font-size:11px;color:var(--kui-fg-muted);border-top:1px solid var(--kui-border-default)}
+
+/* output spec card */
+.outspec{
+  display:grid;grid-template-columns:auto 1fr;gap:0;border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);background:var(--kui-bg-mid);overflow:hidden;
+}
+.outspec .left{
+  padding:18px 22px;background:var(--kui-n050);border-right:1px solid var(--kui-border-default);
+  display:flex;flex-direction:column;justify-content:center;gap:6px;min-width:240px;
+}
+.outspec .left .h{font:500 10px/1 var(--kui-font-mono);letter-spacing:1.2px;color:var(--kui-fg-muted);text-transform:uppercase}
+.outspec .left .big{font:700 28px/1 var(--kui-font-display);color:var(--kui-fg-strong);font-variant-numeric:tabular-nums}
+.outspec .left .sub{font-size:12px;color:var(--kui-fg-muted)}
+
+.outspec .right{padding:18px 22px}
+.outspec .right .rh{font:500 10px/1 var(--kui-font-mono);letter-spacing:1.2px;color:var(--kui-fg-muted);text-transform:uppercase;margin-bottom:12px}
+.aspect-rail{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap}
+.ar{display:flex;flex-direction:column;align-items:center;gap:6px}
+.ar .box{
+  border:1.5px solid var(--kui-border-strong);background:repeating-linear-gradient(135deg,transparent 0 5px,#F2F2F2 5px 10px);
+}
+.ar.r-1x1 .box{width:48px;height:48px}
+.ar.r-4x3 .box{width:56px;height:42px}
+.ar.r-3x4 .box{width:42px;height:56px}
+.ar.r-16x9 .box{width:64px;height:36px}
+.ar.r-9x16 .box{width:36px;height:64px}
+.ar.featured .box{border-color:var(--kui-brand-green);background:repeating-linear-gradient(135deg,transparent 0 5px,#E8F4D6 5px 10px)}
+.ar .lbl{font:500 11px/1 var(--kui-font-mono);color:var(--kui-fg-strong)}
+.ar .px{font:500 10px/1 var(--kui-font-mono);color:var(--kui-fg-muted)}
+.ar.featured .lbl{color:var(--kui-brand-green-darker)}
+
+/* tokenizer quality table */
+.tok-quality{padding:0;overflow:hidden}
+.tok-quality table{width:100%;border-collapse:collapse}
+.tok-quality th,.tok-quality td{padding:8px 14px;border-bottom:1px solid var(--kui-border-subtle);font-size:12px}
+.tok-quality th{font:500 10px/1 var(--kui-font-mono);letter-spacing:1.2px;color:var(--kui-fg-muted);text-transform:uppercase;background:var(--kui-n050);text-align:left}
+.tok-quality td.num{font-family:var(--kui-font-mono);font-variant-numeric:tabular-nums;text-align:right;color:var(--kui-fg-strong)}
+.tok-quality td.lbl{font-family:var(--kui-font-mono);font-size:11px}
+.tok-quality tr.featured td{background:#FBFEF4}
+.tok-quality tr.featured td.lbl{color:var(--kui-brand-green-darker);font-weight:500}
+
+/* =========================================================
+   Caveats
+   ========================================================= */
+.caveats{
+  background:var(--kui-warning-bg);
+  border:1px solid #f3c7a4;
+  border-radius:var(--kui-radius-sm);padding:24px 28px;
+  position:relative;
+}
+.caveats::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--kui-warning);
+}
+.caveats .head{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.caveats .head .icon{
+  width:20px;height:20px;border-radius:50%;background:var(--kui-warning);color:#fff;
+  display:flex;align-items:center;justify-content:center;font:700 13px/1 var(--kui-font-sans);
+}
+.caveats .head h3{font:500 16px/1.25 var(--kui-font-sans);color:var(--kui-warning)}
+.caveats .head .sub{font-size:12px;color:#7a3500;margin-left:auto}
+.caveats ul{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 28px}
+.caveats li{display:grid;grid-template-columns:160px 1fr;gap:10px;font-size:13px;color:#4a2400;align-items:baseline;line-height:1.5}
+.caveats li .k{font:500 11px/1.25 var(--kui-font-mono);letter-spacing:.4px;color:var(--kui-warning);text-transform:uppercase}
+.caveats li .v{color:#5e2e00}
+
+/* Footer */
+.footer{
+  margin-top:48px;padding-top:20px;border-top:1px solid var(--kui-border-default);
+  display:flex;flex-wrap:wrap;gap:18px;justify-content:space-between;align-items:flex-start;
+  font-size:12px;color:var(--kui-fg-muted);
+}
+.footer .sources{display:flex;gap:16px;flex-wrap:wrap}
+.footer .sources a{color:var(--kui-info)}
+
+/* responsive */
+@media (max-width:1120px){
+  .hero,.tok-head,.dit-grid,.bench-grid,.tok-grid,.outspec{grid-template-columns:1fr}
+  .tok-head .blurb{border-right:none;border-bottom:1px solid var(--kui-border-default)}
+  .outspec .left{border-right:none;border-bottom:1px solid var(--kui-border-default)}
+  .var-grid,.platform{grid-template-columns:repeat(2,1fr)}
+  .lp-row{grid-template-columns:repeat(2,1fr)}
+  .lp-step{border-right:none;border-bottom:1px solid var(--kui-border-default)}
+  .platform .plat{border-right:none;border-bottom:1px solid var(--kui-border-default)}
+  .caveats ul{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="page kui">
+
+  <!-- ================ TOP BAR ================ -->
+  <header class="topbar">
+    <a class="home-link" href="../../index.html">Atlas home</a>
+    <div class="nvlogo">
+      <svg width="22" height="16" viewBox="0 0 64 48" aria-hidden="true">
+        <path fill="#76B900" d="M27 8 C16 8 8 17 8 28 C8 38 16 44 27 44 L27 38 C19 38 15 33 15 26 C15 19 20 14 27 14 L27 8 Z M40 14 L40 24 L33 24 L33 30 L40 30 L40 40 L46 40 L46 30 L57 30 L57 24 L46 24 L46 14 L40 14 Z"/>
+      </svg>
+      <span style="font-family:var(--kui-font-display);font-weight:700;font-size:13px">NVIDIA</span>
+    </div>
+    <div class="crumb">
+      Research briefing <span class="sep">/</span> Physical AI <span class="sep">/</span> Cosmos 1.0 · Diffusion WFM
+    </div>
+    <div class="spacer"></div>
+    <div class="meta">
+      <span class="dot"></span>
+      <span>Source-grounded · arXiv 2501.03575 · Open Model License</span>
+    </div>
+  </header>
+
+  <!-- ================ HERO ================ -->
+  <section class="hero" data-screen-label="01 Hero">
+    <div class="left">
+      <div class="eyebrow">
+        <span class="tag">arXiv 2501.03575</span>
+        <span>NVIDIA · Released Jan 6, 2025</span>
+      </div>
+      <h1>NVIDIA <span class="accent">Cosmos</span> Diffusion<br/>
+      <span style="font:500 21px/1.15 var(--kui-font-sans);color:var(--kui-fg-muted);letter-spacing:-.3px">
+        World generation for Physical AI — Text2World &amp; Video2World, 7B&nbsp;/&nbsp;14B
+      </span></h1>
+      <p class="lede">
+        Cosmos-1.0-Diffusion is NVIDIA's family of <strong>latent diffusion
+        World Foundation Models</strong> built for generating physics-aware
+        videos of visual worlds. Two parallel lanes — <strong>Text2World</strong>
+        from a prompt and <strong>Video2World</strong> conditioned on a first
+        frame — both denoise in the latent space of the
+        <strong>Cosmos Tokenizer (CV8×8×8)</strong> and emit 121-frame, 5-second
+        clips at up to 1280×704. Released under the
+        <strong>NVIDIA Open Model License</strong> for commercial use.
+      </p>
+
+      <div class="keyfacts">
+        <div class="kf">
+          <div class="label">Parameter scales</div>
+          <div class="value">7B<span class="unit"> · </span>14B</div>
+          <div class="sub">Two diffusion-transformer sizes per lane · BF16 weights</div>
+        </div>
+        <div class="kf">
+          <div class="label">Released checkpoints</div>
+          <div class="value">4</div>
+          <div class="sub">{7B,14B} × {Text2World, Video2World}</div>
+        </div>
+        <div class="kf">
+          <div class="label">Output length</div>
+          <div class="value">121 frames</div>
+          <div class="sub">5 s · 24 fps · 1280×704 (default)</div>
+        </div>
+        <div class="kf">
+          <div class="label">Inference on a single H100</div>
+          <div class="value">~380 s<span class="unit"> / </span>~590 s</div>
+          <div class="sub">7B / 14B · end-to-end with offloads</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right hero: the two lanes -->
+    <div class="right">
+      <div class="ribbon">Two diffusion lanes · one tokenizer · one DiT family</div>
+      <h3>Text2World &amp; Video2World share weights, tokenizer, and guardrails — they differ in how the latent video is initialized.</h3>
+
+      <div class="hero-lanes">
+        <div class="lane t2w">
+          <div>
+            <div class="lane-tag">Text2World</div>
+            <div class="lane-name" style="margin-top:6px">Prompt → 121 frames<span class="sub">All latent frames denoise from pure noise</span></div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-family:var(--kui-font-mono);font-size:10px;color:#5e5e5e;letter-spacing:.6px">T5-XXL · cross-attn</div>
+            <div style="margin-top:6px;font-family:var(--kui-font-mono);font-size:11px;color:#C6C6C6">x<sub>T</sub>=ε → x<sub>0</sub></div>
+          </div>
+          <div class="lane-strip">
+            <span class="cell on"></span><span class="cell on"></span><span class="cell on"></span><span class="cell on"></span>
+            <span class="cell on"></span><span class="cell on"></span><span class="cell on"></span><span class="cell on"></span>
+          </div>
+        </div>
+
+        <div class="lane v2w">
+          <div>
+            <div class="lane-tag">Video2World</div>
+            <div class="lane-name" style="margin-top:6px">First frame + prompt → next 120<span class="sub">Conditioning latents concatenated along time; <em>augment noise</em> bridges train/inference</span></div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-family:var(--kui-font-mono);font-size:10px;color:#5e5e5e;letter-spacing:.6px">concat + cross-attn</div>
+            <div style="margin-top:6px;font-family:var(--kui-font-mono);font-size:11px;color:#C6C6C6">[z<sub>cond</sub> ‖ ε]</div>
+          </div>
+          <div class="lane-strip">
+            <span class="cell on"></span><span class="cell partial"></span><span class="cell on"></span><span class="cell on"></span>
+            <span class="cell on"></span><span class="cell on"></span><span class="cell on"></span><span class="cell on"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-foot">
+        <span class="item"><span class="sw" style="background:var(--t2w)"></span>Text2World lane</span>
+        <span class="item"><span class="sw" style="background:var(--v2w)"></span>Video2World lane</span>
+        <span class="item"><span class="sw" style="background:#5e5e5e"></span>Conditioning frame</span>
+        <span class="item" style="margin-left:auto">Diffusion in CV8×8×8 latent space</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================ §01 — VARIANT CARDS ================ -->
+  <section class="section" data-screen-label="02 Variants">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§ 01</span>
+        <h2>Four released diffusion checkpoints</h2>
+      </div>
+      <div class="lede">
+        Each lane ships two sizes. Text2World is the base; Video2World is a fine-tune
+        that adds first-frame conditioning. All four share the Cosmos Tokenizer
+        (CV8×8×8) and the same DiT block design.
+      </div>
+    </div>
+
+    <div class="var-grid">
+
+      <!-- 7B T2W -->
+      <div class="variant t2w">
+        <div class="top">
+          <div class="badge">Lane · Text2World</div>
+          <div class="name"><span class="scale">7B</span> · Text2World</div>
+          <div class="one-liner">Text prompt → 121-frame video. Base model for the lane.</div>
+        </div>
+        <div class="spec">
+          <div class="row"><span class="k">Type</span><span class="v">DiT (latent)</span></div>
+          <div class="row"><span class="k">Conditioning</span><span class="v">T5-XXL · cross-attn</span></div>
+          <div class="row"><span class="k">Output frames</span><span class="v">121</span></div>
+          <div class="row"><span class="k">Default resolution</span><span class="v">1280 × 704</span></div>
+          <div class="row"><span class="k">Precision (released)</span><span class="v">BF16</span></div>
+          <div class="row"><span class="k">Peak GPU memory*</span><span class="v">24.4 – 74.0 GB</span></div>
+          <div class="row"><span class="k">Single-H100 runtime</span><span class="v">~380 s</span></div>
+          <div class="row"><span class="k">Depth · width</span><span class="v unk">not reported</span></div>
+        </div>
+        <div class="foot">
+          <span class="checkpoint">Cosmos-1.0-Diffusion-7B-Text2World</span>
+          <span>HF model card</span>
+        </div>
+      </div>
+
+      <!-- 14B T2W -->
+      <div class="variant t2w">
+        <div class="top">
+          <div class="badge">Lane · Text2World</div>
+          <div class="name"><span class="scale">14B</span> · Text2World</div>
+          <div class="one-liner">2× capacity sibling of the 7B prompt-to-video model.</div>
+        </div>
+        <div class="spec">
+          <div class="row"><span class="k">Type</span><span class="v">DiT (latent)</span></div>
+          <div class="row"><span class="k">Conditioning</span><span class="v">T5-XXL · cross-attn</span></div>
+          <div class="row"><span class="k">Output frames</span><span class="v">121</span></div>
+          <div class="row"><span class="k">Default resolution</span><span class="v">1280 × 704</span></div>
+          <div class="row"><span class="k">Precision (released)</span><span class="v">BF16</span></div>
+          <div class="row"><span class="k">Peak GPU memory*</span><span class="v">39.0 – &gt;80 GB</span></div>
+          <div class="row"><span class="k">Single-H100 runtime</span><span class="v">~590 s</span></div>
+          <div class="row"><span class="k">Depth · width</span><span class="v unk">not reported</span></div>
+        </div>
+        <div class="foot">
+          <span class="checkpoint">Cosmos-1.0-Diffusion-14B-Text2World</span>
+          <span>HF model card</span>
+        </div>
+      </div>
+
+      <!-- 7B V2W -->
+      <div class="variant v2w">
+        <div class="top">
+          <div class="badge">Lane · Video2World</div>
+          <div class="name"><span class="scale">7B</span> · Video2World</div>
+          <div class="one-liner">Image + prompt → next 120 frames. Fine-tune of 7B T2W.</div>
+        </div>
+        <div class="spec">
+          <div class="row"><span class="k">Type</span><span class="v">DiT (latent, conditional)</span></div>
+          <div class="row"><span class="k">Conditioning</span><span class="v">T5-XXL + frame concat</span></div>
+          <div class="row"><span class="k">Conditioning frames</span><span class="v">1 (image)</span></div>
+          <div class="row"><span class="k">Predicted frames</span><span class="v">120 future</span></div>
+          <div class="row"><span class="k">Bridge trick</span><span class="v">augment noise on z<sub>cond</sub></span></div>
+          <div class="row"><span class="k">Initialized from</span><span class="v">7B T2W</span></div>
+          <div class="row"><span class="k">Precision (released)</span><span class="v">BF16</span></div>
+          <div class="row"><span class="k">Depth · width</span><span class="v unk">not reported</span></div>
+        </div>
+        <div class="foot">
+          <span class="checkpoint">Cosmos-1.0-Diffusion-7B-Video2World</span>
+          <span>HF model card</span>
+        </div>
+      </div>
+
+      <!-- 14B V2W -->
+      <div class="variant v2w">
+        <div class="top">
+          <div class="badge">Lane · Video2World</div>
+          <div class="name"><span class="scale">14B</span> · Video2World</div>
+          <div class="one-liner">Largest released checkpoint. Future-frame prediction from one image.</div>
+        </div>
+        <div class="spec">
+          <div class="row"><span class="k">Type</span><span class="v">DiT (latent, conditional)</span></div>
+          <div class="row"><span class="k">Conditioning</span><span class="v">T5-XXL + frame concat</span></div>
+          <div class="row"><span class="k">Conditioning frames</span><span class="v">1 (image)</span></div>
+          <div class="row"><span class="k">Predicted frames</span><span class="v">120 future</span></div>
+          <div class="row"><span class="k">Bridge trick</span><span class="v">augment noise on z<sub>cond</sub></span></div>
+          <div class="row"><span class="k">Initialized from</span><span class="v">14B T2W</span></div>
+          <div class="row"><span class="k">Precision (released)</span><span class="v">BF16</span></div>
+          <div class="row"><span class="k">Depth · width</span><span class="v unk">not reported</span></div>
+        </div>
+        <div class="foot">
+          <span class="checkpoint">Cosmos-1.0-Diffusion-14B-Video2World</span>
+          <span>HF model card</span>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--kui-fg-muted);margin-top:12px">
+      * Peak GPU memory ranges reflect the five offloading strategies listed on the model card (from "offload prompt upsampler only" down to "offload everything including the diffusion model").
+    </div>
+  </section>
+
+  <!-- ================ §02 — TEXT2WORLD PIPELINE ================ -->
+  <section class="section" data-screen-label="03 Text2World pipeline">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§ 02</span>
+        <h2>Text2World — end-to-end pipeline</h2>
+      </div>
+      <div class="lede">
+        Prompt is encoded by T5-XXL, the latent video grid is initialized as pure
+        Gaussian noise, the DiT denoises it across <em>T</em> sampling steps with
+        text injected via cross-attention, and the Cosmos Tokenizer decoder
+        reconstructs pixels.
+      </div>
+    </div>
+
+    <div class="lane-pipe t2w">
+      <div class="lp-head">
+        <span class="lp-tag">Text2World</span>
+        <span class="lp-name">Prompt → latent denoise → decoded video</span>
+        <span class="lp-eq">p<sub>θ</sub>(x<sub>0</sub> | ε, c<sub>text</sub>)</span>
+      </div>
+
+      <div class="lp-row">
+
+        <!-- A: Prompt -->
+        <div class="lp-step">
+          <div class="idx">A · PROMPT</div>
+          <div class="name">Text input (&lt; 300 words)</div>
+          <div class="desc">Scene description, key objects, background, motions over the 5 s clip. Optionally rewritten by the <strong>prompt upsampler</strong> for denser, more cinematic phrasing.</div>
+          <div class="vis" style="align-items:flex-start;text-align:left">
+            <div style="font:500 10px/1 var(--kui-font-mono);letter-spacing:1.2px;color:var(--kui-fg-muted);text-transform:uppercase;margin-bottom:6px">user prompt</div>
+            <div style="font-family:var(--kui-font-mono);font-size:11px;line-height:1.5;color:var(--kui-fg-strong)">"A sleek humanoid robot stands in a warehouse… glowing blue light from its chest… shallow depth of field…"</div>
+          </div>
+        </div>
+
+        <!-- B: T5 -->
+        <div class="lp-step">
+          <div class="idx">B · ENCODE</div>
+          <div class="name">T5-XXL text embeddings</div>
+          <div class="desc">Tokens are encoded by the frozen <strong>T5-XXL</strong> encoder into a per-token embedding sequence that all DiT cross-attention layers read from.</div>
+          <div class="vis" style="gap:4px">
+            <div class="lattice-label">c_text · (L<sub>txt</sub>, d)</div>
+            <div style="display:flex;gap:2px">
+              <span style="width:8px;height:34px;background:var(--kui-n300)"></span>
+              <span style="width:8px;height:34px;background:var(--kui-n600)"></span>
+              <span style="width:8px;height:34px;background:var(--kui-n400)"></span>
+              <span style="width:8px;height:34px;background:var(--kui-n200)"></span>
+              <span style="width:8px;height:34px;background:var(--kui-n500)"></span>
+              <span style="width:8px;height:34px;background:var(--kui-n300)"></span>
+              <span style="width:8px;height:34px;background:var(--kui-n600)"></span>
+              <span style="width:8px;height:34px;background:var(--kui-n400)"></span>
+              <span style="width:8px;height:34px;background:var(--kui-n700)"></span>
+              <span style="width:8px;height:34px;background:var(--kui-n300)"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- C: Init latent -->
+        <div class="lp-step">
+          <div class="idx">C · INIT</div>
+          <div class="name">Latent noise grid x<sub>T</sub> ~ N(0,I)</div>
+          <div class="desc">A <em>(1+T'/8)</em> × H/8 × W/8 × 16 continuous latent tensor is filled with Gaussian noise. With the CV8×8×8 tokenizer, a 121-frame clip yields 16 latent time-steps.</div>
+          <div class="vis">
+            <div class="lattice-label">x<sub>T</sub> · latent grid</div>
+            <div class="lattice t-large" style="max-width:160px">
+              <div class="px n5"></div><div class="px n3"></div><div class="px n4"></div><div class="px n2"></div><div class="px n5"></div><div class="px n3"></div><div class="px n4"></div><div class="px n5"></div>
+              <div class="px n2"></div><div class="px n4"></div><div class="px n3"></div><div class="px n5"></div><div class="px n2"></div><div class="px n4"></div><div class="px n3"></div><div class="px n2"></div>
+              <div class="px n4"></div><div class="px n5"></div><div class="px n2"></div><div class="px n3"></div><div class="px n5"></div><div class="px n4"></div><div class="px n3"></div><div class="px n5"></div>
+              <div class="px n3"></div><div class="px n2"></div><div class="px n4"></div><div class="px n5"></div><div class="px n3"></div><div class="px n4"></div><div class="px n2"></div><div class="px n5"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- D: Denoise -->
+        <div class="lp-step">
+          <div class="idx">D · DENOISE</div>
+          <div class="name">DiT loop, T sampling steps</div>
+          <div class="desc">Each step: <em>adaLN</em> embeds time t, <em>self-attention</em> mixes the spatio-temporal latent, <em>cross-attention</em> injects T5 text features, FFN refines. The same network is called every step.</div>
+          <div class="vis">
+            <div class="lattice-label">x<sub>t→t-1</sub> · partial</div>
+            <div class="lattice t-large" style="max-width:160px">
+              <div class="px t"></div><div class="px n2"></div><div class="px t"></div><div class="px n3"></div><div class="px t"></div><div class="px t"></div><div class="px n2"></div><div class="px t"></div>
+              <div class="px n3"></div><div class="px t"></div><div class="px n2"></div><div class="px t"></div><div class="px t"></div><div class="px n3"></div><div class="px t"></div><div class="px n2"></div>
+              <div class="px t"></div><div class="px n2"></div><div class="px t"></div><div class="px t"></div><div class="px n2"></div><div class="px t"></div><div class="px n3"></div><div class="px t"></div>
+              <div class="px n2"></div><div class="px t"></div><div class="px t"></div><div class="px n3"></div><div class="px t"></div><div class="px t"></div><div class="px n2"></div><div class="px t"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- E: Decode -->
+        <div class="lp-step">
+          <div class="idx">E · DECODE</div>
+          <div class="name">CV8×8×8 decoder → video</div>
+          <div class="desc">The clean latent x<sub>0</sub> is decoded by the Cosmos Tokenizer to 121 RGB frames (5 s · 24 fps · 1280×704). A post-hoc <strong>guardrail</strong> filters the rendered video.</div>
+          <div class="vis">
+            <div class="lattice-label">decoded · 121 frames</div>
+            <div class="framestrip" style="flex-wrap:wrap;justify-content:center">
+              <span class="fr fresh"></span><span class="fr fresh"></span><span class="fr fresh"></span><span class="fr fresh"></span><span class="fr fresh"></span><span class="fr fresh"></span><span class="fr fresh"></span><span class="fr fresh"></span>
+              <span class="fr fresh"></span><span class="fr fresh"></span><span class="fr fresh"></span><span class="fr fresh"></span><span class="fr fresh"></span><span class="fr fresh"></span><span class="fr fresh"></span><span class="fr fresh"></span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="lp-foot">
+        <span class="chip code">x<sub>T</sub> ∈ ℝ<sup>16×88×40×16</sup></span>
+        <span class="chip code">latent dim = 16</span>
+        <span class="chip code">CV8×8×8 (spatial 8× · temporal 8×)</span>
+        <span style="color:var(--kui-fg-muted)">Latent grid sizes shown for 1280×704 at the default 121-frame setting; resolution and frame count are configurable.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================ §03 — VIDEO2WORLD PIPELINE ================ -->
+  <section class="section" data-screen-label="04 Video2World pipeline">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§ 03</span>
+        <h2>Video2World — end-to-end pipeline</h2>
+      </div>
+      <div class="lede">
+        Same DiT, same tokenizer, same T5-XXL — but the latent tensor is built by
+        <em>concatenating</em> the conditioning frame's latents to the noise
+        along the temporal axis, and an "augment noise" step keeps the model
+        from overtrusting the clean condition at inference.
+      </div>
+    </div>
+
+    <div class="lane-pipe v2w">
+      <div class="lp-head">
+        <span class="lp-tag">Video2World</span>
+        <span class="lp-name">First frame + prompt → predicted next 120 frames</span>
+        <span class="lp-eq">p<sub>θ</sub>(x<sub>0</sub> | z<sub>cond</sub>, c<sub>text</sub>)</span>
+      </div>
+
+      <div class="lp-row">
+
+        <!-- A: inputs -->
+        <div class="lp-step">
+          <div class="idx">A · INPUTS</div>
+          <div class="name">Image + prompt</div>
+          <div class="desc">User provides <strong>one image</strong> (the "current observation") plus a short text describing how the world should evolve. Future-only prediction is the V2W contract.</div>
+          <div class="vis">
+            <div class="lattice-label">conditioning</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <div style="width:36px;height:24px;background:var(--v2w);border:1px solid var(--v2w-dk)" title="first frame"></div>
+              <div style="font-family:var(--kui-font-mono);font-size:10px;color:var(--kui-fg-muted)">+ text</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- B: tokenize first frame -->
+        <div class="lp-step">
+          <div class="idx">B · TOKENIZE</div>
+          <div class="name">Encode the conditioning frame</div>
+          <div class="desc">The single image is passed through the <strong>Cosmos Tokenizer encoder</strong> to produce its latent representation z<sub>cond</sub>.</div>
+          <div class="vis">
+            <div class="lattice-label">z<sub>cond</sub></div>
+            <div style="display:flex;gap:2px">
+              <span style="width:10px;height:36px;background:var(--v2w-dk)"></span>
+              <span style="width:10px;height:36px;background:var(--v2w)"></span>
+              <span style="width:10px;height:36px;background:var(--v2w-dk)"></span>
+              <span style="width:10px;height:36px;background:var(--v2w)"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- C: build latent -->
+        <div class="lp-step">
+          <div class="idx">C · BUILD</div>
+          <div class="name">Concat z<sub>cond</sub> with noise · add augment noise</div>
+          <div class="desc">Conditional latents are placed at the temporal head; remaining slots are Gaussian noise. <strong>Augment noise</strong> is added on z<sub>cond</sub> to match the noisy distribution seen in training.</div>
+          <div class="vis">
+            <div class="lattice-label">[z<sub>cond</sub> ‖ ε ]<sub>T</sub></div>
+            <div class="lattice t-large" style="max-width:160px">
+              <div class="px v"></div><div class="px v"></div><div class="px v"></div><div class="px v"></div><div class="px v"></div><div class="px v"></div><div class="px v"></div><div class="px v"></div>
+              <div class="px n5"></div><div class="px n3"></div><div class="px n4"></div><div class="px n2"></div><div class="px n5"></div><div class="px n3"></div><div class="px n4"></div><div class="px n5"></div>
+              <div class="px n2"></div><div class="px n4"></div><div class="px n3"></div><div class="px n5"></div><div class="px n2"></div><div class="px n4"></div><div class="px n3"></div><div class="px n2"></div>
+              <div class="px n4"></div><div class="px n5"></div><div class="px n2"></div><div class="px n3"></div><div class="px n5"></div><div class="px n4"></div><div class="px n3"></div><div class="px n5"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- D: denoise -->
+        <div class="lp-step">
+          <div class="idx">D · DENOISE</div>
+          <div class="name">DiT loop on the joint latent</div>
+          <div class="desc">Same DiT block stack as Text2World; self-attention now spans <em>both</em> the conditioning and noise frames, so the conditioning leaks through every step and constrains the world.</div>
+          <div class="vis">
+            <div class="lattice-label">x<sub>t→t-1</sub> · joint</div>
+            <div class="lattice t-large" style="max-width:160px">
+              <div class="px v"></div><div class="px v"></div><div class="px v"></div><div class="px v"></div><div class="px v"></div><div class="px v"></div><div class="px v"></div><div class="px v"></div>
+              <div class="px v"></div><div class="px n3"></div><div class="px v"></div><div class="px n2"></div><div class="px v"></div><div class="px n3"></div><div class="px v"></div><div class="px v"></div>
+              <div class="px n3"></div><div class="px v"></div><div class="px n2"></div><div class="px v"></div><div class="px v"></div><div class="px n3"></div><div class="px v"></div><div class="px n2"></div>
+              <div class="px v"></div><div class="px v"></div><div class="px v"></div><div class="px n3"></div><div class="px v"></div><div class="px v"></div><div class="px n2"></div><div class="px v"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- E: decode -->
+        <div class="lp-step">
+          <div class="idx">E · DECODE</div>
+          <div class="name">Decode predicted 120 future frames</div>
+          <div class="desc">The conditioning slot is discarded; the predicted latents are decoded by CV8×8×8 to 120 future RGB frames at the same default resolution and frame rate as T2W.</div>
+          <div class="vis">
+            <div class="lattice-label">120 future frames</div>
+            <div class="framestrip" style="flex-wrap:wrap;justify-content:center">
+              <span class="fr cond"></span><span class="fr fresh v"></span><span class="fr fresh v"></span><span class="fr fresh v"></span><span class="fr fresh v"></span><span class="fr fresh v"></span><span class="fr fresh v"></span><span class="fr fresh v"></span>
+              <span class="fr fresh v"></span><span class="fr fresh v"></span><span class="fr fresh v"></span><span class="fr fresh v"></span><span class="fr fresh v"></span><span class="fr fresh v"></span><span class="fr fresh v"></span><span class="fr fresh v"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lp-foot">
+        <span class="chip violet">conditioning via temporal concat</span>
+        <span class="chip code">augment_noise on z<sub>cond</sub></span>
+        <span class="chip code">cond frames = 1 · predicted = 120</span>
+        <span style="color:var(--kui-fg-muted)">Video2World checkpoints are <em>fine-tunes</em> of the corresponding Text2World base; lane share weights everywhere except the input-handling logic.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================ §04 — TOKENIZER ================ -->
+  <section class="section" data-screen-label="05 Tokenizer">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§ 04</span>
+        <h2>Cosmos Tokenizer — the latent space both lanes denoise in</h2>
+      </div>
+      <div class="lede">
+        Diffusion happens in the latent space of the <strong>continuous video
+        tokenizer CV8×8×8</strong>: 8× spatial and 8× temporal compression, 16-dim
+        continuous latent, temporally causal so the same model also tokenizes
+        single images (T = 0).
+      </div>
+    </div>
+
+    <div class="card tok-card">
+
+      <div class="tok-head">
+        <div class="blurb">
+          <h3>Encoder–decoder with a causal, wavelet front-end</h3>
+          <p>
+            The tokenizer is built as a lightweight encoder–decoder that processes
+            only current and past frames. A <strong>2-level 3D Haar wavelet</strong>
+            downsamples the input 4× and groups frames as
+            {<em>x</em><sub>0</sub>, <em>x</em><sub>1:4</sub>, <em>x</em><sub>5:8</sub>, …}; subsequent stages
+            apply <strong>spatio-temporally factorized causal 3D convolutions</strong>
+            (1×<em>k</em>×<em>k</em> spatial → <em>k</em>×1×1 temporal with left-padding <em>k</em>−1) and a causal
+            spatio-temporal self-attention. The decoder mirrors the encoder.
+          </p>
+          <div class="chips">
+            <span class="chip">Continuous: vanilla AE · latent dim 16</span>
+            <span class="chip">Discrete: FSQ (8,8,8,5,5,5) · vocab 64,000</span>
+            <span class="chip teal">CV8×8×8 is the diffusion tokenizer</span>
+          </div>
+        </div>
+
+        <div class="ratios">
+          <div class="h">Released compression ratios (T × H × W)</div>
+          <div class="ratio-grid">
+            <div class="ratio cv">
+              <div class="lbl">CV4×8×8</div>
+              <div class="ratio-val">4·8·8</div>
+              <div class="desc">Continuous · highest fidelity</div>
+            </div>
+            <div class="ratio cv featured">
+              <div class="lbl">CV8×8×8</div>
+              <div class="ratio-val">8·8·8</div>
+              <div class="desc">Continuous · used by Cosmos Diffusion</div>
+            </div>
+            <div class="ratio cv">
+              <div class="lbl">CV8×16×16</div>
+              <div class="ratio-val">8·16·16</div>
+              <div class="desc">Continuous · highest compression</div>
+            </div>
+            <div class="ratio dv">
+              <div class="lbl">DV4×8×8 / 8×8×8 / 8×16×16</div>
+              <div class="ratio-val">×3</div>
+              <div class="desc">Discrete (FSQ) · paired with the autoregressive Cosmos WFM track</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG: input → wavelet → enc → latent → dec → output -->
+      <div class="tok-viz">
+        <svg viewBox="0 0 1140 280" aria-label="Cosmos Tokenizer encoder-decoder pipeline">
+          <defs>
+            <marker id="tarr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#8F8F8F"/>
+            </marker>
+          </defs>
+
+          <!-- Input video -->
+          <g>
+            <text x="20" y="20" font-family="DM Sans,sans-serif" font-size="11" fill="#5E5E5E" font-weight="500">INPUT</text>
+            <text x="20" y="34" font-family="Roboto Mono,monospace" font-size="10" fill="#8F8F8F">x · (1+T) × H × W × 3</text>
+            <!-- 8 frames stacked -->
+            <g transform="translate(20,52)">
+              <rect x="0" y="0" width="120" height="68" fill="#fff" stroke="#D8D8D8"/>
+              <g>
+                <rect x="6" y="6" width="22" height="22" fill="#A05AB4"/>
+                <rect x="32" y="6" width="22" height="22" fill="#8F8F8F"/>
+                <rect x="58" y="6" width="22" height="22" fill="#5E5E5E"/>
+                <rect x="84" y="6" width="22" height="22" fill="#343434"/>
+                <rect x="6" y="34" width="22" height="22" fill="#5E5E5E"/>
+                <rect x="32" y="34" width="22" height="22" fill="#A05AB4"/>
+                <rect x="58" y="34" width="22" height="22" fill="#343434"/>
+                <rect x="84" y="34" width="22" height="22" fill="#8F8F8F"/>
+              </g>
+            </g>
+            <text x="80" y="138" font-family="Roboto Mono,monospace" font-size="10" fill="#8F8F8F" text-anchor="middle">121 frames @ 1280×704</text>
+          </g>
+
+          <line x1="148" y1="86" x2="178" y2="86" stroke="#8F8F8F" marker-end="url(#tarr)"/>
+
+          <!-- Wavelet block -->
+          <g>
+            <rect x="180" y="48" width="120" height="76" fill="#F2F2F2" stroke="#D8D8D8"/>
+            <text x="240" y="72" font-family="DM Sans,sans-serif" font-size="12" fill="#202020" font-weight="500" text-anchor="middle">3D Haar wavelet</text>
+            <text x="240" y="90" font-family="DM Sans,sans-serif" font-size="10" fill="#5E5E5E" text-anchor="middle">2-level · 4× downsample</text>
+            <text x="240" y="108" font-family="Roboto Mono,monospace" font-size="10" fill="#1FA18D" text-anchor="middle">causal grouping</text>
+            <text x="240" y="138" font-family="Roboto Mono,monospace" font-size="9" fill="#8F8F8F" text-anchor="middle">{x₀, x₁:₄, x₅:₈, …}</text>
+          </g>
+
+          <line x1="304" y1="86" x2="334" y2="86" stroke="#8F8F8F" marker-end="url(#tarr)"/>
+
+          <!-- Encoder stages -->
+          <g>
+            <rect x="336" y="40" width="160" height="92" fill="#fff" stroke="#1FA18D" stroke-width="1.5"/>
+            <text x="416" y="60" font-family="DM Sans,sans-serif" font-size="12" fill="#006B5E" font-weight="500" text-anchor="middle">Encoder ℰ</text>
+            <text x="416" y="78" font-family="DM Sans,sans-serif" font-size="10" fill="#5E5E5E" text-anchor="middle">Causal residual blocks</text>
+            <text x="416" y="93" font-family="DM Sans,sans-serif" font-size="10" fill="#5E5E5E" text-anchor="middle">+ downsample (1×k×k → k×1×1)</text>
+            <text x="416" y="108" font-family="DM Sans,sans-serif" font-size="10" fill="#5E5E5E" text-anchor="middle">+ spatio-temporal attn</text>
+            <text x="416" y="124" font-family="Roboto Mono,monospace" font-size="9" fill="#1FA18D" text-anchor="middle">left-pad k−1 = causal</text>
+            <text x="416" y="148" font-family="Roboto Mono,monospace" font-size="9" fill="#8F8F8F" text-anchor="middle">~105M params (CV)</text>
+          </g>
+
+          <line x1="500" y1="86" x2="528" y2="86" stroke="#8F8F8F" marker-end="url(#tarr)"/>
+
+          <!-- Latent representation -->
+          <g>
+            <rect x="530" y="40" width="80" height="92" fill="#0D0D0D" stroke="#202020"/>
+            <text x="570" y="58" font-family="DM Sans,sans-serif" font-size="11" fill="#76B900" text-anchor="middle" font-weight="500">latent z</text>
+            <!-- latent grid -->
+            <g transform="translate(540,68)">
+              <rect x="0" y="0" width="60" height="56" fill="#0D0D0D" stroke="#202020"/>
+              <g fill="#76B900">
+                <rect x="3" y="3" width="6" height="6"/>
+                <rect x="13" y="3" width="6" height="6" opacity="0.5"/>
+                <rect x="23" y="3" width="6" height="6" opacity="0.7"/>
+                <rect x="33" y="3" width="6" height="6" opacity="0.4"/>
+                <rect x="43" y="3" width="6" height="6"/>
+                <rect x="51" y="3" width="6" height="6" opacity="0.6"/>
+                <rect x="3" y="13" width="6" height="6" opacity="0.7"/>
+                <rect x="13" y="13" width="6" height="6"/>
+                <rect x="23" y="13" width="6" height="6" opacity="0.4"/>
+                <rect x="33" y="13" width="6" height="6" opacity="0.8"/>
+                <rect x="43" y="13" width="6" height="6" opacity="0.5"/>
+                <rect x="51" y="13" width="6" height="6"/>
+                <rect x="3" y="23" width="6" height="6" opacity="0.6"/>
+                <rect x="13" y="23" width="6" height="6" opacity="0.9"/>
+                <rect x="23" y="23" width="6" height="6"/>
+                <rect x="33" y="23" width="6" height="6" opacity="0.5"/>
+                <rect x="43" y="23" width="6" height="6" opacity="0.7"/>
+                <rect x="51" y="23" width="6" height="6" opacity="0.4"/>
+                <rect x="3" y="33" width="6" height="6" opacity="0.5"/>
+                <rect x="13" y="33" width="6" height="6" opacity="0.7"/>
+                <rect x="23" y="33" width="6" height="6" opacity="0.4"/>
+                <rect x="33" y="33" width="6" height="6"/>
+                <rect x="43" y="33" width="6" height="6" opacity="0.6"/>
+                <rect x="51" y="33" width="6" height="6" opacity="0.8"/>
+                <rect x="3" y="43" width="6" height="6"/>
+                <rect x="13" y="43" width="6" height="6" opacity="0.4"/>
+                <rect x="23" y="43" width="6" height="6" opacity="0.6"/>
+                <rect x="33" y="43" width="6" height="6" opacity="0.7"/>
+                <rect x="43" y="43" width="6" height="6" opacity="0.5"/>
+                <rect x="51" y="43" width="6" height="6" opacity="0.8"/>
+              </g>
+            </g>
+            <text x="570" y="148" font-family="Roboto Mono,monospace" font-size="9" fill="#8F8F8F" text-anchor="middle">dim=16 (CV) · 6 (DV)</text>
+            <text x="570" y="160" font-family="Roboto Mono,monospace" font-size="9" fill="#8F8F8F" text-anchor="middle">8× space · 8× time</text>
+          </g>
+
+          <line x1="614" y1="86" x2="644" y2="86" stroke="#8F8F8F" stroke-dasharray="3 3"/>
+          <text x="630" y="78" font-family="DM Sans,sans-serif" font-size="9" fill="#76B900" text-anchor="middle">where diffusion happens</text>
+
+          <!-- Decoder -->
+          <g>
+            <rect x="646" y="40" width="160" height="92" fill="#fff" stroke="#1FA18D" stroke-width="1.5"/>
+            <text x="726" y="60" font-family="DM Sans,sans-serif" font-size="12" fill="#006B5E" font-weight="500" text-anchor="middle">Decoder 𝒟</text>
+            <text x="726" y="78" font-family="DM Sans,sans-serif" font-size="10" fill="#5E5E5E" text-anchor="middle">Mirror of ℰ</text>
+            <text x="726" y="93" font-family="DM Sans,sans-serif" font-size="10" fill="#5E5E5E" text-anchor="middle">Upsample + residual blocks</text>
+            <text x="726" y="108" font-family="DM Sans,sans-serif" font-size="10" fill="#5E5E5E" text-anchor="middle">Inverse 3D wavelet at output</text>
+            <text x="726" y="124" font-family="Roboto Mono,monospace" font-size="9" fill="#1FA18D" text-anchor="middle">L1 + perceptual + flow + GM + adv.</text>
+          </g>
+
+          <line x1="810" y1="86" x2="840" y2="86" stroke="#8F8F8F" marker-end="url(#tarr)"/>
+
+          <!-- Output -->
+          <g>
+            <text x="845" y="20" font-family="DM Sans,sans-serif" font-size="11" fill="#5E5E5E" font-weight="500">RECONSTRUCTION</text>
+            <text x="845" y="34" font-family="Roboto Mono,monospace" font-size="10" fill="#8F8F8F">x̂ · (1+T) × H × W × 3</text>
+            <g transform="translate(845,52)">
+              <rect x="0" y="0" width="120" height="68" fill="#fff" stroke="#D8D8D8"/>
+              <g>
+                <rect x="6" y="6" width="22" height="22" fill="#A05AB4" opacity="0.9"/>
+                <rect x="32" y="6" width="22" height="22" fill="#8F8F8F" opacity="0.9"/>
+                <rect x="58" y="6" width="22" height="22" fill="#5E5E5E" opacity="0.9"/>
+                <rect x="84" y="6" width="22" height="22" fill="#343434" opacity="0.9"/>
+                <rect x="6" y="34" width="22" height="22" fill="#5E5E5E" opacity="0.9"/>
+                <rect x="32" y="34" width="22" height="22" fill="#A05AB4" opacity="0.9"/>
+                <rect x="58" y="34" width="22" height="22" fill="#343434" opacity="0.9"/>
+                <rect x="84" y="34" width="22" height="22" fill="#8F8F8F" opacity="0.9"/>
+              </g>
+            </g>
+            <text x="905" y="138" font-family="Roboto Mono,monospace" font-size="10" fill="#8F8F8F" text-anchor="middle">x̂ ≈ x</text>
+          </g>
+
+          <!-- Training stages footer -->
+          <g>
+            <rect x="20" y="190" width="1100" height="74" fill="#FBFCF4" stroke="#bfd99a"/>
+            <text x="40" y="210" font-family="DM Sans,sans-serif" font-size="11" fill="#3e5b07" font-weight="500">TRAINING · two-stage</text>
+            <text x="40" y="232" font-family="Roboto Mono,monospace" font-size="11" fill="#202020">Stage 1:  ℒ₁  +  ℒ_perceptual(VGG-19)</text>
+            <text x="40" y="250" font-family="Roboto Mono,monospace" font-size="11" fill="#202020">Stage 2:  + ℒ_flow (optical-flow consistency)  +  ℒ_Gram (sharpness)  +  adversarial fine-tune</text>
+            <text x="900" y="232" font-family="DM Sans,sans-serif" font-size="11" fill="#5E5E5E" text-anchor="end">joint image+video mini-batches</text>
+            <text x="900" y="250" font-family="DM Sans,sans-serif" font-size="11" fill="#5E5E5E" text-anchor="end">2× – 12× faster than prior SOTA</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="tok-grid">
+        <div class="col">
+          <h4>Latent shape under CV8×8×8</h4>
+          <div class="row"><span class="k">Input video</span><span class="v">121 × 704 × 1280 × 3</span></div>
+          <div class="row"><span class="k">Temporal compression</span><span class="v">8× · (1+T)/8</span></div>
+          <div class="row"><span class="k">Spatial compression</span><span class="v">8× · H/8, W/8</span></div>
+          <div class="row"><span class="k">Latent grid</span><span class="v">16 × 88 × 160 × 16</span></div>
+          <div class="row"><span class="k">Latent dim (C)</span><span class="v">16</span></div>
+        </div>
+        <div class="col">
+          <h4>CV (continuous) vs DV (discrete)</h4>
+          <div class="row"><span class="k">CV formulation</span><span class="v">vanilla autoencoder (no KL)</span></div>
+          <div class="row"><span class="k">DV quantizer</span><span class="v">FSQ levels (8,8,8,5,5,5)</span></div>
+          <div class="row"><span class="k">DV codebook size</span><span class="v">64,000</span></div>
+          <div class="row"><span class="k">Used by Diffusion track</span><span class="v" style="color:var(--kui-brand-green-darker)">CV8×8×8</span></div>
+          <div class="row"><span class="k">Used by AR track</span><span class="v">DV * (paper)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tokenizer quality table -->
+    <div class="card tok-quality" style="margin-top:16px">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--kui-border-default)">
+        <div class="title">Source-reported reconstruction quality</div>
+        <div class="sub" style="font-size:11px;color:var(--kui-fg-muted);margin-top:4px">
+          From the Cosmos Tokenizer paper page (research.nvidia.com). DAVIS / TokenBench, video clips.
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Tokenizer</th><th>Compression (T×H×W)</th><th>Formulation</th><th>PSNR ↑</th><th>SSIM ↑</th><th>rFVD ↓</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="lbl">Cosmos-CV</td><td class="num">4×8×8</td><td>Autoencoder</td><td class="num">32.80</td><td class="num">0.900</td><td class="num">15.93</td></tr>
+          <tr class="featured"><td class="lbl">Cosmos-CV (Diffusion track)</td><td class="num">8×8×8</td><td>Autoencoder</td><td class="num">30.61</td><td class="num">0.856</td><td class="num">30.16</td></tr>
+          <tr><td class="lbl">Cosmos-CV</td><td class="num">8×16×16</td><td>Autoencoder</td><td class="num">27.60</td><td class="num">0.779</td><td class="num">93.82</td></tr>
+          <tr><td class="lbl">Cosmos-DV</td><td class="num">4×8×8</td><td>FSQ</td><td class="num">28.81</td><td class="num">0.818</td><td class="num">37.36</td></tr>
+          <tr><td class="lbl">CogVideoX (baseline)</td><td class="num">4×8×8</td><td>VAE</td><td class="num">29.29</td><td class="num">0.864</td><td class="num">19.58</td></tr>
+          <tr><td class="lbl">OmniTokenizer (baseline)</td><td class="num">4×8×8</td><td>VAE</td><td class="num">22.23</td><td class="num">0.713</td><td class="num">117.66</td></tr>
+        </tbody>
+      </table>
+      <div class="bench-foot">
+        Numbers as reported on the Cosmos Tokenizer paper page. Higher PSNR/SSIM and lower rFVD are better. The 8×8×8 CV row is what the diffusion models reconstruct from.
+      </div>
+    </div>
+  </section>
+
+  <!-- ================ §05 — DIT BLOCK ================ -->
+  <section class="section" data-screen-label="06 DiT block">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§ 05</span>
+        <h2>Inside one DiT block</h2>
+      </div>
+      <div class="lede">
+        Both lanes share the same building block: interleaved <em>self-attention</em>,
+        <em>cross-attention</em> (text), and <em>feed-forward</em> layers, with
+        <em>adaptive layer norm</em> embedding the diffusion timestep <em>t</em>
+        before each sub-layer.
+      </div>
+    </div>
+
+    <div class="dit-grid">
+      <!-- Diagram -->
+      <div class="dit-diagram">
+        <div class="title">Diffusion-transformer block (one of N)</div>
+        <div class="sub">Each layer reads the latent video tokens (post-patchify) and the T5-XXL text embeddings; adaLN is conditioned on the diffusion time-step <em>t</em>.</div>
+
+        <svg viewBox="0 0 640 460" aria-label="DiT block diagram">
+          <defs>
+            <marker id="darr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#8F8F8F"/>
+            </marker>
+          </defs>
+
+          <!-- Inputs -->
+          <g>
+            <!-- latent tokens -->
+            <rect x="20" y="20" width="200" height="32" fill="#202020" stroke="#343434"/>
+            <text x="120" y="40" fill="#E3E3E3" font-family="DM Sans,sans-serif" font-size="11" text-anchor="middle">latent video tokens (B, L<tspan baseline-shift="sub" font-size=".75em">v</tspan>, d)</text>
+
+            <!-- timestep -->
+            <rect x="240" y="20" width="100" height="32" fill="#0D0D0D" stroke="#76B900"/>
+            <text x="290" y="40" fill="#76B900" font-family="DM Sans,sans-serif" font-size="11" text-anchor="middle" font-weight="500">timestep t</text>
+
+            <!-- text embeddings -->
+            <rect x="360" y="20" width="260" height="32" fill="#0D0D0D" stroke="#1FA18D"/>
+            <text x="490" y="40" fill="#1FA18D" font-family="DM Sans,sans-serif" font-size="11" text-anchor="middle" font-weight="500">T5-XXL text embeddings · c_text</text>
+          </g>
+
+          <!-- adaLN 1 -->
+          <line x1="120" y1="56" x2="120" y2="72" stroke="#8F8F8F" marker-end="url(#darr)"/>
+          <line x1="290" y1="56" x2="290" y2="72" stroke="#76B900"/>
+          <line x1="290" y1="76" x2="220" y2="76" stroke="#76B900" stroke-dasharray="2 2"/>
+          <g>
+            <rect x="20" y="80" width="200" height="28" fill="#0D0D0D" stroke="#343434"/>
+            <text x="120" y="98" fill="#E3E3E3" font-family="DM Sans,sans-serif" font-size="11" text-anchor="middle">adaLN (γ, β) from t</text>
+          </g>
+
+          <!-- Self-attention -->
+          <line x1="120" y1="110" x2="120" y2="126" stroke="#8F8F8F" marker-end="url(#darr)"/>
+          <g>
+            <rect x="20" y="130" width="200" height="48" fill="#202020" stroke="#1FA18D"/>
+            <text x="120" y="151" fill="#fff" font-family="DM Sans,sans-serif" font-size="12" text-anchor="middle" font-weight="500">Self-attention</text>
+            <text x="120" y="168" fill="#8F8F8F" font-family="DM Sans,sans-serif" font-size="10" text-anchor="middle">over latent space-time grid</text>
+          </g>
+
+          <!-- residual -->
+          <path d="M 230 56 C 250 56 250 154 230 154" stroke="#5E5E5E" stroke-dasharray="3 3" fill="none"/>
+          <text x="246" y="106" fill="#5E5E5E" font-family="DM Sans,sans-serif" font-size="10">residual</text>
+
+          <!-- adaLN 2 -->
+          <line x1="120" y1="180" x2="120" y2="196" stroke="#8F8F8F" marker-end="url(#darr)"/>
+          <g>
+            <rect x="20" y="200" width="200" height="28" fill="#0D0D0D" stroke="#343434"/>
+            <text x="120" y="218" fill="#E3E3E3" font-family="DM Sans,sans-serif" font-size="11" text-anchor="middle">adaLN (γ, β) from t</text>
+          </g>
+
+          <!-- Cross-attention -->
+          <line x1="120" y1="230" x2="120" y2="246" stroke="#8F8F8F" marker-end="url(#darr)"/>
+          <g>
+            <rect x="20" y="250" width="200" height="48" fill="#202020" stroke="#1FA18D"/>
+            <text x="120" y="271" fill="#fff" font-family="DM Sans,sans-serif" font-size="12" text-anchor="middle" font-weight="500">Cross-attention</text>
+            <text x="120" y="288" fill="#1FA18D" font-family="DM Sans,sans-serif" font-size="10" text-anchor="middle">latent ← T5-XXL · c_text</text>
+          </g>
+
+          <!-- text feed -->
+          <line x1="490" y1="56" x2="490" y2="274" stroke="#1FA18D" stroke-dasharray="3 3"/>
+          <line x1="490" y1="274" x2="224" y2="274" stroke="#1FA18D" stroke-dasharray="3 3" marker-end="url(#darr)"/>
+
+          <!-- adaLN 3 -->
+          <line x1="120" y1="300" x2="120" y2="316" stroke="#8F8F8F" marker-end="url(#darr)"/>
+          <g>
+            <rect x="20" y="320" width="200" height="28" fill="#0D0D0D" stroke="#343434"/>
+            <text x="120" y="338" fill="#E3E3E3" font-family="DM Sans,sans-serif" font-size="11" text-anchor="middle">adaLN (γ, β) from t</text>
+          </g>
+
+          <!-- FFN -->
+          <line x1="120" y1="350" x2="120" y2="366" stroke="#8F8F8F" marker-end="url(#darr)"/>
+          <g>
+            <rect x="20" y="370" width="200" height="48" fill="#202020" stroke="#343434"/>
+            <text x="120" y="392" fill="#fff" font-family="DM Sans,sans-serif" font-size="12" text-anchor="middle" font-weight="500">Feed-forward</text>
+            <text x="120" y="408" fill="#8F8F8F" font-family="DM Sans,sans-serif" font-size="10" text-anchor="middle">MLP · activation: not reported</text>
+          </g>
+
+          <!-- Out -->
+          <line x1="120" y1="420" x2="120" y2="438" stroke="#8F8F8F" marker-end="url(#darr)"/>
+          <text x="120" y="455" fill="#C6C6C6" font-family="Roboto Mono,monospace" font-size="11" text-anchor="middle">→ next of N layers → ε̂ (predicted noise)</text>
+
+          <!-- Annotation column -->
+          <g>
+            <rect x="360" y="80" width="260" height="100" fill="#0D0D0D" stroke="#202020"/>
+            <text x="372" y="100" fill="#76B900" font-family="DM Sans,sans-serif" font-size="11" font-weight="500">adaLN modulation</text>
+            <text x="372" y="118" fill="#C6C6C6" font-family="DM Sans,sans-serif" font-size="10">Time t → (γᵢ, βᵢ) per sub-layer.</text>
+            <text x="372" y="132" fill="#C6C6C6" font-family="DM Sans,sans-serif" font-size="10">Lets the same weights handle</text>
+            <text x="372" y="146" fill="#C6C6C6" font-family="DM Sans,sans-serif" font-size="10">all denoising timesteps.</text>
+            <text x="372" y="168" fill="#8F8F8F" font-family="Roboto Mono,monospace" font-size="10">model card · Jan 2025</text>
+
+            <rect x="360" y="196" width="260" height="100" fill="#0D0D0D" stroke="#202020"/>
+            <text x="372" y="216" fill="#1FA18D" font-family="DM Sans,sans-serif" font-size="11" font-weight="500">Cross-attention to T5-XXL</text>
+            <text x="372" y="234" fill="#C6C6C6" font-family="DM Sans,sans-serif" font-size="10">Text features are read at</text>
+            <text x="372" y="248" fill="#C6C6C6" font-family="DM Sans,sans-serif" font-size="10">every layer, every step —</text>
+            <text x="372" y="262" fill="#C6C6C6" font-family="DM Sans,sans-serif" font-size="10">not just at the input.</text>
+            <text x="372" y="284" fill="#8F8F8F" font-family="Roboto Mono,monospace" font-size="10">model card · Jan 2025</text>
+
+            <rect x="360" y="312" width="260" height="120" fill="#0D0D0D" stroke="#A05AB4"/>
+            <text x="372" y="332" fill="#A05AB4" font-family="DM Sans,sans-serif" font-size="11" font-weight="500">Video2World only</text>
+            <text x="372" y="350" fill="#C6C6C6" font-family="DM Sans,sans-serif" font-size="10">Conditional latent frames are</text>
+            <text x="372" y="364" fill="#C6C6C6" font-family="DM Sans,sans-serif" font-size="10">concatenated along the temporal</text>
+            <text x="372" y="378" fill="#C6C6C6" font-family="DM Sans,sans-serif" font-size="10">axis. Self-attention sees them</text>
+            <text x="372" y="392" fill="#C6C6C6" font-family="DM Sans,sans-serif" font-size="10">alongside the noise tokens.</text>
+            <text x="372" y="408" fill="#A05AB4" font-family="DM Sans,sans-serif" font-size="10">augment_noise bridges</text>
+            <text x="372" y="422" fill="#A05AB4" font-family="DM Sans,sans-serif" font-size="10">train ↔ inference gap.</text>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Spec table -->
+      <div class="card" style="padding:0">
+        <div style="padding:18px 20px 0">
+          <div class="title">DiT-block configuration · what's reported</div>
+          <div class="sub" style="margin-top:4px">
+            From the Cosmos-1.0-Diffusion-7B / 14B Text2World &amp; Video2World HF model cards. Anything not explicitly stated is labeled <em>not reported</em>.
+          </div>
+        </div>
+        <table class="spec-table" style="margin-top:12px">
+          <thead>
+            <tr><th>Field</th><th>Value</th><th>Source</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Type</td><td class="val">Diffusion transformer (DiT)</td><td class="src">Model cards</td></tr>
+            <tr><td>Operates in</td><td class="val">CV8×8×8 latent space</td><td class="src">Paper (Tab. 10)</td></tr>
+            <tr><td>Block layout</td><td class="val">self-attn · cross-attn · FFN, interleaved</td><td class="src">Model cards</td></tr>
+            <tr><td>Time embedding</td><td class="val">adaLN before each sub-layer</td><td class="src">Model cards</td></tr>
+            <tr><td>Text conditioning</td><td class="val">T5-XXL · cross-attention</td><td class="src">Model cards</td></tr>
+            <tr><td>Image / video conditioning (V2W)</td><td class="val">concat along temporal axis + augment noise</td><td class="src">Model cards</td></tr>
+            <tr><td>Parameter scales</td><td class="val">7B · 14B</td><td class="src">Checkpoint names</td></tr>
+            <tr><td>Number of layers (N)</td><td class="val unknown">not reported on model card</td><td class="src">—</td></tr>
+            <tr><td>Hidden dim / heads</td><td class="val unknown">not reported on model card</td><td class="src">—</td></tr>
+            <tr><td>Position embedding</td><td class="val unknown">not reported on model card</td><td class="src">—</td></tr>
+            <tr><td>FFN activation / size</td><td class="val unknown">not reported on model card</td><td class="src">—</td></tr>
+            <tr><td>Sampling steps T (inference)</td><td class="val unknown">not specified (configurable)</td><td class="src">—</td></tr>
+            <tr><td>Weight precision (released)</td><td class="val">BF16</td><td class="src">Model cards</td></tr>
+            <tr><td>Training precision</td><td class="val">BF16 master + FP32 copy</td><td class="src">Paper §5</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================ §06 — PLATFORM COMPONENTS ================ -->
+  <section class="section" data-screen-label="07 Platform">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§ 06</span>
+        <h2>Surrounding platform — only what the diffusion stack actually uses</h2>
+      </div>
+      <div class="lede">
+        Cosmos is a broader Physical-AI platform (tokenizers, world models,
+        guardrails, data pipeline, transfer/post-training recipes). These four
+        components sit directly on the inference path of the diffusion lanes.
+      </div>
+    </div>
+
+    <div class="platform">
+      <div class="plat">
+        <div class="ptag">A · Text encoder</div>
+        <div class="pname">T5-XXL</div>
+        <div class="pdesc">Encodes the user prompt into per-token embeddings. Read by every DiT block via cross-attention. Released checkpoints assume this exact encoder; can be offloaded between runs to free GPU memory.</div>
+        <div class="pmeta">frozen · offloadable</div>
+      </div>
+
+      <div class="plat">
+        <div class="ptag">B · Prompt rewriter</div>
+        <div class="pname">Prompt upsampler</div>
+        <div class="pdesc">Optional LLM-based rewriter that expands a short user prompt into the dense, descriptive style the model was trained on (training prompts were generated by a VLM at video-description time).</div>
+        <div class="pmeta">optional · offloadable</div>
+      </div>
+
+      <div class="plat">
+        <div class="ptag">C · Latent codec</div>
+        <div class="pname">Cosmos Tokenizer · CV8×8×8</div>
+        <div class="pdesc">Encoder turns conditioning images/videos into latents; decoder maps the denoised x<sub>0</sub> back to pixels. Causal, joint image+video, 16-dim continuous AE. See §04 for the full breakdown.</div>
+        <div class="pmeta">~105M params · offloadable</div>
+      </div>
+
+      <div class="plat safety">
+        <div class="ptag">D · Safety</div>
+        <div class="pname">Cosmos-1.0-Guardrail</div>
+        <div class="pdesc">Mandatory pre- and post-filter. Tampering with it (bypass, disable, weaken) terminates the Open Model License grant. Released as a separate HF model card alongside the diffusion checkpoints.</div>
+        <div class="pmeta">required · not optional</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================ §07 — INFERENCE COST + BENCHMARKS ================ -->
+  <section class="section" data-screen-label="08 Inference & evals">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§ 07</span>
+        <h2>Inference cost and source-reported evaluation</h2>
+      </div>
+      <div class="lede">
+        Numbers are taken verbatim from the Cosmos-1.0-Diffusion HF model cards
+        and the Cosmos Tokenizer paper page. NVIDIA publishes detailed
+        evaluation in the technical report; only the source-reported summaries
+        live on this page.
+      </div>
+    </div>
+
+    <!-- Output spec rail -->
+    <div class="outspec" style="margin-bottom:16px">
+      <div class="left">
+        <div class="h">Default output</div>
+        <div class="big">5 s</div>
+        <div class="sub">121 frames · 24 fps · 1280 × 704</div>
+        <div style="margin-top:10px;font-size:12px;color:var(--kui-fg-default);line-height:1.5">
+          Frame rate is configurable in <span class="mono">[12, 40]</span> fps. Resolution is configurable across the five aspect ratios shown.
+        </div>
+      </div>
+      <div class="right">
+        <div class="rh">Supported aspect ratios &amp; resolutions</div>
+        <div class="aspect-rail">
+          <div class="ar r-1x1">
+            <div class="box"></div>
+            <div class="lbl">1 : 1</div>
+            <div class="px">960×960</div>
+          </div>
+          <div class="ar r-4x3">
+            <div class="box"></div>
+            <div class="lbl">4 : 3</div>
+            <div class="px">960×704</div>
+          </div>
+          <div class="ar r-3x4">
+            <div class="box"></div>
+            <div class="lbl">3 : 4</div>
+            <div class="px">704×960</div>
+          </div>
+          <div class="ar r-16x9 featured">
+            <div class="box"></div>
+            <div class="lbl">16 : 9</div>
+            <div class="px">1280×704 · default</div>
+          </div>
+          <div class="ar r-9x16">
+            <div class="box"></div>
+            <div class="lbl">9 : 16</div>
+            <div class="px">704×1280</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bench-grid">
+
+      <!-- GPU memory by offload strategy -->
+      <div class="card bench-card">
+        <div class="bh">
+          <div class="title">Peak GPU memory by offload strategy</div>
+          <div class="sub">7B vs 14B Text2World, single GPU, end-to-end inference.</div>
+        </div>
+        <table class="bench-tab">
+          <thead>
+            <tr><th>Offloads applied</th><th>7B T2W</th><th>14B T2W</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Prompt upsampler</td><td class="num">74.0 GB</td><td class="num">&gt; 80.0 GB</td></tr>
+            <tr><td>+ guardrails</td><td class="num">57.1 GB</td><td class="num">70.5 GB</td></tr>
+            <tr><td>+ T5 encoder</td><td class="num">38.5 GB</td><td class="num">51.9 GB</td></tr>
+            <tr><td>+ tokenizer</td><td class="num">38.3 GB</td><td class="num">51.7 GB</td></tr>
+            <tr class="h7B"><td>+ diffusion model (full offload)</td><td class="num">24.4 GB</td><td class="num">39.0 GB</td></tr>
+          </tbody>
+        </table>
+        <div class="bench-foot">
+          For 24 GB GPUs (e.g. RTX 3090 / 4090) NVIDIA recommends full offload of all modules. Numbers may vary by host system.
+        </div>
+      </div>
+
+      <!-- End-to-end runtime + hardware -->
+      <div class="card bench-card">
+        <div class="bh">
+          <div class="title">End-to-end runtime · single H100</div>
+          <div class="sub">Default 5 s · 121-frame clip at 1280×704; excludes model initialization.</div>
+        </div>
+        <table class="bench-tab">
+          <thead>
+            <tr><th>Variant</th><th>Offloads</th><th>Time</th></tr>
+          </thead>
+          <tbody>
+            <tr class="h7B"><td>7B Text2World</td><td>prompt upsampler</td><td class="num">~ 380 s</td></tr>
+            <tr class="h14B"><td>14B Text2World</td><td>upsampler + guardrails</td><td class="num">~ 590 s</td></tr>
+          </tbody>
+        </table>
+        <div class="bh" style="border-top:1px solid var(--kui-border-default);border-bottom:1px solid var(--kui-border-default)">
+          <div class="title" style="font-size:13px">Supported hardware</div>
+        </div>
+        <table class="bench-tab">
+          <thead>
+            <tr><th>Generation</th><th>Tested</th><th>Precision</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>NVIDIA Blackwell</td><td class="num">✓</td><td class="num">BF16</td></tr>
+            <tr><td>NVIDIA Hopper</td><td class="num">✓</td><td class="num">BF16</td></tr>
+            <tr><td>NVIDIA Ampere</td><td class="num">✓</td><td class="num">BF16</td></tr>
+          </tbody>
+        </table>
+        <div class="bench-foot">
+          NVIDIA reports inference is tested in BF16 only; OS support is Linux.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================ §08 — CAVEATS ================ -->
+  <section class="section" data-screen-label="09 Caveats">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§ 08</span>
+        <h2>Unknowns, caveats, and license boundaries</h2>
+      </div>
+      <div class="lede">
+        Honest scope of what the published sources actually say — and what they
+        leave open. Treat anything labeled here as "not reported" as a gap in
+        the public surface, not a value to guess.
+      </div>
+    </div>
+
+    <div class="caveats">
+      <div class="head">
+        <span class="icon">!</span>
+        <h3>Watch-outs</h3>
+        <span class="sub">Sources: HF model cards (7B/14B · T2W/V2W) · arXiv:2501.03575 · research.nvidia.com/labs/cosmos-lab</span>
+      </div>
+      <ul>
+        <li>
+          <span class="k">DiT internals</span>
+          <span class="v">Exact depth, hidden dim, head count, FFN size, position-embedding scheme, and number of sampling steps are not stated on the HF model cards. Detailed configs live in the technical report and the <span class="mono">NVIDIA/Cosmos</span> repo's config files.</span>
+        </li>
+        <li>
+          <span class="k">Sampler &amp; CFG</span>
+          <span class="v">Specific diffusion sampler, classifier-free-guidance scale, and noise schedule used at inference are not pinned on the model cards. Defaults live in the released code.</span>
+        </li>
+        <li>
+          <span class="k">Augment noise</span>
+          <span class="v">The exact augment-noise distribution applied to conditional latents in Video2World is described qualitatively only ("bridge the training–inference gap"). Hyperparameters live in the released code.</span>
+        </li>
+        <li>
+          <span class="k">Tokenizer for diffusion</span>
+          <span class="v">Verified: Cosmos-1.0-Tokenizer-CV8×8×8 is the tokenizer used by the diffusion track. The discrete DV* tokenizers are paired with the separate autoregressive Cosmos track — they are not the path here.</span>
+        </li>
+        <li>
+          <span class="k">Training data</span>
+          <span class="v">The paper describes a broad Cosmos data pipeline (~20M hours of video at the platform level); the model cards do not break out per-checkpoint pre-training tokens or curation. Treat any per-model number as platform-level unless cited.</span>
+        </li>
+        <li>
+          <span class="k">License</span>
+          <span class="v">NVIDIA Open Model License (Jan 6, 2025) — commercial use, derivatives, and redistribution are permitted; NVIDIA claims no ownership of outputs. Attribution "Built on NVIDIA Cosmos" is required for downstream products.</span>
+        </li>
+        <li>
+          <span class="k">Guardrail</span>
+          <span class="v">Cosmos-1.0-Guardrail is a license condition, not an option. Bypassing or weakening it auto-terminates the grant.</span>
+        </li>
+        <li>
+          <span class="k">Bias mitigation</span>
+          <span class="v">The model cards explicitly state "None" for bias-mitigation measures and protected-class participation in design/testing. Downstream users are responsible for fitness-for-purpose review.</span>
+        </li>
+        <li>
+          <span class="k">Platform ≠ checkpoints</span>
+          <span class="v">The paper's "Cosmos WFM Platform" describes both diffusion and autoregressive WFM lanes plus transfer/post-training recipes. Only the four diffusion checkpoints (7B/14B · T2W/V2W) are scoped on this page; AR-track variants are out of scope.</span>
+        </li>
+        <li>
+          <span class="k">Output realism</span>
+          <span class="v">NVIDIA acknowledges the model "may not follow the video input accurately" (V2W) and may produce content considered toxic, offensive, or indecent if unguarded. The guardrail is the contractual mitigation.</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================ FOOTER ================ -->
+  <footer class="footer">
+    <div>
+      <div style="font-weight:500;color:var(--kui-fg-strong);margin-bottom:4px">NVIDIA Cosmos Diffusion · architecture briefing</div>
+      <div>Single-file, source-grounded. Visual language follows the NVIDIA Kaizen design system.</div>
+    </div>
+    <div class="sources">
+      <a href="https://arxiv.org/abs/2501.03575">arXiv:2501.03575</a>
+      <a href="https://github.com/NVIDIA/Cosmos">github.com/NVIDIA/Cosmos</a>
+      <a href="https://huggingface.co/nvidia/Cosmos-1.0-Diffusion-7B-Text2World">7B-Text2World</a>
+      <a href="https://huggingface.co/nvidia/Cosmos-1.0-Diffusion-14B-Text2World">14B-Text2World</a>
+      <a href="https://research.nvidia.com/labs/cosmos-lab/cosmos-tokenizer/">Cosmos Tokenizer</a>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

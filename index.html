@@ -38,7 +38,7 @@
 
     header {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 280px;
+      grid-template-columns: minmax(0, 1fr) 360px;
       gap: 30px;
       align-items: end;
       padding-bottom: 28px;
@@ -71,7 +71,7 @@
 
     .meter {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
     }
 
@@ -87,6 +87,7 @@
     .card-meta span,
     .path,
     .status,
+    .control-group span,
     .filter-label {
       color: var(--muted);
       font-size: 12px;
@@ -104,10 +105,15 @@
 
     .toolbar {
       display: grid;
+      gap: 12px;
+      margin: 24px 0;
+    }
+
+    .toolbar-top {
+      display: grid;
       grid-template-columns: minmax(220px, 1fr) auto;
       gap: 12px;
       align-items: center;
-      margin: 24px 0;
     }
 
     .search {
@@ -128,7 +134,8 @@
       color: var(--muted);
     }
 
-    input {
+    input,
+    select {
       width: 100%;
       min-width: 0;
       border: 0;
@@ -138,10 +145,51 @@
       font: inherit;
     }
 
+    select {
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .control-panel {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+    }
+
+    .control-group {
+      display: grid;
+      min-width: 0;
+      gap: 6px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+    }
+
+    .view-toggle {
+      display: inline-flex;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    .view-toggle button {
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    .view-toggle button + button {
+      border-left: 1px solid var(--line);
+    }
+
     .filters {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-end;
+      justify-content: flex-start;
       gap: 8px;
     }
 
@@ -164,10 +212,19 @@
       color: #fff;
     }
 
+    button.ghost {
+      background: transparent;
+    }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
       gap: 16px;
+    }
+
+    .grid[hidden],
+    .table-wrap[hidden] {
+      display: none;
     }
 
     .card {
@@ -354,6 +411,53 @@
 
     .empty.visible { display: block; }
 
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+    }
+
+    table {
+      width: 100%;
+      min-width: 860px;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0;
+      text-transform: uppercase;
+      background: #fafaf7;
+    }
+
+    tbody tr:last-child td { border-bottom: 0; }
+
+    td a {
+      color: var(--ink);
+      font-weight: 900;
+      text-decoration: none;
+    }
+
+    td a:hover { color: var(--green); }
+
+    .table-note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
     footer {
       margin-top: 34px;
       padding-top: 20px;
@@ -372,10 +476,10 @@
     @media (max-width: 760px) {
       main { width: min(100% - 24px, 1180px); padding-top: 28px; }
       header,
-      .toolbar {
+      .toolbar-top {
         grid-template-columns: 1fr;
       }
-      .filters { justify-content: flex-start; }
+      .control-panel { grid-template-columns: 1fr; }
       .grid { grid-template-columns: minmax(0, 1fr); }
       .meter,
       .card-meta {
@@ -402,22 +506,99 @@
       <div class="meter" aria-label="Atlas counts">
         <div><span>Pages</span><strong id="page-count">0</strong></div>
         <div><span>Families</span><strong id="family-count">0</strong></div>
+        <div><span>Showing</span><strong id="result-count">0</strong></div>
       </div>
     </header>
 
     <p class="summary">A home surface for model-specific HTML artifacts. Each linked page can bring its own CSS, JavaScript, assets, diagrams, and layout decisions.</p>
 
     <section class="toolbar" aria-label="Atlas controls">
-      <label class="search">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M10.8 4.5a6.3 6.3 0 1 1 0 12.6 6.3 6.3 0 0 1 0-12.6Zm0 1.8a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Zm4.2 9.9 4.1 4.1-1.3 1.3-4.1-4.1 1.3-1.3Z" fill="currentColor"></path>
-        </svg>
-        <input id="search" type="search" placeholder="Search models, families, or tags" autocomplete="off">
-      </label>
+      <div class="toolbar-top">
+        <label class="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M10.8 4.5a6.3 6.3 0 1 1 0 12.6 6.3 6.3 0 0 1 0-12.6Zm0 1.8a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Zm4.2 9.9 4.1 4.1-1.3 1.3-4.1-4.1 1.3-1.3Z" fill="currentColor"></path>
+          </svg>
+          <input id="search" type="search" placeholder="Search models, families, or tags" autocomplete="off">
+        </label>
+        <div class="view-toggle" id="view-toggle" aria-label="View mode">
+          <button type="button" data-view="cards" class="active">Cards</button>
+          <button type="button" data-view="table">Table</button>
+        </div>
+      </div>
+      <div class="control-panel">
+        <label class="control-group">
+          <span>Date</span>
+          <select id="date-filter">
+            <option value="all">Any date</option>
+            <option value="2026">2026</option>
+            <option value="2025">2025</option>
+            <option value="pre-2025">Before 2025</option>
+            <option value="unknown">Unknown date</option>
+          </select>
+        </label>
+        <label class="control-group">
+          <span>Size</span>
+          <select id="size-filter">
+            <option value="all">Any size</option>
+            <option value="lt10">&lt; 10B</option>
+            <option value="10-50">10B-50B</option>
+            <option value="50-200">50B-200B</option>
+            <option value="200-1000">200B-1T</option>
+            <option value="gte1000">1T+</option>
+            <option value="unknown">Unknown size</option>
+          </select>
+        </label>
+        <label class="control-group">
+          <span>Size basis</span>
+          <select id="size-basis">
+            <option value="total">Total params</option>
+            <option value="active">Active params</option>
+          </select>
+        </label>
+        <label class="control-group">
+          <span>Modality</span>
+          <select id="modality-filter">
+            <option value="all">Any modality</option>
+          </select>
+        </label>
+        <label class="control-group">
+          <span>Tag</span>
+          <select id="tag-filter">
+            <option value="all">Any tag</option>
+          </select>
+        </label>
+        <label class="control-group">
+          <span>Sort</span>
+          <select id="sort">
+            <option value="featured">Featured</option>
+            <option value="date-desc">Newest first</option>
+            <option value="date-asc">Oldest first</option>
+            <option value="size-desc">Largest first</option>
+            <option value="size-asc">Smallest first</option>
+            <option value="title-asc">A-Z</option>
+          </select>
+        </label>
+      </div>
       <div class="filters" id="filters" aria-label="Family filters"></div>
     </section>
 
     <section class="grid" id="grid" aria-label="Downloaded model pages"></section>
+    <div class="table-wrap" id="table-wrap" hidden>
+      <table aria-label="Downloaded model pages table">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Family</th>
+            <th>Date</th>
+            <th>Modality</th>
+            <th>Total</th>
+            <th>Active</th>
+            <th>Tags</th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
     <div class="empty" id="empty">No atlas pages match the current filter.</div>
 
     <footer>
@@ -438,8 +619,14 @@
         mark: "DS",
         company: "DeepSeek",
         symbol: "Private",
+        releaseDate: "2026-04-24",
+        dateLabel: "Apr 24, 2026",
+        modality: "text",
+        modalityDetail: "Text-only language model",
         context: "1M tokens",
         size: "1.6T / 49B active",
+        sizeTotalB: 1600,
+        sizeActiveB: 49,
         dataset: "32-33T tokens",
         aaIndex: "52",
         aaLabel: "V4 Pro Max",
@@ -461,8 +648,14 @@
         mark: "Q2",
         company: "Alibaba Cloud",
         symbol: "BABA / 9988.HK",
+        releaseDate: "2024-07",
+        dateLabel: "Jul 2024",
+        modality: "text",
+        modalityDetail: "Text-only language model",
         context: "131K tokens",
         size: "7.07B dense",
+        sizeTotalB: 7.07,
+        sizeActiveB: 7.07,
         dataset: "7T tokens",
         aaIndex: "Not listed",
         aaLabel: "Exact Qwen2 7B",
@@ -484,8 +677,14 @@
         mark: "Q3",
         company: "Alibaba Qwen",
         symbol: "BABA / 9988.HK",
+        releaseDate: "2026-04-15",
+        dateLabel: "Apr 15, 2026",
+        modality: "multimodal-input",
+        modalityDetail: "Text, image, and video input to text",
         context: "262K native / ~1M YaRN",
         size: "35B / 3B active",
+        sizeTotalB: 35,
+        sizeActiveB: 3,
         dataset: "Not reported",
         aaIndex: "Not listed",
         aaLabel: "Public index not confirmed",
@@ -507,8 +706,14 @@
         mark: "QO",
         company: "Alibaba Qwen",
         symbol: "BABA / 9988.HK",
+        releaseDate: "2025-09-22",
+        dateLabel: "Sep 22, 2025",
+        modality: "multimodal-input",
+        modalityDetail: "Text, audio, vision, and AV input to text",
         context: "32K train / 256K reported",
         size: "30B / 3B active",
+        sizeTotalB: 30,
+        sizeActiveB: 3,
         dataset: "~2T multimodal + 20M hours audio",
         aaIndex: "Not listed",
         aaLabel: "Text, audio, vision, and AV benchmark panels",
@@ -530,8 +735,14 @@
         mark: "G4",
         company: "Google DeepMind",
         symbol: "GOOGL / GOOG",
+        releaseDate: "2026-04-02",
+        dateLabel: "Apr 2, 2026",
+        modality: "multimodal-input",
+        modalityDetail: "Text, image, and video input to text",
         context: "256K tokens",
         size: "30.7B dense",
+        sizeTotalB: 30.7,
+        sizeActiveB: 30.7,
         dataset: "Not reported",
         aaIndex: "Not listed",
         aaLabel: "Public index not confirmed",
@@ -553,8 +764,14 @@
         mark: "G4",
         company: "Google DeepMind",
         symbol: "GOOGL / GOOG",
+        releaseDate: "2026-04-02",
+        dateLabel: "Apr 2, 2026",
+        modality: "multimodal-input",
+        modalityDetail: "Text, image, and video input to text",
         context: "256K tokens",
         size: "25.2B / 3.8B active",
+        sizeTotalB: 25.2,
+        sizeActiveB: 3.8,
         dataset: "Not reported",
         aaIndex: "Not listed",
         aaLabel: "Arena, AIME, LiveCodeBench, GPQA panels",
@@ -576,8 +793,14 @@
         mark: "GE",
         company: "Google DeepMind",
         symbol: "GOOGL / GOOG",
+        releaseDate: "2026-04-02",
+        dateLabel: "Apr 2, 2026",
+        modality: "multimodal-input",
+        modalityDetail: "Text, image, and audio input to text",
         context: "128K family tier",
         size: "E4B dense",
+        sizeTotalB: 4,
+        sizeActiveB: 4,
         dataset: "Not reported",
         aaIndex: "Not listed",
         aaLabel: "No primary E4B benchmark table located",
@@ -599,8 +822,14 @@
         mark: "K2",
         company: "Moonshot AI",
         symbol: "Private",
+        releaseDate: "2026-04-20",
+        dateLabel: "Apr 20, 2026",
+        modality: "multimodal-input",
+        modalityDetail: "Text, image, and video input to text",
         context: "256K tokens",
         size: "1T / 32B active",
+        sizeTotalB: 1000,
+        sizeActiveB: 32,
         dataset: "Not reported",
         aaIndex: "Not listed",
         aaLabel: "Public index not confirmed",
@@ -622,8 +851,14 @@
         mark: "G5",
         company: "Z.ai",
         symbol: "Private",
+        releaseDate: "2026-04-07",
+        dateLabel: "Apr 7, 2026",
+        modality: "text",
+        modalityDetail: "Text-only language model",
         context: "200K tokens",
         size: "744B / 40B active",
+        sizeTotalB: 744,
+        sizeActiveB: 40,
         dataset: "28.5T pretrain",
         aaIndex: "Not listed",
         aaLabel: "A69B title; sources report 40B active",
@@ -645,8 +880,14 @@
         mark: "MV",
         company: "Xiaomi",
         symbol: "1810.HK / XIACF",
+        releaseDate: "2026-04-22",
+        dateLabel: "Apr 22, 2026",
+        modality: "text",
+        modalityDetail: "Text-only language model",
         context: "1M tokens",
         size: "1.02T / 42B active",
+        sizeTotalB: 1020,
+        sizeActiveB: 42,
         dataset: "27T pretrain",
         aaIndex: "Not listed",
         aaLabel: "A43B title; sources report 42B active",
@@ -668,8 +909,14 @@
         mark: "GO",
         company: "OpenAI",
         symbol: "Private",
+        releaseDate: "2025-08-04",
+        dateLabel: "Aug 4, 2025",
+        modality: "text",
+        modalityDetail: "Text-only language model",
         context: "131K tokens",
         size: "116.8B / 5.1B active",
+        sizeTotalB: 116.8,
+        sizeActiveB: 5.1,
         dataset: "Not reported",
         aaIndex: "Not listed",
         aaLabel: "Benchmarks not reproduced",
@@ -691,8 +938,14 @@
         mark: "CW",
         company: "NVIDIA",
         symbol: "NVDA",
+        releaseDate: "2025-01",
+        dateLabel: "Jan 2025",
+        modality: "world-video",
+        modalityDetail: "Text/video world-model generation",
         context: "121 frames",
         size: "4B-14B family",
+        sizeTotalB: 14,
+        sizeActiveB: null,
         dataset: "20M hours / 9,000T tokens",
         aaIndex: "Not listed",
         aaLabel: "Video/world-model benchmarks qualitative",
@@ -714,8 +967,14 @@
         mark: "CD",
         company: "NVIDIA",
         symbol: "NVDA",
+        releaseDate: "2025-01-06",
+        dateLabel: "Jan 6, 2025",
+        modality: "world-video",
+        modalityDetail: "Text/image-conditioned world video generation",
         context: "121 frames / 5 sec",
         size: "7B / 14B diffusion",
+        sizeTotalB: 14,
+        sizeActiveB: null,
         dataset: "20M hours platform-level",
         aaIndex: "Not listed",
         aaLabel: "Runtime, memory, and tokenizer quality panels",
@@ -724,6 +983,35 @@
           title: "Text2World + Video2World DiT",
           accent: "#9747ff",
           labels: ["T5-XXL", "CV8x8x8", "DiT", "Guardrail"]
+        }
+      },
+      {
+        title: "Discrete Diffusion VLA Architecture",
+        family: "Robotics",
+        model: "Discrete Diffusion VLA",
+        href: "models/discrete-diffusion-vla/index.html",
+        status: "downloaded",
+        tags: ["VLA", "diffusion", "robotics", "action decoding", "OpenVLA"],
+        note: "Discrete diffusion vision-language-action policy page covering an OpenVLA/Prismatic-7B-style backbone, SigLIP+DINOv2 visual tokens, 7-token action chunks, masked discrete action decoding, four denoising rounds with re-masking, and source-reported LIBERO/SimplerEnv/Bridge results.",
+        mark: "DV",
+        company: "Academic / OpenVLA lineage",
+        symbol: "N/A",
+        releaseDate: "2025-08-27",
+        dateLabel: "Aug 27, 2025",
+        modality: "robotics",
+        modalityDetail: "Vision-language inputs to robot action chunks",
+        context: "7 action tokens",
+        size: "7B-scale backbone",
+        sizeTotalB: 7,
+        sizeActiveB: 7,
+        dataset: "OpenVLA / robotics eval suites",
+        aaIndex: "Not listed",
+        aaLabel: "LIBERO, SimplerEnv, and Bridge benchmark panels",
+        visual: {
+          kind: "hybrid",
+          title: "Masked action-token diffusion",
+          accent: "#1fa18d",
+          labels: ["Vision", "Language", "Action", "Re-mask"]
         }
       },
       {
@@ -737,8 +1025,14 @@
         mark: "SV",
         company: "Sarvam AI",
         symbol: "Private",
+        releaseDate: "2026-03-03",
+        dateLabel: "Mar 3, 2026",
+        modality: "text",
+        modalityDetail: "Text-only language model",
         context: "128K tokens",
         size: "105B / 13B active",
+        sizeTotalB: 105,
+        sizeActiveB: 13,
         dataset: "12T tokens",
         aaIndex: "Not listed",
         aaLabel: "Math, coding, agentic, and Indic benchmark panels",
@@ -760,8 +1054,14 @@
         mark: "L2",
         company: "inclusionAI / Ant Group",
         symbol: "Private",
+        releaseDate: "2026-04-23",
+        dateLabel: "Apr 23, 2026",
+        modality: "text",
+        modalityDetail: "Text-only language model",
         context: "256K evaluated",
         size: "1T / ~50B active",
+        sizeTotalB: 1000,
+        sizeActiveB: 50,
         dataset: "20T+ base tokens",
         aaIndex: "Not listed",
         aaLabel: "Agent, coding, and MRCR benchmark panels",
@@ -783,8 +1083,14 @@
         mark: "Z1",
         company: "Zyphra",
         symbol: "Private",
+        releaseDate: "2026-05-06",
+        dateLabel: "May 6, 2026",
+        modality: "text",
+        modalityDetail: "Text-only language model",
         context: "131K tokens",
         size: "8.4B / 0.76B active",
+        sizeTotalB: 8.4,
+        sizeActiveB: 0.76,
         dataset: "13.86T train",
         aaIndex: "Not listed",
         aaLabel: "Public index not confirmed",
@@ -806,8 +1112,14 @@
         mark: "N3",
         company: "NVIDIA",
         symbol: "NVDA",
+        releaseDate: "2025-12-04",
+        dateLabel: "Dec 4, 2025",
+        modality: "text",
+        modalityDetail: "Text-only language model",
         context: "1M tokens",
         size: "31.6B / 3.6B active",
+        sizeTotalB: 31.6,
+        sizeActiveB: 3.6,
         dataset: "25T pretrain",
         aaIndex: "24",
         aaLabel: "Reasoning",
@@ -829,8 +1141,14 @@
         mark: "ND",
         company: "NVIDIA",
         symbol: "NVDA",
+        releaseDate: "2026-05-19",
+        dateLabel: "May 19, 2026",
+        modality: "text",
+        modalityDetail: "Text diffusion and autoregressive language model",
         context: "Not reported",
         size: "3B / 8B / 14B",
+        sizeTotalB: 14,
+        sizeActiveB: null,
         dataset: "Not reported",
         aaIndex: "Not listed",
         aaLabel: "Self-speculation and decode-speed benchmark panels",
@@ -852,8 +1170,14 @@
         mark: "LD",
         company: "inclusionAI / Ant Group",
         symbol: "Private",
+        releaseDate: "2025-12-10",
+        dateLabel: "Dec 10, 2025",
+        modality: "text",
+        modalityDetail: "Text diffusion language model",
         context: "32,768 tokens",
         size: "100B / 6.1B active",
+        sizeTotalB: 100,
+        sizeActiveB: 6.1,
         dataset: "Not reported",
         aaIndex: "Not listed",
         aaLabel: "Math, code, instruction, and chat benchmark panels",
@@ -875,8 +1199,14 @@
         mark: "NS",
         company: "NVIDIA",
         symbol: "NVDA",
+        releaseDate: "2026-03-11",
+        dateLabel: "Mar 11, 2026",
+        modality: "text",
+        modalityDetail: "Text-only language model",
         context: "1M tokens",
         size: "120.6B / 12.7B active",
+        sizeTotalB: 120.6,
+        sizeActiveB: 12.7,
         dataset: "25T+ pretrain",
         aaIndex: "36",
         aaLabel: "Reasoning",
@@ -898,8 +1228,14 @@
         mark: "NU",
         company: "NVIDIA",
         symbol: "NVDA",
+        releaseDate: "2026",
+        dateLabel: "2026 expected",
+        modality: "text",
+        modalityDetail: "Text-only language model",
         context: "1M tokens",
         size: "550B / 55B active",
+        sizeTotalB: 550,
+        sizeActiveB: 55,
         dataset: "Not reported",
         aaIndex: "Not listed",
         aaLabel: "Base checkpoint; benchmarks pending",
@@ -912,20 +1248,129 @@
       }
     ];
 
-    const state = {
+    const DEFAULT_STATE = {
       query: "",
-      family: "All"
+      family: "All",
+      dateRange: "all",
+      sizeRange: "all",
+      sizeBasis: "total",
+      modality: "all",
+      tag: "all",
+      sort: "featured",
+      view: "cards"
     };
 
+    const state = {...DEFAULT_STATE};
+    const MODALITY_LABELS = {
+      text: "Text only",
+      "multimodal-input": "Multimodal input",
+      "multimodal-output": "Multimodal I/O",
+      "world-video": "World/video"
+    };
+    const availabilityCache = new Map();
+
     const grid = document.querySelector("#grid");
+    const tableWrap = document.querySelector("#table-wrap");
+    const tableBody = document.querySelector("#table-body");
     const filters = document.querySelector("#filters");
     const empty = document.querySelector("#empty");
     const search = document.querySelector("#search");
+    const dateFilter = document.querySelector("#date-filter");
+    const sizeFilter = document.querySelector("#size-filter");
+    const sizeBasis = document.querySelector("#size-basis");
+    const modalityFilter = document.querySelector("#modality-filter");
+    const tagFilter = document.querySelector("#tag-filter");
+    const sortControl = document.querySelector("#sort");
+    const viewToggle = document.querySelector("#view-toggle");
     const pageCount = document.querySelector("#page-count");
     const familyCount = document.querySelector("#family-count");
+    const resultCount = document.querySelector("#result-count");
 
     function families() {
       return ["All", ...Array.from(new Set(ATLAS_PAGES.map((page) => page.family))).sort()];
+    }
+
+    function modalities() {
+      return ["all", ...Array.from(new Set(ATLAS_PAGES.map((page) => page.modality).filter(Boolean))).sort((a, b) => {
+        const order = ["text", "multimodal-input", "multimodal-output", "world-video"];
+        return order.indexOf(a) - order.indexOf(b);
+      })];
+    }
+
+    function tags() {
+      return ["all", ...Array.from(new Set(ATLAS_PAGES.flatMap((page) => page.tags || []))).sort((a, b) => a.localeCompare(b))];
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function safeId(value) {
+      return String(value || "atlas")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+    }
+
+    function dateValue(page) {
+      const value = page.releaseDate;
+      if (!value) return null;
+      if (/^\d{4}$/.test(value)) return Date.parse(`${value}-01-01T00:00:00Z`);
+      if (/^\d{4}-\d{2}$/.test(value)) return Date.parse(`${value}-01T00:00:00Z`);
+      const parsed = Date.parse(`${value}T00:00:00Z`);
+      return Number.isNaN(parsed) ? null : parsed;
+    }
+
+    function dateYear(page) {
+      return page.releaseDate && /^\d{4}/.test(page.releaseDate) ? page.releaseDate.slice(0, 4) : "";
+    }
+
+    function dateLabel(page) {
+      return page.dateLabel || page.releaseDate || "Unknown";
+    }
+
+    function modalityLabel(page) {
+      return MODALITY_LABELS[page.modality] || "Unknown";
+    }
+
+    function pageSizeValue(page) {
+      const value = state.sizeBasis === "active" ? page.sizeActiveB : page.sizeTotalB;
+      return Number.isFinite(value) ? value : null;
+    }
+
+    function formatSize(value) {
+      if (!Number.isFinite(value)) return "Unknown";
+      if (value >= 1000) {
+        const trillions = value / 1000;
+        return `${Number.isInteger(trillions) ? trillions.toFixed(0) : trillions.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}T`;
+      }
+      return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}B`;
+    }
+
+    function matchesDate(page) {
+      if (state.dateRange === "all") return true;
+      const year = dateYear(page);
+      if (state.dateRange === "unknown") return !year;
+      if (state.dateRange === "pre-2025") return year && Number(year) < 2025;
+      return year === state.dateRange;
+    }
+
+    function matchesSize(page) {
+      if (state.sizeRange === "all") return true;
+      const value = pageSizeValue(page);
+      if (state.sizeRange === "unknown") return value === null;
+      if (value === null) return false;
+      if (state.sizeRange === "lt10") return value < 10;
+      if (state.sizeRange === "10-50") return value >= 10 && value < 50;
+      if (state.sizeRange === "50-200") return value >= 50 && value < 200;
+      if (state.sizeRange === "200-1000") return value >= 200 && value < 1000;
+      if (state.sizeRange === "gte1000") return value >= 1000;
+      return true;
     }
 
     function pageText(page) {
@@ -939,6 +1384,10 @@
         page.symbol,
         page.context,
         page.size,
+        page.releaseDate,
+        page.dateLabel,
+        page.modality,
+        page.modalityDetail,
         page.dataset,
         page.aaIndex,
         page.aaLabel,
@@ -948,11 +1397,32 @@
 
     function filteredPages() {
       const query = state.query.trim().toLowerCase();
-      return ATLAS_PAGES.filter((page) => {
+      const pages = ATLAS_PAGES.map((page, index) => ({...page, index})).filter((page) => {
         const familyMatch = state.family === "All" || page.family === state.family;
+        const modalityMatch = state.modality === "all" || page.modality === state.modality;
+        const tagMatch = state.tag === "all" || (page.tags || []).includes(state.tag);
         const queryMatch = !query || pageText(page).includes(query);
-        return familyMatch && queryMatch;
+        return familyMatch && modalityMatch && tagMatch && matchesDate(page) && matchesSize(page) && queryMatch;
       });
+      return pages.sort(sortPages);
+    }
+
+    function compareNullable(a, b, direction = 1) {
+      const aMissing = a === null || a === undefined || Number.isNaN(a);
+      const bMissing = b === null || b === undefined || Number.isNaN(b);
+      if (aMissing && bMissing) return 0;
+      if (aMissing) return 1;
+      if (bMissing) return -1;
+      return (a - b) * direction;
+    }
+
+    function sortPages(a, b) {
+      if (state.sort === "date-desc") return compareNullable(dateValue(a), dateValue(b), -1) || a.index - b.index;
+      if (state.sort === "date-asc") return compareNullable(dateValue(a), dateValue(b), 1) || a.index - b.index;
+      if (state.sort === "size-desc") return compareNullable(pageSizeValue(a), pageSizeValue(b), -1) || a.index - b.index;
+      if (state.sort === "size-asc") return compareNullable(pageSizeValue(a), pageSizeValue(b), 1) || a.index - b.index;
+      if (state.sort === "title-asc") return a.title.localeCompare(b.title);
+      return a.index - b.index;
     }
 
     function renderFilters() {
@@ -970,20 +1440,99 @@
       }
     }
 
+    function renderModalityOptions() {
+      modalityFilter.innerHTML = "";
+      for (const modality of modalities()) {
+        const option = document.createElement("option");
+        option.value = modality;
+        option.textContent = modality === "all" ? "Any modality" : MODALITY_LABELS[modality] || modality;
+        modalityFilter.append(option);
+      }
+    }
+
+    function renderTagOptions() {
+      tagFilter.innerHTML = "";
+      for (const tag of tags()) {
+        const option = document.createElement("option");
+        option.value = tag;
+        option.textContent = tag === "all" ? "Any tag" : tag;
+        tagFilter.append(option);
+      }
+    }
+
+    function syncControls() {
+      search.value = state.query;
+      dateFilter.value = state.dateRange;
+      sizeFilter.value = state.sizeRange;
+      sizeBasis.value = state.sizeBasis;
+      modalityFilter.value = state.modality;
+      tagFilter.value = state.tag;
+      sortControl.value = state.sort;
+      for (const button of viewToggle.querySelectorAll("button")) {
+        button.classList.toggle("active", button.dataset.view === state.view);
+      }
+    }
+
+    function readStateFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      state.query = params.get("q") || DEFAULT_STATE.query;
+      state.family = params.get("family") || DEFAULT_STATE.family;
+      state.dateRange = params.get("date") || DEFAULT_STATE.dateRange;
+      state.sizeRange = params.get("size") || DEFAULT_STATE.sizeRange;
+      state.sizeBasis = params.get("basis") || DEFAULT_STATE.sizeBasis;
+      state.modality = params.get("modality") || DEFAULT_STATE.modality;
+      state.tag = params.get("tag") || DEFAULT_STATE.tag;
+      state.sort = params.get("sort") || DEFAULT_STATE.sort;
+      state.view = params.get("view") || DEFAULT_STATE.view;
+      normalizeState();
+    }
+
+    function hasOption(select, value) {
+      return Array.from(select.options).some((option) => option.value === value);
+    }
+
+    function normalizeState() {
+      if (!families().includes(state.family)) state.family = DEFAULT_STATE.family;
+      if (!hasOption(dateFilter, state.dateRange)) state.dateRange = DEFAULT_STATE.dateRange;
+      if (!hasOption(sizeFilter, state.sizeRange)) state.sizeRange = DEFAULT_STATE.sizeRange;
+      if (!hasOption(sizeBasis, state.sizeBasis)) state.sizeBasis = DEFAULT_STATE.sizeBasis;
+      if (!hasOption(modalityFilter, state.modality)) state.modality = DEFAULT_STATE.modality;
+      if (!hasOption(tagFilter, state.tag)) state.tag = DEFAULT_STATE.tag;
+      if (!hasOption(sortControl, state.sort)) state.sort = DEFAULT_STATE.sort;
+      if (!["cards", "table"].includes(state.view)) state.view = DEFAULT_STATE.view;
+    }
+
+    function writeStateToUrl() {
+      const params = new URLSearchParams();
+      if (state.query !== DEFAULT_STATE.query) params.set("q", state.query);
+      if (state.family !== DEFAULT_STATE.family) params.set("family", state.family);
+      if (state.dateRange !== DEFAULT_STATE.dateRange) params.set("date", state.dateRange);
+      if (state.sizeRange !== DEFAULT_STATE.sizeRange) params.set("size", state.sizeRange);
+      if (state.sizeBasis !== DEFAULT_STATE.sizeBasis) params.set("basis", state.sizeBasis);
+      if (state.modality !== DEFAULT_STATE.modality) params.set("modality", state.modality);
+      if (state.tag !== DEFAULT_STATE.tag) params.set("tag", state.tag);
+      if (state.sort !== DEFAULT_STATE.sort) params.set("sort", state.sort);
+      if (state.view !== DEFAULT_STATE.view) params.set("view", state.view);
+      const query = params.toString();
+      const next = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+      window.history.replaceState(null, "", next);
+    }
+
     function modelVisual(page) {
       const visual = page.visual || {};
       const accent = visual.accent || "#76b900";
       const labels = visual.labels || [];
       const labelText = (index, fallback) => labels[index] || fallback;
+      const gradientId = `cardGradient-${safeId(page.href || page.model)}`;
       const common = `
         <defs>
-          <linearGradient id="cardGradient-${page.mark}" x1="0" x2="1" y1="0" y2="1">
+          <linearGradient id="${gradientId}" x1="0" x2="1" y1="0" y2="1">
             <stop offset="0" stop-color="${accent}" stop-opacity="0.22"></stop>
             <stop offset="1" stop-color="#111216" stop-opacity="0.05"></stop>
           </linearGradient>
         </defs>
-        <rect x="0" y="0" width="420" height="138" rx="6" fill="url(#cardGradient-${page.mark})"></rect>
-        <text x="18" y="28" class="visual-label" fill="#111216">${visual.title || page.model}</text>
+        <rect x="0" y="0" width="420" height="138" rx="6" fill="url(#${gradientId})"></rect>
+        <text x="18" y="28" class="visual-label" fill="#111216">${escapeHtml(visual.title || page.model)}</text>
       `;
 
       if (visual.kind === "dense") {
@@ -1084,43 +1633,81 @@
       const link = document.createElement("a");
       link.className = "card";
       link.href = page.href;
+      const tags = (page.tags || []).join(", ") || "HTML artifact";
+      const aaText = `${page.aaIndex || "Unknown"} ${page.aaLabel ? `- ${page.aaLabel}` : ""}`;
       link.innerHTML = `
         <figure class="model-visual">${modelVisual(page)}</figure>
         <div class="card-top">
           <div>
-            <h2>${page.title}</h2>
+            <h2>${escapeHtml(page.title)}</h2>
             <div class="company-line">
-              <span>${page.company || page.family}</span>
-              <span class="symbol">${page.symbol || "Private"}</span>
+              <span>${escapeHtml(page.company || page.family)}</span>
+              <span class="symbol">${escapeHtml(page.symbol || "Private")}</span>
             </div>
             <div class="status-row">
-              <span class="status">${page.status || "page"}</span>
+              <span class="status">${escapeHtml(page.status || "page")}</span>
               <span class="status aa-pill">AA ${page.aaIndex || "n/a"}</span>
-              <span class="path">${page.href}</span>
+              <span class="path">${escapeHtml(page.href)}</span>
             </div>
           </div>
-          <div class="mark">${page.mark || page.family.slice(0, 2).toUpperCase()}</div>
+          <div class="mark">${escapeHtml(page.mark || page.family.slice(0, 2).toUpperCase())}</div>
         </div>
-        <p>${page.note || ""}</p>
+        <p>${escapeHtml(page.note || "")}</p>
         <div class="card-meta">
-          <div><span>Context</span><strong>${page.context || "Unknown"}</strong></div>
-          <div><span>Model size</span><strong>${page.size || "Unknown"}</strong></div>
-          <div><span>Dataset size</span><strong>${page.dataset || "Unknown"}</strong></div>
-          <div><span>AA Index</span><strong>${page.aaIndex || "Unknown"} ${page.aaLabel ? `- ${page.aaLabel}` : ""}</strong></div>
-          <div class="wide"><span>Tags</span><strong>${(page.tags || []).join(", ") || "HTML artifact"}</strong></div>
+          <div><span>Release/report</span><strong>${escapeHtml(dateLabel(page))}</strong></div>
+          <div><span>Modality</span><strong>${escapeHtml(modalityLabel(page))}</strong></div>
+          <div><span>Context</span><strong>${escapeHtml(page.context || "Unknown")}</strong></div>
+          <div><span>Model size</span><strong>${escapeHtml(page.size || "Unknown")}</strong></div>
+          <div><span>Dataset size</span><strong>${escapeHtml(page.dataset || "Unknown")}</strong></div>
+          <div><span>AA Index</span><strong>${escapeHtml(aaText)}</strong></div>
+          <div class="wide"><span>Tags</span><strong>${escapeHtml(tags)}</strong></div>
         </div>
       `;
       return link;
     }
 
+    function tableRow(page) {
+      const tr = document.createElement("tr");
+      const tags = (page.tags || []).join(", ");
+      tr.innerHTML = `
+        <td>
+          <a href="${escapeHtml(page.href)}">${escapeHtml(page.title)}</a>
+          <div class="table-note">${escapeHtml(page.note || "")}</div>
+        </td>
+        <td>${escapeHtml(page.family)}</td>
+        <td>${escapeHtml(dateLabel(page))}</td>
+        <td>${escapeHtml(modalityLabel(page))}<div class="table-note">${escapeHtml(page.modalityDetail || "")}</div></td>
+        <td>${escapeHtml(formatSize(page.sizeTotalB))}</td>
+        <td>${escapeHtml(formatSize(page.sizeActiveB))}</td>
+        <td>${escapeHtml(tags || "HTML artifact")}</td>
+      `;
+      return tr;
+    }
+
+    function renderTable(pages) {
+      tableBody.innerHTML = "";
+      for (const page of pages) tableBody.append(tableRow(page));
+    }
+
     async function markAvailability() {
+      if (state.view !== "cards") return;
       await Promise.all(Array.from(document.querySelectorAll(".card")).map(async (cardNode) => {
         const badge = cardNode.querySelector(".status");
+        const href = cardNode.getAttribute("href");
+        if (availabilityCache.has(href)) {
+          const cached = availabilityCache.get(href);
+          if (cached.className) badge.classList.add(cached.className);
+          badge.textContent = cached.text;
+          return;
+        }
         try {
-          const response = await fetch(cardNode.getAttribute("href"), {method: "HEAD"});
-          badge.classList.add(response.ok ? "available" : "missing");
-          badge.textContent = response.ok ? "available" : "missing";
+          const response = await fetch(href, {method: "HEAD"});
+          const status = response.ok ? {className: "available", text: "available"} : {className: "missing", text: "missing"};
+          availabilityCache.set(href, status);
+          badge.classList.add(status.className);
+          badge.textContent = status.text;
         } catch {
+          availabilityCache.set(href, {className: "", text: "local path"});
           badge.textContent = "local path";
         }
       }));
@@ -1128,11 +1715,17 @@
 
     function render() {
       const pages = filteredPages();
+      syncControls();
+      writeStateToUrl();
       grid.innerHTML = "";
       for (const page of pages) grid.append(card(page));
+      renderTable(pages);
+      grid.hidden = state.view !== "cards";
+      tableWrap.hidden = state.view !== "table";
       empty.classList.toggle("visible", pages.length === 0);
       pageCount.textContent = String(ATLAS_PAGES.length);
       familyCount.textContent = String(families().length - 1);
+      resultCount.textContent = String(pages.length);
       renderFilters();
       markAvailability();
     }
@@ -1142,6 +1735,46 @@
       render();
     });
 
+    dateFilter.addEventListener("change", () => {
+      state.dateRange = dateFilter.value;
+      render();
+    });
+
+    sizeFilter.addEventListener("change", () => {
+      state.sizeRange = sizeFilter.value;
+      render();
+    });
+
+    sizeBasis.addEventListener("change", () => {
+      state.sizeBasis = sizeBasis.value;
+      render();
+    });
+
+    modalityFilter.addEventListener("change", () => {
+      state.modality = modalityFilter.value;
+      render();
+    });
+
+    tagFilter.addEventListener("change", () => {
+      state.tag = tagFilter.value;
+      render();
+    });
+
+    sortControl.addEventListener("change", () => {
+      state.sort = sortControl.value;
+      render();
+    });
+
+    viewToggle.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-view]");
+      if (!button) return;
+      state.view = button.dataset.view;
+      render();
+    });
+
+    renderModalityOptions();
+    renderTagOptions();
+    readStateFromUrl();
     render();
   </script>
 </body>

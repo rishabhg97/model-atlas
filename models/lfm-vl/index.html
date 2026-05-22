@@ -1,0 +1,1297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Liquid LFM2-VL And LFM2.5-VL Architecture</title>
+<link rel="stylesheet" href="kaizen.css">
+<style>
+  /* =========================================================
+     Page chrome
+     ========================================================= */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font: var(--kui-body);
+    color: var(--kui-fg-strong);
+    background: var(--kui-bg-canvas);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a { color: var(--kui-info); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Top bar */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; gap: var(--kui-space-md);
+    padding: 10px var(--kui-space-ml);
+    background: var(--kui-n900); color: var(--kui-fg-inverse);
+    border-bottom: 1px solid var(--kui-n800);
+  }
+  .topbar .eye {
+    width: 22px; height: 22px;
+    background: var(--kui-brand-eye-green);
+    -webkit-mask: radial-gradient(circle at 30% 50%, transparent 28%, #000 29%) ;
+            mask: radial-gradient(circle at 30% 50%, transparent 28%, #000 29%) ;
+  }
+  .topbar .wm {
+    font: var(--kui-button);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--kui-fg-inverse);
+  }
+  .topbar .crumbs {
+    font: var(--kui-text-sm);
+    color: #C6C6C6;
+    margin-left: var(--kui-space-md);
+  }
+  .topbar .crumbs b { color: #F2F2F2; font-weight: 500; }
+  .topbar .right {
+    margin-left: auto;
+    display: flex; gap: var(--kui-space-ms); align-items: center;
+    font: var(--kui-text-sm); color: #C6C6C6;
+  }
+  .topbar .right a { color: #9ACCF2; }
+  .topbar .right a.atlas-home {
+    color: var(--kui-fg-inverse);
+    border: 1px solid var(--kui-n700);
+    border-radius: var(--kui-radius-xs);
+    padding: 3px 8px;
+  }
+  .topbar .right a.atlas-home:hover { background: var(--kui-n800); text-decoration: none; }
+
+  /* Page layout: sidenav + main */
+  .shell {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    min-height: calc(100vh - 45px);
+  }
+  .sidenav {
+    position: sticky; top: 45px; align-self: start;
+    height: calc(100vh - 45px); overflow-y: auto;
+    border-right: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    padding: var(--kui-space-ml) 0;
+  }
+  .sidenav .nav-section {
+    display: block;
+    font: var(--kui-overline);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--kui-fg-muted);
+    padding: var(--kui-space-md) var(--kui-space-ml) var(--kui-space-sm);
+  }
+  .sidenav a {
+    display: block;
+    padding: 6px var(--kui-space-ml);
+    color: var(--kui-fg-strong);
+    font: var(--kui-text);
+    border-left: 2px solid transparent;
+  }
+  .sidenav a:hover { background: var(--kui-n050); text-decoration: none; }
+  .sidenav a.active { border-left-color: var(--kui-brand-green); color: var(--kui-fg-strong); background: var(--kui-n050); }
+
+  .main { padding: var(--kui-space-xl) var(--kui-space-xl) var(--kui-space-xxl); max-width: 1180px; }
+
+  /* Headings */
+  h1.display { font: 700 36px/1.1 var(--kui-font-display); letter-spacing: -0.5px; margin: 0; color: var(--kui-fg-strong); }
+  h2.section { font: 500 22px/1.25 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0; }
+  h3 { font: 500 16px/1.25 var(--kui-font-sans); margin: 0; }
+  h4 { font: 500 14px/1.25 var(--kui-font-sans); margin: 0; }
+
+  .eyebrow {
+    font: var(--kui-overline);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    color: var(--kui-fg-muted);
+  }
+  .muted { color: var(--kui-fg-muted); }
+  .mono { font-family: var(--kui-font-mono); }
+  .num { font-family: var(--kui-font-mono); font-variant-numeric: tabular-nums; }
+
+  section.block { padding: var(--kui-space-xl) 0; border-top: 1px solid var(--kui-border-default); }
+  section.block:first-of-type { border-top: 0; padding-top: 0; }
+  section.block > .head {
+    display: flex; align-items: baseline; gap: var(--kui-space-md);
+    margin-bottom: var(--kui-space-ml);
+  }
+  section.block > .head .num-label {
+    font: 500 12px/1 var(--kui-font-mono);
+    color: var(--kui-fg-muted);
+    background: var(--kui-n050);
+    padding: 4px 8px;
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-xs);
+  }
+  section.block > .lede { color: var(--kui-fg-default); margin: -8px 0 var(--kui-space-ml); font: var(--kui-body-md); max-width: 78ch; }
+
+  /* Cards */
+  .card {
+    background: var(--kui-bg-mid);
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-sm);
+    padding: var(--kui-space-md);
+  }
+  .card h4 { margin: 0 0 var(--kui-space-sm); }
+
+  .grid { display: grid; gap: var(--kui-space-md); }
+  .grid.cols-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .grid.cols-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .grid.cols-4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  @media (max-width: 960px) {
+    .grid.cols-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .grid.cols-3 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .shell { grid-template-columns: 1fr; }
+    .sidenav { display: none; }
+  }
+
+  /* Tag chips */
+  .tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px;
+    font: 500 11px/1.4 var(--kui-font-sans);
+    letter-spacing: .02em;
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-xs);
+    background: var(--kui-bg-mid);
+    color: var(--kui-fg-default);
+  }
+  .tag.green { background: var(--kui-success-bg); border-color: #C2DDA0; color: #2E5400; }
+  .tag.blue  { background: var(--kui-info-bg); border-color: #C9E1F3; color: var(--kui-info-text); }
+  .tag.teal  { background: #E2F4F1; border-color: #B6DCD3; color: var(--kui-accent-teal-dk); }
+  .tag.amber { background: var(--kui-warning-bg); border-color: #F2D2B4; color: var(--kui-warning); }
+  .tag.gray  { background: var(--kui-n050); color: var(--kui-fg-muted); }
+  .tag.unknown { background: #FBEEFE; border-color: #E5C4EC; color: #6A2B7A; font-style: italic; }
+
+  /* Identity hero */
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: var(--kui-space-ml);
+    border: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    border-radius: var(--kui-radius-sm);
+    overflow: hidden;
+  }
+  .hero .ident { padding: var(--kui-space-ml); }
+  .hero .ident .title-row { display: flex; align-items: flex-start; gap: var(--kui-space-md); }
+  .hero .ident .badge {
+    width: 56px; height: 56px; flex: 0 0 56px;
+    background: #050505; color: var(--kui-brand-green);
+    display: grid; place-items: center;
+    border-radius: 2px;
+    font: 700 12px/1 var(--kui-font-mono);
+    letter-spacing: 0;
+  }
+  .hero .ident .badge svg { width: 36px; height: 36px; }
+  .hero h1.display { margin-top: 4px; }
+  .hero .ident .sub {
+    margin-top: 6px; color: var(--kui-fg-muted);
+    font: 400 16px/1.4 var(--kui-font-sans);
+  }
+  .hero .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--kui-space-md); }
+  .hero .specs {
+    background: var(--kui-n050);
+    padding: var(--kui-space-ml);
+    border-left: 1px solid var(--kui-border-default);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--kui-space-md) var(--kui-space-md);
+  }
+  .hero .specs .kv .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: .08em; color: var(--kui-fg-muted); }
+  .hero .specs .kv .v { font: 500 14px/1.35 var(--kui-font-sans); margin-top: 4px; }
+
+  /* Variant matrix table */
+  table.matrix {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--kui-bg-mid);
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-sm);
+    overflow: hidden;
+  }
+  table.matrix th, table.matrix td {
+    text-align: left;
+    padding: 10px 14px;
+    font: var(--kui-body);
+    border-bottom: 1px solid var(--kui-border-subtle);
+    vertical-align: top;
+  }
+  table.matrix thead th {
+    font: 500 12px/1.3 var(--kui-font-sans);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--kui-fg-muted);
+    background: var(--kui-n050);
+    border-bottom: 1px solid var(--kui-border-default);
+  }
+  table.matrix tbody tr:last-child td { border-bottom: 0; }
+  table.matrix td.name { font-weight: 500; }
+  table.matrix td.name .fam {
+    display: inline-block; font: var(--kui-text-sm); color: var(--kui-fg-muted);
+    margin-top: 2px;
+  }
+
+  /* Bench bars */
+  .bench { width: 100%; border-collapse: collapse; }
+  .bench th, .bench td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--kui-border-subtle);
+    font: var(--kui-body);
+    text-align: left;
+  }
+  .bench thead th {
+    font: 500 12px/1.3 var(--kui-font-sans);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--kui-fg-muted);
+    background: var(--kui-n050);
+  }
+  .bench td.num { font-family: var(--kui-font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+  .bench td.bar-cell { width: 50%; padding-right: var(--kui-space-md); }
+  .bar {
+    position: relative;
+    height: 10px;
+    background: var(--kui-n050);
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-xs);
+  }
+  .bar > i {
+    position: absolute; top: 0; left: 0; bottom: 0;
+    background: var(--kui-brand-green);
+    display: block;
+  }
+  .bar.gray  > i { background: var(--kui-n400); }
+  .bar.dim   > i { background: var(--kui-n300); }
+  .bar.dotted{ background-image: linear-gradient(135deg, var(--kui-n100) 25%, transparent 25%) , linear-gradient(225deg, var(--kui-n100) 25%, transparent 25%); background-size: 4px 4px; }
+  .bench tr.hi td { background: #F7FBED; }
+
+  /* Map / diagram */
+  .map {
+    background: var(--kui-bg-mid);
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-sm);
+    padding: var(--kui-space-md);
+  }
+  .map svg { width: 100%; height: auto; display: block; }
+
+  /* generic note */
+  .note {
+    font: var(--kui-caption);
+    color: var(--kui-fg-muted);
+    margin-top: var(--kui-space-sm);
+  }
+  .callout {
+    border: 1px solid var(--kui-border-default);
+    border-left: 3px solid var(--kui-brand-green);
+    background: var(--kui-n050);
+    padding: var(--kui-space-md);
+    font: var(--kui-body);
+  }
+  .callout.amber { border-left-color: var(--kui-warning); }
+  .callout.unknown { border-left-color: #A05AB4; }
+
+  /* Inline diagram: tile grid */
+  .tilegrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    width: 220px;
+    aspect-ratio: 1 / 1;
+    padding: 4px;
+    border: 1px solid var(--kui-border-default);
+    background: var(--kui-n050);
+    border-radius: var(--kui-radius-xs);
+  }
+  .tilegrid .t {
+    background: var(--kui-bg-mid);
+    border: 1px solid var(--kui-border-default);
+    display: grid; place-items: center;
+    font: 500 11px/1 var(--kui-font-mono);
+    color: var(--kui-fg-muted);
+  }
+  .tilegrid .t.thumb {
+    background: #050505; color: var(--kui-brand-green);
+  }
+
+  /* token stream */
+  .stream {
+    border: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    padding: var(--kui-space-sm);
+    border-radius: var(--kui-radius-xs);
+    overflow-x: auto;
+    white-space: nowrap;
+    font: 400 12px/1.4 var(--kui-font-mono);
+  }
+  .stream .tok {
+    display: inline-block;
+    padding: 3px 6px;
+    margin-right: 4px;
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-xs);
+    background: var(--kui-bg-mid);
+  }
+  .stream .tok.special { background: #050505; color: var(--kui-brand-green); border-color: #050505; }
+  .stream .tok.img    { background: var(--kui-info-bg); color: var(--kui-info-text); border-color: #C9E1F3; }
+  .stream .tok.text   { background: var(--kui-n050); }
+  .stream .tok.gen    { background: var(--kui-success-bg); border-color: #C2DDA0; color: #2E5400; }
+
+  /* Pipeline cards */
+  .pipe {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: var(--kui-space-md);
+  }
+  .pipe .rail {
+    position: relative;
+  }
+  .pipe .rail::before {
+    content: ""; position: absolute; left: 13px; top: 14px; bottom: 0;
+    width: 2px; background: var(--kui-border-default);
+  }
+  .pipe .row { display: contents; }
+  .pipe .dot {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 2px solid var(--kui-fg-strong);
+    background: var(--kui-bg-mid);
+    display: grid; place-items: center;
+    font: 700 11px/1 var(--kui-font-mono);
+    color: var(--kui-fg-strong);
+    position: relative; z-index: 1;
+  }
+  .pipe .step { padding-bottom: var(--kui-space-md); }
+  .pipe .step h4 { margin-bottom: 2px; }
+  .pipe .step p  { margin: 4px 0 0; color: var(--kui-fg-default); }
+  .pipe .step .kvs { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; font: var(--kui-caption); color: var(--kui-fg-muted); }
+  .pipe .step .kvs b { color: var(--kui-fg-strong); font-weight: 500; }
+
+  /* Code block */
+  pre.code {
+    background: #050505;
+    color: #E3E3E3;
+    padding: var(--kui-space-md);
+    border-radius: var(--kui-radius-sm);
+    font: 400 12px/1.55 var(--kui-font-mono);
+    overflow-x: auto;
+    margin: 0;
+  }
+  pre.code .kw  { color: #9ACCF2; }
+  pre.code .str { color: #C2E078; }
+  pre.code .com { color: #8F8F8F; }
+  pre.code .pun { color: #C6C6C6; }
+  pre.code .num { color: #F2A65A; }
+
+  /* Caveat list */
+  ul.crisp { margin: 0; padding-left: 18px; }
+  ul.crisp li { margin: 4px 0; }
+  ul.crisp li::marker { color: var(--kui-fg-muted); }
+
+  /* Source list */
+  .sources li { margin: 6px 0; font: var(--kui-body); }
+  .sources li .url { font: 400 12px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); display: block; }
+
+  /* Compact key/value list */
+  .klist {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    column-gap: var(--kui-space-md);
+    row-gap: 6px;
+    font: var(--kui-body);
+  }
+  .klist .k { color: var(--kui-fg-muted); }
+  .klist .v { color: var(--kui-fg-strong); }
+  .klist .v.mono { font-family: var(--kui-font-mono); }
+
+  /* footer */
+  .footer {
+    margin-top: var(--kui-space-xxl);
+    padding-top: var(--kui-space-md);
+    border-top: 1px solid var(--kui-border-default);
+    color: var(--kui-fg-muted);
+    font: var(--kui-caption);
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--kui-space-md);
+  }
+
+  /* SVG flow defaults */
+  .flowtxt { font: 500 11px/1.1 var(--kui-font-sans); fill: var(--kui-fg-strong); }
+  .flowtxt.sm { font-size: 10px; fill: var(--kui-fg-muted); font-weight: 400; }
+  .flowtxt.mono { font-family: var(--kui-font-mono); font-weight: 500; }
+  .flowbox  { fill: var(--kui-bg-mid); stroke: var(--kui-fg-strong); stroke-width: 1.25; }
+  .flowbox.green { fill: #F7FBED; stroke: var(--kui-brand-green-darker); }
+  .flowbox.blue  { fill: var(--kui-info-bg); stroke: var(--kui-info); }
+  .flowbox.teal  { fill: #E2F4F1; stroke: var(--kui-accent-teal-dk); }
+  .flowbox.dark  { fill: #050505; stroke: #050505; }
+  .flowbox.amber { fill: var(--kui-warning-bg); stroke: var(--kui-warning); }
+  .flowbox.unknown { fill: #FBEEFE; stroke: #A05AB4; stroke-dasharray: 4 3; }
+  .flowtxt.invert { fill: var(--kui-brand-green); }
+  .arrow { stroke: var(--kui-fg-strong); stroke-width: 1.25; fill: none; marker-end: url(#arrowhead); }
+  .arrow.dim { stroke: var(--kui-fg-muted); stroke-dasharray: 4 3; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <span class="eye" aria-hidden="true"></span>
+  <span class="wm">Model Architecture Atlas</span>
+  <span class="crumbs">Vision-language &nbsp;/&nbsp; Liquid AI &nbsp;/&nbsp; <b>LFM2-VL · LFM2.5-VL</b></span>
+  <span class="right">
+    <a class="atlas-home" href="../../index.html">Atlas home</a>
+    <span class="tag gray">Source-backed</span>
+    <span>Built from official model cards · Nov 2025–Mar 2026</span>
+  </span>
+</header>
+
+<div class="shell">
+  <nav class="sidenav" aria-label="Section navigation">
+    <span class="nav-section">On this page</span>
+    <a href="#overview" class="active">1. Overview</a>
+    <a href="#variants">2. Variant matrix</a>
+    <a href="#map">3. End-to-end map</a>
+    <a href="#preproc">4. Image preprocessing &amp; tiling</a>
+    <a href="#encoder">5. Vision encoder</a>
+    <a href="#fusion">6. Projector &amp; fusion</a>
+    <a href="#backbone">7. LM backbone (LFM2 hybrid)</a>
+    <a href="#decoding">8. Output decoding</a>
+    <a href="#grounding">9. Grounding &amp; task flows</a>
+    <a href="#latency">10. Latency &amp; small-model design</a>
+    <a href="#training">11. Training &amp; data</a>
+    <a href="#benchmarks">12. Benchmarks</a>
+    <a href="#unknowns">13. Unknowns &amp; caveats</a>
+    <a href="#sources">14. Sources</a>
+  </nav>
+
+  <main class="main">
+
+    <!-- ===================== 1. OVERVIEW ===================== -->
+    <section id="overview" class="block" style="border-top:0">
+      <div class="head">
+        <span class="num-label">01</span>
+        <h2 class="section">Overview</h2>
+      </div>
+
+      <div class="hero">
+        <div class="ident">
+          <div class="title-row">
+            <div class="badge" aria-hidden="true">
+              <svg viewBox="0 0 40 40" fill="none"><path d="M6 28c4-12 12-18 22-18-3 6-8 11-14 14-3 1-6 3-8 4z" fill="currentColor"/><circle cx="22" cy="14" r="2" fill="#000"/></svg>
+            </div>
+            <div>
+              <div class="eyebrow">Liquid AI · Vision-language model family</div>
+              <h1 class="display">Liquid LFM2-VL And LFM2.5-VL Architecture</h1>
+              <div class="sub">A family of low-latency, on-device vision-language models built on Liquid's hybrid LFM2/LFM2.5 backbones, paired with a SigLIP2&nbsp;NaFlex visual encoder. Image+text in &rarr; text out, with optional bounding-box grounding and text-only function calling.</div>
+            </div>
+          </div>
+
+          <div class="tags">
+            <span class="tag green">Image+text &rarr; text</span>
+            <span class="tag teal">Hybrid LFM2 backbone</span>
+            <span class="tag blue">SigLIP2 NaFlex 86M vision encoder</span>
+            <span class="tag">Bounding-box grounding</span>
+            <span class="tag">Function calling (text-only)</span>
+            <span class="tag gray">9 languages</span>
+            <span class="tag amber">LFM Open License v1.0</span>
+          </div>
+
+          <div style="margin-top: var(--kui-space-md); display:flex; gap: var(--kui-space-md); flex-wrap: wrap; font: var(--kui-caption); color: var(--kui-fg-muted);">
+            <span><b style="color:var(--kui-fg-strong); font-weight:500;">Paper</b> · arXiv 2511.23404 — LFM2 Technical Report (Nov 28, 2025)</span>
+            <span><b style="color:var(--kui-fg-strong); font-weight:500;">HF org</b> · huggingface.co/LiquidAI</span>
+          </div>
+        </div>
+
+        <div class="specs">
+          <div class="kv"><div class="k">Vendor</div><div class="v">Liquid AI</div></div>
+          <div class="kv"><div class="k">Type</div><div class="v">Vision-language (VLM)</div></div>
+          <div class="kv"><div class="k">Variants</div><div class="v">4 sizes · 450M–3B</div></div>
+          <div class="kv"><div class="k">Release window</div><div class="v">Aug 2025 → Apr 2026</div></div>
+          <div class="kv"><div class="k">Native max image</div><div class="v">512 × 512 px <span class="muted">(no upscaling)</span></div></div>
+          <div class="kv"><div class="k">Context length</div><div class="v"><span class="num">32,768</span> tokens <span class="muted">(450M card)</span></div></div>
+          <div class="kv"><div class="k">Vocab size</div><div class="v"><span class="num">65,536</span> <span class="muted">(450M card)</span></div></div>
+          <div class="kv"><div class="k">Deploy targets</div><div class="v">CPU · GPU · NPU · WebGPU</div></div>
+        </div>
+      </div>
+
+      <div class="grid cols-3" style="margin-top: var(--kui-space-md);">
+        <div class="card">
+          <h4>What it does</h4>
+          <p class="muted" style="margin: 6px 0 0; font: var(--kui-body);">Takes one or more images plus a text prompt (ChatML-style chat) and emits text. The text can be a free-form answer, a JSON array of object detections, or a tool call.</p>
+        </div>
+        <div class="card">
+          <h4>Where it runs</h4>
+          <p class="muted" style="margin: 6px 0 0; font: var(--kui-body);">Built for on-device inference — phones, laptops, vehicles, browsers. Native bf16, plus official GGUF (llama.cpp) and ONNX checkpoints for the 450M tier.</p>
+        </div>
+        <div class="card">
+          <h4>What it doesn't do</h4>
+          <p class="muted" style="margin: 6px 0 0; font: var(--kui-body);">Liquid explicitly flags the 450M as not suited for knowledge-intensive tasks or fine-grained OCR. No video, no audio, no image generation.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 2. VARIANTS ===================== -->
+    <section id="variants" class="block">
+      <div class="head">
+        <span class="num-label">02</span>
+        <h2 class="section">Variant matrix</h2>
+      </div>
+      <p class="lede">Four checkpoints across two generations. The family shares a single architecture — a hybrid LFM2 language backbone with a SigLIP visual encoder and a projector — and scales by swapping the backbone and encoder.</p>
+
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th style="width: 22%;">Model</th>
+            <th>LM backbone</th>
+            <th>Vision encoder</th>
+            <th>Total params</th>
+            <th>Generation</th>
+            <th>Native resolution</th>
+            <th>Highlights</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">LFM2-VL-450M<div class="fam">First gen · Aug 2025</div></td>
+            <td>LFM2-350M <span class="muted">(implied by name)</span></td>
+            <td class="tag unknown">not reported in listed sources</td>
+            <td class="num">~0.45 B</td>
+            <td>LFM2</td>
+            <td>up to 512×512</td>
+            <td>Edge-focused baseline VLM</td>
+          </tr>
+          <tr>
+            <td class="name">LFM2-VL-3B<div class="fam">First gen · Oct 2025</div></td>
+            <td>LFM2-2.6B <span class="muted">(implied)</span></td>
+            <td class="tag unknown">not reported in listed sources</td>
+            <td class="num">~3 B</td>
+            <td>LFM2</td>
+            <td>up to 512×512</td>
+            <td>"New efficient VLM for the edge"</td>
+          </tr>
+          <tr>
+            <td class="name">LFM2.5-VL-1.6B<div class="fam">Second gen · Q1 2026</div></td>
+            <td>LFM2.5-1.2B <span class="muted">(implied)</span></td>
+            <td class="tag unknown">not reported in listed sources</td>
+            <td class="num">~1.6 B</td>
+            <td>LFM2.5</td>
+            <td>up to 512×512</td>
+            <td>Scaled-up successor to 450M</td>
+          </tr>
+          <tr style="background: #F7FBED;">
+            <td class="name">LFM2.5-VL-450M<div class="fam">Second gen · Apr 2026</div></td>
+            <td><b>LFM2.5-350M</b></td>
+            <td><b>SigLIP2 NaFlex shape-optimized, 86M</b></td>
+            <td class="num">~0.45 B</td>
+            <td>LFM2.5</td>
+            <td>up to <b>512×512</b></td>
+            <td>Adds RefCOCO-M grounding &amp; BFCLv4 tool calls</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="note">Only the LFM2.5-VL-450M model card was fetched in full for this build. Backbone and encoder cells marked "implied" follow the consistent Liquid naming pattern (LM backbone name embedded in the VL model name) but are not directly stated in the listed sources for the older variants.</p>
+    </section>
+
+    <!-- ===================== 3. END-TO-END MAP ===================== -->
+    <section id="map" class="block">
+      <div class="head">
+        <span class="num-label">03</span>
+        <h2 class="section">End-to-end model map</h2>
+      </div>
+      <p class="lede">From pixels and characters on the left, to text tokens (and optionally JSON-encoded boxes or tool calls) on the right. Source-backed dimensions come from the LFM2.5-VL-450M model card; anything missing is labeled.</p>
+
+      <div class="map">
+        <svg viewBox="0 0 1180 520" role="img" aria-label="End-to-end LFM2-VL data flow">
+          <defs>
+            <marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="#202020"/>
+            </marker>
+          </defs>
+
+          <!-- Lane labels -->
+          <text class="flowtxt sm" x="20" y="30">INPUT</text>
+          <text class="flowtxt sm" x="240" y="30">PREPROCESSING</text>
+          <text class="flowtxt sm" x="500" y="30">ENCODE</text>
+          <text class="flowtxt sm" x="720" y="30">FUSE + GENERATE</text>
+          <text class="flowtxt sm" x="990" y="30">DECODE</text>
+
+          <!-- Image lane -->
+          <g>
+            <rect class="flowbox" x="20" y="60" width="170" height="80" rx="3"/>
+            <text class="flowtxt" x="105" y="92" text-anchor="middle">Image input</text>
+            <text class="flowtxt sm" x="105" y="110" text-anchor="middle">arbitrary aspect ratio</text>
+            <text class="flowtxt sm" x="105" y="125" text-anchor="middle">up to 512×512 native</text>
+          </g>
+
+          <path class="arrow" d="M 190 100 L 230 100"/>
+
+          <g>
+            <rect class="flowbox blue" x="230" y="60" width="200" height="80" rx="3"/>
+            <text class="flowtxt" x="330" y="88" text-anchor="middle">Tiler / aspect preserver</text>
+            <text class="flowtxt sm" x="330" y="106" text-anchor="middle">non-overlapping 512×512 patches</text>
+            <text class="flowtxt sm" x="330" y="121" text-anchor="middle">+ thumbnail for global context</text>
+            <text class="flowtxt sm mono" x="330" y="135" text-anchor="middle">do_image_splitting = True</text>
+          </g>
+
+          <path class="arrow" d="M 430 100 L 470 100"/>
+
+          <g>
+            <rect class="flowbox teal" x="470" y="60" width="200" height="80" rx="3"/>
+            <text class="flowtxt" x="570" y="84" text-anchor="middle">Vision encoder</text>
+            <text class="flowtxt sm" x="570" y="100" text-anchor="middle">SigLIP2 NaFlex</text>
+            <text class="flowtxt sm" x="570" y="114" text-anchor="middle">shape-optimized, 86 M params</text>
+            <text class="flowtxt sm mono" x="570" y="130" text-anchor="middle">→ visual feature grid</text>
+          </g>
+
+          <path class="arrow" d="M 670 100 L 710 100"/>
+
+          <g>
+            <rect class="flowbox unknown" x="710" y="60" width="180" height="80" rx="3"/>
+            <text class="flowtxt" x="800" y="88" text-anchor="middle">Projector</text>
+            <text class="flowtxt sm" x="800" y="106" text-anchor="middle">vision → token embeddings</text>
+            <text class="flowtxt sm" x="800" y="124" text-anchor="middle" style="font-style:italic;">type / dim not reported</text>
+          </g>
+
+          <path class="arrow" d="M 800 140 L 800 195"/>
+
+          <!-- Text lane -->
+          <g>
+            <rect class="flowbox" x="20" y="180" width="170" height="80" rx="3"/>
+            <text class="flowtxt" x="105" y="212" text-anchor="middle">Text input</text>
+            <text class="flowtxt sm" x="105" y="230" text-anchor="middle">ChatML chat template</text>
+            <text class="flowtxt sm" x="105" y="245" text-anchor="middle">9 languages</text>
+          </g>
+
+          <path class="arrow" d="M 190 220 L 230 220"/>
+
+          <g>
+            <rect class="flowbox blue" x="230" y="180" width="200" height="80" rx="3"/>
+            <text class="flowtxt" x="330" y="208" text-anchor="middle">Tokenizer</text>
+            <text class="flowtxt sm" x="330" y="226" text-anchor="middle">vocab 65,536</text>
+            <text class="flowtxt sm mono" x="330" y="241" text-anchor="middle">&lt;|im_start|&gt; · &lt;image&gt; · …</text>
+          </g>
+
+          <path class="arrow" d="M 430 220 L 470 220"/>
+
+          <g>
+            <rect class="flowbox" x="470" y="180" width="200" height="80" rx="3"/>
+            <text class="flowtxt" x="570" y="212" text-anchor="middle">Text embeddings</text>
+            <text class="flowtxt sm" x="570" y="230" text-anchor="middle">interleaved with image tokens</text>
+            <text class="flowtxt sm" x="570" y="245" text-anchor="middle">into one stream</text>
+          </g>
+
+          <path class="arrow" d="M 670 220 L 710 220"/>
+
+          <!-- Merge -->
+          <g>
+            <rect class="flowbox green" x="710" y="180" width="280" height="120" rx="3"/>
+            <text class="flowtxt" x="850" y="208" text-anchor="middle">LFM2 / LFM2.5 hybrid backbone</text>
+            <text class="flowtxt sm" x="850" y="226" text-anchor="middle">LFM2.5-350M LM (450M variant)</text>
+            <text class="flowtxt sm" x="850" y="241" text-anchor="middle">"Liquid Neural Network" architecture:</text>
+            <text class="flowtxt sm" x="850" y="256" text-anchor="middle">conv + attention hybrid blocks</text>
+            <text class="flowtxt sm" x="850" y="275" text-anchor="middle" style="font-style:italic; fill: #6A2B7A;">exact block counts / dims not reported</text>
+            <text class="flowtxt sm" x="850" y="290" text-anchor="middle">context window: 32,768 tokens</text>
+          </g>
+
+          <path class="arrow" d="M 990 240 L 1030 240"/>
+
+          <!-- Output -->
+          <g>
+            <rect class="flowbox dark" x="1030" y="60" width="130" height="430" rx="3"/>
+            <text class="flowtxt invert" x="1095" y="90" text-anchor="middle">Outputs</text>
+
+            <rect x="1045" y="110" width="100" height="60" fill="#1A1A1A" stroke="#76B900" stroke-width="1"/>
+            <text class="flowtxt invert" x="1095" y="132" text-anchor="middle" style="font-size:11px;">Free-form</text>
+            <text class="flowtxt invert" x="1095" y="148" text-anchor="middle" style="font-size:11px;">text</text>
+            <text x="1095" y="162" text-anchor="middle" style="font: 9px var(--kui-font-mono); fill:#9ACCF2;">caption · VQA · chat</text>
+
+            <rect x="1045" y="190" width="100" height="60" fill="#1A1A1A" stroke="#76B900" stroke-width="1"/>
+            <text class="flowtxt invert" x="1095" y="212" text-anchor="middle" style="font-size:11px;">JSON</text>
+            <text class="flowtxt invert" x="1095" y="228" text-anchor="middle" style="font-size:11px;">bbox array</text>
+            <text x="1095" y="242" text-anchor="middle" style="font: 9px var(--kui-font-mono); fill:#9ACCF2;">grounding</text>
+
+            <rect x="1045" y="270" width="100" height="60" fill="#1A1A1A" stroke="#76B900" stroke-width="1"/>
+            <text class="flowtxt invert" x="1095" y="292" text-anchor="middle" style="font-size:11px;">Tool call</text>
+            <text class="flowtxt invert" x="1095" y="308" text-anchor="middle" style="font-size:11px;">tags</text>
+            <text x="1095" y="322" text-anchor="middle" style="font: 9px var(--kui-font-mono); fill:#9ACCF2;">text-only</text>
+
+            <text class="flowtxt invert" x="1095" y="360" text-anchor="middle" style="font-size:10px;">sampler</text>
+            <text x="1095" y="376" text-anchor="middle" style="font: 9px var(--kui-font-mono); fill:#9ACCF2;">temp 0.1</text>
+            <text x="1095" y="390" text-anchor="middle" style="font: 9px var(--kui-font-mono); fill:#9ACCF2;">min_p 0.15</text>
+            <text x="1095" y="404" text-anchor="middle" style="font: 9px var(--kui-font-mono); fill:#9ACCF2;">rep_pen 1.05</text>
+
+            <text class="flowtxt invert" x="1095" y="440" text-anchor="middle" style="font-size:10px;">decoder LM head</text>
+            <text x="1095" y="455" text-anchor="middle" style="font: 9px var(--kui-font-mono); fill:#9ACCF2;">vocab 65,536</text>
+            <text x="1095" y="470" text-anchor="middle" style="font: 9px var(--kui-font-mono); fill:#9ACCF2;">autoregressive</text>
+          </g>
+
+          <!-- Connecting lines from backbone -->
+          <path class="arrow" d="M 990 230 L 1030 140" />
+          <path class="arrow" d="M 990 240 L 1030 220" />
+          <path class="arrow" d="M 990 250 L 1030 300" />
+
+          <!-- Stream box -->
+          <g>
+            <rect class="flowbox" x="20" y="340" width="970" height="140" rx="3"/>
+            <text class="flowtxt sm" x="40" y="362">Unified token stream into backbone (illustrative — exact special-token order per chat template)</text>
+            <g transform="translate(40,378)">
+              <!-- visual tokens (blue) -->
+              <g>
+                <rect x="0"   y="0" width="56" height="22" fill="#050505"/>
+                <text class="flowtxt mono" x="28" y="15" text-anchor="middle" style="fill:#76B900; font-size:10px;">&lt;|startoftext|&gt;</text>
+                <rect x="60"  y="0" width="74" height="22" fill="#050505"/>
+                <text class="flowtxt mono" x="97" y="15" text-anchor="middle" style="fill:#76B900; font-size:10px;">&lt;|im_start|&gt;</text>
+                <rect x="138" y="0" width="40" height="22" fill="#E9F4FB" stroke="#C9E1F3"/>
+                <text class="flowtxt mono" x="158" y="15" text-anchor="middle" style="font-size:10px;">user</text>
+                <rect x="182" y="0" width="36" height="22" fill="#050505"/>
+                <text class="flowtxt mono" x="200" y="15" text-anchor="middle" style="fill:#76B900; font-size:10px;">&lt;image&gt;</text>
+
+                <!-- image tokens -->
+                <g transform="translate(222,0)">
+                  <rect x="0"  y="0" width="22" height="22" fill="#1FA18D" opacity=".15" stroke="#006B5E"/>
+                  <rect x="24" y="0" width="22" height="22" fill="#1FA18D" opacity=".25" stroke="#006B5E"/>
+                  <rect x="48" y="0" width="22" height="22" fill="#1FA18D" opacity=".35" stroke="#006B5E"/>
+                  <rect x="72" y="0" width="22" height="22" fill="#1FA18D" opacity=".25" stroke="#006B5E"/>
+                  <rect x="96" y="0" width="22" height="22" fill="#1FA18D" opacity=".40" stroke="#006B5E"/>
+                  <rect x="120" y="0" width="22" height="22" fill="#1FA18D" opacity=".30" stroke="#006B5E"/>
+                  <rect x="144" y="0" width="22" height="22" fill="#1FA18D" opacity=".50" stroke="#006B5E"/>
+                  <rect x="168" y="0" width="22" height="22" fill="#1FA18D" opacity=".30" stroke="#006B5E"/>
+                  <text class="flowtxt mono" x="80" y="36" text-anchor="middle" style="font-size:9px;">image tokens · 32–256 (tunable per request)</text>
+                </g>
+
+                <rect x="414" y="0" width="186" height="22" fill="#F2F2F2" stroke="#D8D8D8"/>
+                <text class="flowtxt mono" x="507" y="15" text-anchor="middle" style="font-size:10px;">Describe this image.</text>
+
+                <rect x="604" y="0" width="74" height="22" fill="#050505"/>
+                <text class="flowtxt mono" x="641" y="15" text-anchor="middle" style="fill:#76B900; font-size:10px;">&lt;|im_end|&gt;</text>
+
+                <rect x="682" y="0" width="74" height="22" fill="#050505"/>
+                <text class="flowtxt mono" x="719" y="15" text-anchor="middle" style="fill:#76B900; font-size:10px;">&lt;|im_start|&gt;</text>
+
+                <rect x="760" y="0" width="64" height="22" fill="#E9F4FB" stroke="#C9E1F3"/>
+                <text class="flowtxt mono" x="792" y="15" text-anchor="middle" style="font-size:10px;">assistant</text>
+
+                <rect x="828" y="0" width="110" height="22" fill="#E8F4D6" stroke="#C2DDA0"/>
+                <text class="flowtxt mono" x="883" y="15" text-anchor="middle" style="font-size:10px; fill:#2E5400;">generated text…</text>
+              </g>
+            </g>
+
+            <text class="flowtxt sm" x="40" y="448">
+              <tspan>Generation params (text):</tspan>
+              <tspan class="mono" dx="6">temperature = 0.1 · min_p = 0.15 · repetition_penalty = 1.05</tspan>
+            </text>
+            <text class="flowtxt sm" x="40" y="466">
+              <tspan>Generation params (vision):</tspan>
+              <tspan class="mono" dx="6">min_image_tokens = 32 · max_image_tokens = 256 · do_image_splitting = True</tspan>
+            </text>
+          </g>
+
+        </svg>
+      </div>
+      <p class="note">Source: LFM2.5-VL-450M model card on Hugging Face. Items marked <em style="color:#6A2B7A">not reported</em> are dimensions the listed sources do not state — projector type/dim, exact backbone block topology, and image-token grid shape per tile.</p>
+    </section>
+
+    <!-- ===================== 4. PREPROCESSING ===================== -->
+    <section id="preproc" class="block">
+      <div class="head">
+        <span class="num-label">04</span>
+        <h2 class="section">Image preprocessing &amp; tiling</h2>
+      </div>
+      <p class="lede">Aspect ratio is preserved without distortion. Images above the native cap are split into 512×512 non-overlapping patches, and a downscaled thumbnail is added so the encoder still sees global context.</p>
+
+      <div class="grid cols-2">
+        <div class="card">
+          <h4>Native handling (≤ 512×512)</h4>
+          <p style="margin: 6px 0 var(--kui-space-sm); color: var(--kui-fg-default);">Images at or below 512×512 are processed at native resolution, without upscaling. Non-standard aspect ratios are preserved.</p>
+          <div class="klist">
+            <span class="k">Max native</span><span class="v num">512 × 512 px</span>
+            <span class="k">Upscaling</span><span class="v">none</span>
+            <span class="k">Letterboxing</span><span class="v">no — aspect preserved</span>
+            <span class="k">Image tokens / image</span><span class="v num">32 – 256 (tunable)</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>Tiling (&gt; 512×512)</h4>
+          <p style="margin: 6px 0 var(--kui-space-sm); color: var(--kui-fg-default);">Large images are split into a grid of <span class="mono">512×512</span> non-overlapping patches. A single downscaled <span class="mono">thumbnail</span> of the full image is also encoded and prepended for global context.</p>
+
+          <div style="display:flex; gap: var(--kui-space-md); align-items: flex-start;">
+            <div class="tilegrid" aria-hidden="true">
+              <div class="t">1</div><div class="t">2</div><div class="t">3</div><div class="t">4</div>
+              <div class="t">5</div><div class="t">6</div><div class="t">7</div><div class="t">8</div>
+              <div class="t">9</div><div class="t">10</div><div class="t">11</div><div class="t">12</div>
+              <div class="t thumb">thumb</div>
+              <div class="t" style="background:transparent; border:1px dashed var(--kui-border-default); color:var(--kui-fg-muted);">…</div>
+              <div class="t" style="background:transparent; border:1px dashed var(--kui-border-default); color:var(--kui-fg-muted);">…</div>
+              <div class="t" style="background:transparent; border:1px dashed var(--kui-border-default); color:var(--kui-fg-muted);">…</div>
+            </div>
+            <div style="font: var(--kui-caption); color: var(--kui-fg-muted); flex: 1;">
+              <div><b style="color:var(--kui-fg-strong); font-weight:500;">Splitting strategy</b></div>
+              <div style="margin-top:4px;">Tile count is also user-tunable at inference time — operators trade speed for quality without retraining.</div>
+              <div style="margin-top:8px;"><b style="color:var(--kui-fg-strong); font-weight:500;">Per-tile resolution</b> · 512×512</div>
+              <div><b style="color:var(--kui-fg-strong); font-weight:500;">Tile overlap</b> · none</div>
+              <div><b style="color:var(--kui-fg-strong); font-weight:500;">Thumbnail</b> · enabled by default</div>
+              <div style="margin-top:6px;"><span class="tag unknown">Patch size inside encoder · not reported in listed sources</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 5. VISION ENCODER ===================== -->
+    <section id="encoder" class="block">
+      <div class="head">
+        <span class="num-label">05</span>
+        <h2 class="section">Vision encoder &mdash; SigLIP2 NaFlex 86M</h2>
+      </div>
+      <p class="lede">The visual front-end of LFM2.5-VL-450M is a shape-optimized SigLIP2 NaFlex encoder (~86M parameters). NaFlex variants are designed to ingest images at native resolution and arbitrary aspect ratio — a natural match for the family's "no upscaling, no distortion" preprocessing rule.</p>
+
+      <div class="grid cols-3">
+        <div class="card">
+          <h4>What it is</h4>
+          <p style="font: var(--kui-body); margin: 6px 0;">SigLIP2 is the second-generation Sigmoid-Loss for Image-text Pre-training encoder from Google. <b>NaFlex</b> is its variable-resolution, variable-aspect-ratio variant.</p>
+          <div style="margin-top: 6px;"><span class="tag teal">SigLIP2 NaFlex</span> <span class="tag">~86 M params</span> <span class="tag">shape-optimized</span></div>
+        </div>
+        <div class="card">
+          <h4>Why this encoder</h4>
+          <p style="font: var(--kui-body); margin: 6px 0;">A NaFlex encoder lets Liquid honor arbitrary aspect ratios and the 512×512 cap without padding or upscaling. The shape-optimized 86 M tier keeps the encoder small enough for on-device deployment.</p>
+        </div>
+        <div class="card">
+          <h4>Not reported in listed sources</h4>
+          <ul class="crisp" style="font: var(--kui-body); color: var(--kui-fg-default);">
+            <li>Internal patch size</li>
+            <li>Number of transformer blocks</li>
+            <li>Embedding / hidden dimension</li>
+            <li>Output token grid shape per tile</li>
+            <li>Whether the encoder is frozen during VL training</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 6. PROJECTOR & FUSION ===================== -->
+    <section id="fusion" class="block">
+      <div class="head">
+        <span class="num-label">06</span>
+        <h2 class="section">Projector &amp; multimodal fusion</h2>
+      </div>
+      <p class="lede">After SigLIP2 emits its feature grid, a projector maps the visual features into the LM's token-embedding space and inserts them into the chat stream at the position of the <span class="mono">&lt;image&gt;</span> tag. The listed sources do not specify the projector type or dimensions.</p>
+
+      <div class="grid cols-2">
+        <div class="card">
+          <h4>What the sources do say</h4>
+          <ul class="crisp" style="font: var(--kui-body); color: var(--kui-fg-default);">
+            <li>Each image consumes <span class="mono">32–256</span> image tokens, with the cap set at request time.</li>
+            <li>Image tokens are inserted at the <span class="mono">&lt;image&gt;</span> placeholder inside a ChatML-style chat template.</li>
+            <li>The HF processor (<span class="mono">AutoProcessor</span>) handles the tile→token expansion automatically via <span class="mono">apply_chat_template</span>.</li>
+            <li>Multimodal fusion is decoder-only — there is no separate cross-attention head; image tokens enter the same residual stream as text tokens.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>What is <em>not</em> reported</h4>
+          <ul class="crisp" style="font: var(--kui-body); color: var(--kui-fg-default);">
+            <li>Projector architecture (MLP, perceiver-resampler, cross-attention adapter, etc.)</li>
+            <li>Projector input dim → output dim</li>
+            <li>Whether image tokens are pooled / compressed before insertion</li>
+            <li>How the 32–256 token budget is allocated across tiles and the thumbnail</li>
+          </ul>
+          <div class="callout unknown" style="margin-top: var(--kui-space-md); font: var(--kui-body);">
+            <b>Treat the projector block as a black box</b> until a Liquid AI technical report or a config inspection of the released weights confirms its structure.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 7. BACKBONE ===================== -->
+    <section id="backbone" class="block">
+      <div class="head">
+        <span class="num-label">07</span>
+        <h2 class="section">LM backbone &mdash; LFM2 / LFM2.5 hybrid</h2>
+      </div>
+      <p class="lede">The text-side backbone is an LFM2-family hybrid language model. Liquid describes the family as Liquid Neural Networks "rooted in dynamical systems and signal processing," with hybrid blocks that mix convolutional and attention components. For LFM2.5-VL-450M the backbone is named explicitly: LFM2.5-350M.</p>
+
+      <div class="grid cols-2">
+        <div class="card">
+          <h4>Confirmed backbone facts (LFM2.5-VL-450M card)</h4>
+          <div class="klist">
+            <span class="k">Backbone</span><span class="v">LFM2.5-350M</span>
+            <span class="k">Context</span><span class="v num">32,768 tokens</span>
+            <span class="k">Vocab</span><span class="v num">65,536</span>
+            <span class="k">Tokenizer template</span><span class="v">ChatML (custom special tokens)</span>
+            <span class="k">Languages</span><span class="v">English · Arabic · Chinese · French · German · Japanese · Korean · Portuguese · Spanish</span>
+            <span class="k">Tool calls</span><span class="v">native, text-only</span>
+            <span class="k">Tensor type</span><span class="v">bfloat16</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>Architecture family (Liquid AI product page)</h4>
+          <p style="font: var(--kui-body); margin: 6px 0;">Across the LFM family Liquid describes a <b>hybrid</b> architecture — convolutional and attention blocks interleaved — designed for low latency on CPU, GPU and NPU.</p>
+          <div style="margin-top: var(--kui-space-sm); display:flex; flex-wrap:wrap; gap: 6px;">
+            <span class="tag teal">hybrid · conv + attention</span>
+            <span class="tag">on-device first</span>
+            <span class="tag">CPU · GPU · NPU</span>
+            <span class="tag unknown">layer count · not reported</span>
+            <span class="tag unknown">attention type · not reported</span>
+            <span class="tag unknown">hidden dim · not reported</span>
+          </div>
+          <p class="note" style="margin-top: var(--kui-space-sm);">The LFM2 technical report (arXiv 2511.23404) is referenced from the model card and is the place exact block topology and head counts will be found; the report itself was not fetched for this page.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 8. DECODING ===================== -->
+    <section id="decoding" class="block">
+      <div class="head">
+        <span class="num-label">08</span>
+        <h2 class="section">Output decoding</h2>
+      </div>
+      <p class="lede">A single autoregressive head produces every output mode: free-form text, JSON-encoded bounding boxes for grounding, and tool-call tags for function calling. There are no separate task heads.</p>
+
+      <div class="grid cols-2">
+        <div class="card">
+          <h4>Token stream (illustrative)</h4>
+          <div class="stream" aria-hidden="true">
+            <span class="tok special">&lt;|startoftext|&gt;</span><span class="tok special">&lt;|im_start|&gt;</span><span class="tok">system</span><span class="tok">You are a helpful multimodal assistant by Liquid AI.</span><span class="tok special">&lt;|im_end|&gt;</span>
+            <span class="tok special">&lt;|im_start|&gt;</span><span class="tok">user</span><span class="tok special">&lt;image&gt;</span><span class="tok img">·img·</span><span class="tok img">·img·</span><span class="tok img">·img·</span><span class="tok img">·img·</span><span class="tok">Describe this image.</span><span class="tok special">&lt;|im_end|&gt;</span>
+            <span class="tok special">&lt;|im_start|&gt;</span><span class="tok">assistant</span><span class="tok gen">This image shows a C. elegans nematode.</span><span class="tok special">&lt;|im_end|&gt;</span>
+          </div>
+          <p class="note">Reproduces the example chat template printed on the LFM2.5-VL-450M model card.</p>
+        </div>
+
+        <div class="card">
+          <h4>Sampling defaults</h4>
+          <div class="klist">
+            <span class="k">temperature</span><span class="v mono">0.1</span>
+            <span class="k">min_p</span><span class="v mono">0.15</span>
+            <span class="k">repetition_penalty</span><span class="v mono">1.05</span>
+            <span class="k">min_image_tokens</span><span class="v mono">32</span>
+            <span class="k">max_image_tokens</span><span class="v mono">256</span>
+            <span class="k">do_image_splitting</span><span class="v mono">True</span>
+          </div>
+          <p class="note">Recommended generation parameters published with the 450M card. Tunable at inference time without retraining.</p>
+        </div>
+      </div>
+
+      <div class="grid cols-3" style="margin-top: var(--kui-space-md);">
+        <div class="card">
+          <h4>Free-form text</h4>
+          <p style="font: var(--kui-body); margin: 6px 0;">Captioning · VQA · multilingual chat · document description.</p>
+        </div>
+        <div class="card">
+          <h4>JSON-encoded boxes</h4>
+          <p style="font: var(--kui-body); margin: 6px 0;">For grounding queries the prompt asks for a JSON array of <span class="mono">{label, bbox: [x1,y1,x2,y2]}</span> with coordinates normalized to <span class="mono">[0,1]</span>. The boxes are emitted as ordinary text tokens — no separate detection head.</p>
+        </div>
+        <div class="card">
+          <h4>Tool-call tags</h4>
+          <p style="font: var(--kui-body); margin: 6px 0;">Function calling uses dedicated special tokens <span class="mono">&lt;|tool_call_start|&gt;…&lt;|tool_call_end|&gt;</span>. The chat template wraps the JSON tool schema for the model.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 9. GROUNDING ===================== -->
+    <section id="grounding" class="block">
+      <div class="head">
+        <span class="num-label">09</span>
+        <h2 class="section">Grounding &amp; task flows</h2>
+      </div>
+      <p class="lede">Grounding and tool use are not separate modules — they are <em>prompt patterns</em> that ride the same autoregressive head. The model card shows two canonical patterns:</p>
+
+      <div class="grid cols-2">
+        <div class="card" style="padding: 0;">
+          <div style="padding: var(--kui-space-md);">
+            <h4>Visual grounding (RefCOCO-M style)</h4>
+            <p style="font: var(--kui-body); margin: 6px 0; color: var(--kui-fg-default);">User asks for all instances of an object class; the model emits a JSON array of labeled boxes.</p>
+          </div>
+<pre class="code"><span class="com"># prompt:</span>
+<span class="kw">query</span> <span class="pun">=</span> <span class="str">"statue"</span>
+<span class="kw">prompt</span> <span class="pun">=</span> <span class="str">f'Detect all instances of: {query}. Response must be a JSON array: '
+         f'[{"label": ..., "bbox": [x1, y1, x2, y2]}, ...]. '
+         f'Coordinates are normalized to [0,1].'</span>
+
+<span class="com"># response:</span>
+<span class="pun">[</span>{<span class="str">"label"</span><span class="pun">:</span> <span class="str">"statue"</span><span class="pun">,</span>
+  <span class="str">"bbox"</span><span class="pun">:</span> <span class="pun">[</span><span class="num">0.30</span><span class="pun">,</span> <span class="num">0.25</span><span class="pun">,</span> <span class="num">0.40</span><span class="pun">,</span> <span class="num">0.65</span><span class="pun">]</span>}<span class="pun">]</span></pre>
+        </div>
+
+        <div class="card" style="padding: 0;">
+          <div style="padding: var(--kui-space-md);">
+            <h4>Tool calling (text-only)</h4>
+            <p style="font: var(--kui-body); margin: 6px 0; color: var(--kui-fg-default);">Tool schemas attach via <span class="mono">apply_chat_template(..., tools=tools)</span>. The model emits a tagged call followed by user-facing acknowledgement.</p>
+          </div>
+<pre class="code"><span class="com"># tool schema</span>
+<span class="kw">tools</span> <span class="pun">=</span> <span class="pun">[</span>{
+  <span class="str">"name"</span><span class="pun">:</span> <span class="str">"get_weather"</span><span class="pun">,</span>
+  <span class="str">"description"</span><span class="pun">:</span> <span class="str">"Get current weather for a location"</span><span class="pun">,</span>
+  <span class="str">"parameters"</span><span class="pun">:</span> {<span class="str">"type"</span><span class="pun">:</span><span class="str">"object"</span><span class="pun">,</span>
+                 <span class="str">"properties"</span><span class="pun">:</span>{<span class="str">"location"</span><span class="pun">:</span>{<span class="str">"type"</span><span class="pun">:</span><span class="str">"string"</span>}}<span class="pun">,</span>
+                 <span class="str">"required"</span><span class="pun">:</span><span class="pun">[</span><span class="str">"location"</span><span class="pun">]</span>}
+}<span class="pun">]</span>
+
+<span class="com"># response:</span>
+&lt;<span class="kw">tool_call_start</span>&gt;[<span class="kw">get_weather</span>(<span class="kw">location</span>=<span class="str">"Paris"</span>)]&lt;<span class="kw">tool_call_end</span>&gt;
+I am retrieving the current weather for Paris.&lt;|<span class="kw">im_end</span>|&gt;</pre>
+        </div>
+      </div>
+
+      <p class="note">Grounding is benchmarked on <b>RefCOCO-M</b> (LFM2.5-VL-450M scores 81.28); tool calling is benchmarked on <b>BFCLv4</b> (21.08). Both numbers come straight from the model card.</p>
+    </section>
+
+    <!-- ===================== 10. LATENCY ===================== -->
+    <section id="latency" class="block">
+      <div class="head">
+        <span class="num-label">10</span>
+        <h2 class="section">Latency &amp; small-model design choices</h2>
+      </div>
+      <p class="lede">Everything in the architecture leans toward on-device throughput: keep the encoder small, cap the image tokens per request, run a sub-1B-param hybrid LM, and expose the speed/quality dial as an <em>inference-time</em> parameter — no retraining required.</p>
+
+      <div class="grid cols-3">
+        <div class="card">
+          <h4>1. Compact visual front-end</h4>
+          <p style="font: var(--kui-body); margin: 6px 0;">86 M parameter SigLIP2 encoder. Roughly 20% of the 450M VL system's total parameter count — most of the budget stays in the LM.</p>
+        </div>
+        <div class="card">
+          <h4>2. Capped image tokens</h4>
+          <p style="font: var(--kui-body); margin: 6px 0;">A request never spends more than <span class="mono">max_image_tokens</span> on imagery (default 256). The 32-token floor is enough for compact thumbnails and small images.</p>
+        </div>
+        <div class="card">
+          <h4>3. Tunable tile count</h4>
+          <p style="font: var(--kui-body); margin: 6px 0;">Operators trim the tile grid (and the resulting visual token count) at inference, trading detail for latency without retraining.</p>
+        </div>
+        <div class="card">
+          <h4>4. Hybrid LM blocks</h4>
+          <p style="font: var(--kui-body); margin: 6px 0;">LFM2 / LFM2.5 use a mixed conv+attention architecture. Liquid markets this as the source of millisecond-class on-device latency on phones, laptops and vehicles.</p>
+        </div>
+        <div class="card">
+          <h4>5. Deployment-grade exports</h4>
+          <p style="font: var(--kui-body); margin: 6px 0;">Official <b>GGUF</b> (llama.cpp / CPU) and <b>ONNX</b> (cross-platform, mobile, edge) builds ship alongside the BF16 reference, plus a WebGPU browser demo for the 450M.</p>
+        </div>
+        <div class="card">
+          <h4>6. Domain scoping</h4>
+          <p style="font: var(--kui-body); margin: 6px 0;">Liquid recommends the 450M for general captioning, VQA and detection — and explicitly <em>against</em> fine-grained OCR or knowledge-intensive Q&amp;A.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 11. TRAINING ===================== -->
+    <section id="training" class="block">
+      <div class="head">
+        <span class="num-label">11</span>
+        <h2 class="section">Training, data &amp; post-training</h2>
+      </div>
+      <p class="lede">The listed sources speak about training mostly at the family level (LFM2.5 across all modalities), and at the VL level only in terms of what changed between v2 and v2.5 of the 450M VLM. There is no detailed VL-specific data card in the fetched sources.</p>
+
+      <div class="grid cols-2">
+        <div class="card">
+          <h4>LFM2.5 family training (Liquid models page)</h4>
+          <ul class="crisp" style="font: var(--kui-body);">
+            <li>"Extends LFM2 with <b>28 T tokens of pretraining</b>" across text models — same family the VL backbones belong to.</li>
+            <li>Adds "a <b>scaled reinforcement learning</b> pipeline" on top of pretraining.</li>
+            <li>Hardware-in-the-loop architecture design, pre-training, knowledge distillation and post-training recipe are summarized in the <b>LFM2 Technical Report</b> (arXiv 2511.23404).</li>
+          </ul>
+          <div class="callout amber" style="margin-top: var(--kui-space-md); font: var(--kui-body);">
+            These numbers describe the LFM2.5 <em>text</em> family. The model card does not separately quantify the visual or VL-specific training-data scale.
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>LFM2-VL-450M &rarr; LFM2.5-VL-450M (what changed)</h4>
+          <ul class="crisp" style="font: var(--kui-body);">
+            <li>Refreshed on top of an updated backbone (LFM2.5-350M).</li>
+            <li>Stronger instruction following on vision and language.</li>
+            <li>Improved multilingual vision understanding across Arabic, Chinese, French, German, Japanese, Korean, Portuguese and Spanish.</li>
+            <li>New capability: <b>bounding-box prediction</b> and object detection.</li>
+            <li>New capability: <b>function calling</b> (text-only input).</li>
+            <li>Multilingual vision evals use benchmarks <em>translated from English by GPT-4.1-mini</em> into the 8 target languages.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: var(--kui-space-md);">
+        <h4>Training pipeline &mdash; not reported in listed sources</h4>
+        <div class="grid cols-3" style="margin-top: var(--kui-space-sm);">
+          <ul class="crisp" style="font: var(--kui-body); color: var(--kui-fg-default);">
+            <li>VL pretraining dataset(s)</li>
+            <li>Image-text pairs count</li>
+            <li>Caption / VQA / grounding split</li>
+          </ul>
+          <ul class="crisp" style="font: var(--kui-body); color: var(--kui-fg-default);">
+            <li>Supervised fine-tuning data sources</li>
+            <li>Whether RLHF / DPO / GRPO was applied to the VLM specifically</li>
+            <li>Distillation teacher(s)</li>
+          </ul>
+          <ul class="crisp" style="font: var(--kui-body); color: var(--kui-fg-default);">
+            <li>Safety filtering pipeline</li>
+            <li>Whether SigLIP2 weights are frozen or co-trained</li>
+            <li>Resolution curriculum during VL training</li>
+          </ul>
+        </div>
+        <p class="note">User-facing fine-tuning is supported via Unsloth and TRL Colab notebooks linked from the model card — these are <em>downstream</em> SFT recipes, not training details for the base release.</p>
+      </div>
+    </section>
+
+    <!-- ===================== 12. BENCHMARKS ===================== -->
+    <section id="benchmarks" class="block">
+      <div class="head">
+        <span class="num-label">12</span>
+        <h2 class="section">Benchmarks (source-reported)</h2>
+      </div>
+      <p class="lede">All numbers below are reproduced verbatim from the LFM2.5-VL-450M model card. Vision scores were obtained with VLMEvalKit; multilingual scores use GPT-4.1-mini-translated benchmarks. Bars are scaled for visual comparison only and have no independent meaning.</p>
+
+      <h3 style="margin-bottom: var(--kui-space-sm);">Vision benchmarks</h3>
+      <div style="overflow-x: auto;">
+      <table class="bench">
+        <thead>
+          <tr><th>Benchmark</th><th>LFM2.5-VL-450M</th><th class="bar-cell"></th><th>LFM2-VL-450M</th><th class="bar-cell"></th><th>SmolVLM2-500M</th><th class="bar-cell"></th></tr>
+        </thead>
+        <tbody>
+          <tr class="hi"><td>MMStar</td><td class="num">43.00</td><td class="bar-cell"><span class="bar"><i style="width: 43%"></i></span></td><td class="num">40.87</td><td class="bar-cell"><span class="bar gray"><i style="width: 40.87%"></i></span></td><td class="num">38.20</td><td class="bar-cell"><span class="bar dim"><i style="width: 38.20%"></i></span></td></tr>
+          <tr><td>RealWorldQA</td><td class="num">58.43</td><td class="bar-cell"><span class="bar"><i style="width: 58.43%"></i></span></td><td class="num">52.03</td><td class="bar-cell"><span class="bar gray"><i style="width: 52.03%"></i></span></td><td class="num">49.90</td><td class="bar-cell"><span class="bar dim"><i style="width: 49.90%"></i></span></td></tr>
+          <tr class="hi"><td>MMBench (dev en)</td><td class="num">60.91</td><td class="bar-cell"><span class="bar"><i style="width: 60.91%"></i></span></td><td class="num">56.27</td><td class="bar-cell"><span class="bar gray"><i style="width: 56.27%"></i></span></td><td class="num">52.32</td><td class="bar-cell"><span class="bar dim"><i style="width: 52.32%"></i></span></td></tr>
+          <tr><td>MMMU (val)</td><td class="num">32.67</td><td class="bar-cell"><span class="bar"><i style="width: 32.67%"></i></span></td><td class="num">34.44</td><td class="bar-cell"><span class="bar gray"><i style="width: 34.44%"></i></span></td><td class="num">34.10</td><td class="bar-cell"><span class="bar dim"><i style="width: 34.10%"></i></span></td></tr>
+          <tr class="hi"><td>POPE</td><td class="num">86.93</td><td class="bar-cell"><span class="bar"><i style="width: 86.93%"></i></span></td><td class="num">83.79</td><td class="bar-cell"><span class="bar gray"><i style="width: 83.79%"></i></span></td><td class="num">82.67</td><td class="bar-cell"><span class="bar dim"><i style="width: 82.67%"></i></span></td></tr>
+          <tr><td>MMVet</td><td class="num">41.10</td><td class="bar-cell"><span class="bar"><i style="width: 41.10%"></i></span></td><td class="num">33.85</td><td class="bar-cell"><span class="bar gray"><i style="width: 33.85%"></i></span></td><td class="num">29.90</td><td class="bar-cell"><span class="bar dim"><i style="width: 29.90%"></i></span></td></tr>
+          <tr class="hi"><td>BLINK</td><td class="num">43.92</td><td class="bar-cell"><span class="bar"><i style="width: 43.92%"></i></span></td><td class="num">42.61</td><td class="bar-cell"><span class="bar gray"><i style="width: 42.61%"></i></span></td><td class="num">40.70</td><td class="bar-cell"><span class="bar dim"><i style="width: 40.70%"></i></span></td></tr>
+          <tr><td>InfoVQA (val)</td><td class="num">43.02</td><td class="bar-cell"><span class="bar"><i style="width: 43.02%"></i></span></td><td class="num">44.56</td><td class="bar-cell"><span class="bar gray"><i style="width: 44.56%"></i></span></td><td class="num">24.64</td><td class="bar-cell"><span class="bar dim"><i style="width: 24.64%"></i></span></td></tr>
+          <tr class="hi"><td>OCRBench</td><td class="num">684</td><td class="bar-cell"><span class="bar"><i style="width: 68.4%"></i></span></td><td class="num">657</td><td class="bar-cell"><span class="bar gray"><i style="width: 65.7%"></i></span></td><td class="num">609</td><td class="bar-cell"><span class="bar dim"><i style="width: 60.9%"></i></span></td></tr>
+          <tr><td>MM-IFEval</td><td class="num">45.00</td><td class="bar-cell"><span class="bar"><i style="width: 45.00%"></i></span></td><td class="num">33.09</td><td class="bar-cell"><span class="bar gray"><i style="width: 33.09%"></i></span></td><td class="num">11.27</td><td class="bar-cell"><span class="bar dim"><i style="width: 11.27%"></i></span></td></tr>
+          <tr class="hi"><td>MMMB (multilingual)</td><td class="num">68.09</td><td class="bar-cell"><span class="bar"><i style="width: 68.09%"></i></span></td><td class="num">54.29</td><td class="bar-cell"><span class="bar gray"><i style="width: 54.29%"></i></span></td><td class="num">46.79</td><td class="bar-cell"><span class="bar dim"><i style="width: 46.79%"></i></span></td></tr>
+          <tr><td>CountBench</td><td class="num">73.31</td><td class="bar-cell"><span class="bar"><i style="width: 73.31%"></i></span></td><td class="num">47.64</td><td class="bar-cell"><span class="bar gray"><i style="width: 47.64%"></i></span></td><td class="num">61.81</td><td class="bar-cell"><span class="bar dim"><i style="width: 61.81%"></i></span></td></tr>
+          <tr class="hi"><td>RefCOCO-M <span class="muted">(grounding)</span></td><td class="num">81.28</td><td class="bar-cell"><span class="bar"><i style="width: 81.28%"></i></span></td><td class="num">&mdash;</td><td class="bar-cell"><span class="bar dotted"></span></td><td class="num">&mdash;</td><td class="bar-cell"><span class="bar dotted"></span></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3 style="margin: var(--kui-space-ml) 0 var(--kui-space-sm);">Language benchmarks</h3>
+      <div style="overflow-x: auto;">
+      <table class="bench">
+        <thead>
+          <tr><th>Benchmark</th><th>LFM2.5-VL-450M</th><th class="bar-cell"></th><th>LFM2-VL-450M</th><th class="bar-cell"></th><th>SmolVLM2-500M</th><th class="bar-cell"></th></tr>
+        </thead>
+        <tbody>
+          <tr class="hi"><td>GPQA</td><td class="num">25.66</td><td class="bar-cell"><span class="bar"><i style="width: 25.66%"></i></span></td><td class="num">23.13</td><td class="bar-cell"><span class="bar gray"><i style="width: 23.13%"></i></span></td><td class="num">23.84</td><td class="bar-cell"><span class="bar dim"><i style="width: 23.84%"></i></span></td></tr>
+          <tr><td>MMLU Pro</td><td class="num">19.32</td><td class="bar-cell"><span class="bar"><i style="width: 19.32%"></i></span></td><td class="num">17.22</td><td class="bar-cell"><span class="bar gray"><i style="width: 17.22%"></i></span></td><td class="num">13.57</td><td class="bar-cell"><span class="bar dim"><i style="width: 13.57%"></i></span></td></tr>
+          <tr class="hi"><td>IFEval</td><td class="num">61.16</td><td class="bar-cell"><span class="bar"><i style="width: 61.16%"></i></span></td><td class="num">51.75</td><td class="bar-cell"><span class="bar gray"><i style="width: 51.75%"></i></span></td><td class="num">30.14</td><td class="bar-cell"><span class="bar dim"><i style="width: 30.14%"></i></span></td></tr>
+          <tr><td>Multi-IF</td><td class="num">34.63</td><td class="bar-cell"><span class="bar"><i style="width: 34.63%"></i></span></td><td class="num">26.21</td><td class="bar-cell"><span class="bar gray"><i style="width: 26.21%"></i></span></td><td class="num">6.82</td><td class="bar-cell"><span class="bar dim"><i style="width: 6.82%"></i></span></td></tr>
+          <tr class="hi"><td>BFCLv4 <span class="muted">(tool calling)</span></td><td class="num">21.08</td><td class="bar-cell"><span class="bar"><i style="width: 21.08%"></i></span></td><td class="num">&mdash;</td><td class="bar-cell"><span class="bar dotted"></span></td><td class="num">&mdash;</td><td class="bar-cell"><span class="bar dotted"></span></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <div class="callout" style="margin-top: var(--kui-space-md);">
+        <b>Source-reported, not independently verified.</b> Every score is taken verbatim from the LFM2.5-VL-450M Hugging Face model card (vision via VLMEvalKit; multilingual scores via GPT-4.1-mini translations). RefCOCO-M and BFCLv4 are net-new capabilities introduced in v2.5 — the v2 comparison cells are dashes by definition.
+      </div>
+    </section>
+
+    <!-- ===================== 13. UNKNOWNS ===================== -->
+    <section id="unknowns" class="block">
+      <div class="head">
+        <span class="num-label">13</span>
+        <h2 class="section">Unknowns &amp; caveats</h2>
+      </div>
+      <p class="lede">Items the listed sources (LFM2.5-VL-450M model card, Liquid AI models page, Liquid AI HF organization) do not state explicitly. Each is flagged where it appears earlier on this page.</p>
+
+      <div class="grid cols-2">
+        <div class="card">
+          <h4>Architecture &mdash; not reported</h4>
+          <ul class="crisp" style="font: var(--kui-body);">
+            <li>Vision encoder patch size, hidden dim, block count</li>
+            <li>Projector type and input → output dimensions</li>
+            <li>LFM2.5-350M block topology (conv:attention ratio, attention type, head count, hidden dim)</li>
+            <li>Image-token grid shape produced per 512×512 tile</li>
+            <li>How the 32–256 visual-token budget is split between tiles and thumbnail</li>
+            <li>Whether the vision encoder is frozen or co-trained</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h4>Training / data &mdash; not reported</h4>
+          <ul class="crisp" style="font: var(--kui-body);">
+            <li>VL-specific pretraining dataset(s) and scale</li>
+            <li>Image-text pair count</li>
+            <li>Caption / VQA / grounding / detection mix</li>
+            <li>SFT, RL, DPO or distillation specific to the VLM</li>
+            <li>Safety filtering pipeline</li>
+            <li>Resolution / aspect-ratio curriculum</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h4>Cross-source consistency</h4>
+          <ul class="crisp" style="font: var(--kui-body);">
+            <li>LFM2.5-VL family on the Liquid AI models page lists <b>two</b> 2.5-VL checkpoints (1.6B and 450M) — the workspace backlog row also lists <b>1.6B</b> and <b>450M</b> for LFM2.5-VL. Consistent.</li>
+            <li>Older LFM2-VL line on the same page lists <b>450M</b> and <b>3B</b> — the backlog row's "450M / 3B" reading matches. <em>The backlog row's "1.6B" likely refers to LFM2.5-VL-1.6B, not an LFM2-VL-1.6B; no LFM2-VL-1.6B is listed on Liquid AI's models page.</em></li>
+            <li>The Hugging Face card states the LFM2.5-VL-450M model size as <b>0.4B parameters</b> (BF16). The product page label "450M" rounds up the combined LM (~350M) + vision encoder (~86M) total. Consistent.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h4>Licensing</h4>
+          <p style="font: var(--kui-body); margin: 6px 0;">The HF card reports the license as <span class="mono">lfm1.0</span> — Liquid's "LFM Open License v1.0." Weights are openly downloadable from Hugging Face. <b>Commercial-use terms must be reviewed against the LFM Open License v1.0 text</b> (linked from the Liquid AI website footer) before production deployment.</p>
+          <p style="font: var(--kui-body); margin: 6px 0;">Liquid AI also offers a commercial license / on-prem customization stack via their enterprise solutions page — separate from the open weights.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 14. SOURCES ===================== -->
+    <section id="sources" class="block">
+      <div class="head">
+        <span class="num-label">14</span>
+        <h2 class="section">Sources used</h2>
+      </div>
+      <ul class="sources" style="list-style: none; padding: 0;">
+        <li>
+          <b>LFM2.5-VL-450M model card</b> — Hugging Face (LiquidAI org)
+          <span class="url"><a href="https://huggingface.co/LiquidAI/LFM2.5-VL-450M" target="_blank" rel="noopener">https://huggingface.co/LiquidAI/LFM2.5-VL-450M</a></span>
+        </li>
+        <li>
+          <b>Liquid Foundation Models</b> — product page (variant list, family positioning, LFM2.5 training summary)
+          <span class="url"><a href="https://www.liquid.ai/models" target="_blank" rel="noopener">https://www.liquid.ai/models</a></span>
+        </li>
+        <li>
+          <b>Liquid AI</b> — Hugging Face organization page (paper link, collections, model registry)
+          <span class="url"><a href="https://huggingface.co/LiquidAI" target="_blank" rel="noopener">https://huggingface.co/LiquidAI</a></span>
+        </li>
+        <li>
+          <b>LFM2 Technical Report</b> — arXiv 2511.23404 (referenced by model card; not fetched into this page)
+          <span class="url"><a href="https://arxiv.org/abs/2511.23404" target="_blank" rel="noopener">https://arxiv.org/abs/2511.23404</a></span>
+        </li>
+        <li>
+          <b>Workspace backlog row</b> — <span class="mono">oss-model-releases-2025-plus.md</span> (treated as a source lead only; values verified against the URLs above before inclusion)
+        </li>
+      </ul>
+    </section>
+
+    <div class="footer">
+      <span>Architecture atlas · LFM2-VL &amp; LFM2.5-VL · all numbers reproduced from listed sources</span>
+      <span>Kaizen UI v11 (Beta) · NVIDIA Sans → DM Sans substitute · sharp 4 px geometry</span>
+    </div>
+  </main>
+</div>
+
+<script>
+  // Active section highlighting in the side nav
+  (function () {
+    const links = Array.from(document.querySelectorAll('.sidenav a[href^="#"]'));
+    const map = new Map();
+    links.forEach(a => {
+      const id = a.getAttribute('href').slice(1);
+      const t = document.getElementById(id);
+      if (t) map.set(t, a);
+    });
+    if (!('IntersectionObserver' in window)) return;
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (!e.isIntersecting) return;
+        const a = map.get(e.target);
+        if (!a) return;
+        links.forEach(l => l.classList.remove('active'));
+        a.classList.add('active');
+      });
+    }, { rootMargin: '-30% 0px -60% 0px', threshold: 0 });
+    map.forEach((_, sec) => obs.observe(sec));
+  })();
+</script>
+
+</body>
+</html>

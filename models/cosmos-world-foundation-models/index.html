@@ -1,0 +1,1166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cosmos World Foundation Models Architecture</title>
+<link rel="stylesheet" href="styles.css" />
+<style>
+  /* page-specific extensions */
+  .pillrow { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 0; }
+  .pillrow .tag { font-size: 11px; }
+  .src {
+    font-family: var(--kui-font-mono); font-size: 11px;
+    color: var(--kui-fg-muted); letter-spacing: 0.02em;
+  }
+  .src a { color: var(--kui-info); text-decoration: underline; text-underline-offset: 2px; }
+  .src a:hover { color: var(--kui-info-text); }
+
+  /* family map */
+  .family { display: grid; grid-template-columns: 220px 1fr 1fr; gap: 1px;
+    background: var(--kui-border-default); border: 1px solid var(--kui-border-default);
+    margin: 24px 0 8px; font-size: 13px; }
+  .family > div { background: var(--kui-bg-mid); padding: 16px 18px; }
+  .family .h { background: var(--kui-n050); font-size: 11px; color: var(--kui-fg-muted);
+    letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; padding: 10px 18px; }
+  .family .rowlabel { font-family: var(--kui-font-mono); font-size: 12px; color: var(--kui-fg-muted); }
+  .family .name { font-weight: 500; font-family: var(--kui-font-mono); font-size: 12px; }
+  .family .desc { font-size: 12px; color: var(--kui-fg-muted); margin-top: 4px; line-height: 1.5; }
+
+  /* dimension table */
+  table.dim { width: 100%; border-collapse: collapse; font-size: 13px; margin: 16px 0; }
+  table.dim th, table.dim td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--kui-border-default); }
+  table.dim th { font-weight: 500; font-size: 11px; color: var(--kui-fg-muted); letter-spacing: 0.05em; text-transform: uppercase; background: var(--kui-n050); }
+  table.dim td.k { color: var(--kui-fg-muted); font-family: var(--kui-font-mono); font-size: 12px; width: 38%; }
+  table.dim td.v { font-family: var(--kui-font-mono); font-size: 12px; }
+  table.dim td.v.unk { color: var(--kui-fg-muted); font-style: italic; font-family: var(--kui-font-sans); }
+
+  /* unknown chip */
+  .unk-chip {
+    display: inline-block; padding: 1px 8px; border-radius: 2px;
+    background: var(--kui-n050); color: var(--kui-fg-muted);
+    font-family: var(--kui-font-mono); font-size: 11px; font-style: italic;
+  }
+
+  /* dual-track diagram cards */
+  .track-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 32px 0; }
+  .track {
+    background: var(--kui-bg-mid); border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-sm); padding: 24px;
+  }
+  .track h4 { font-size: 13px; font-weight: 500; margin: 0 0 4px;
+    letter-spacing: 0.04em; text-transform: uppercase; color: var(--kui-fg-muted); }
+  .track .head-eq { font-family: var(--kui-font-mono); font-size: 12px; color: var(--kui-fg-strong); }
+  .track .sub { font-size: 12px; color: var(--kui-fg-muted); margin-top: 6px; line-height: 1.5; }
+
+  /* anchor offset for nav links */
+  .section { scroll-margin-top: 16px; }
+
+  /* equation block */
+  .eq {
+    font-family: var(--kui-font-mono); font-size: 13px;
+    background: var(--kui-n050); border-left: 2px solid var(--kui-brand-green);
+    padding: 12px 16px; margin: 12px 0;
+    color: var(--kui-fg-strong); line-height: 1.7;
+    overflow-x: auto;
+  }
+  .eq .c { color: var(--kui-fg-muted); }
+
+  /* benchmark bar variant */
+  .bench-bars .bar-row { grid-template-columns: 220px 1fr 110px; }
+  .bench-bars .bar > div { background: var(--kui-brand-green); }
+  .bench-bars .bar > div.baseline { background: var(--kui-n200); }
+
+  /* caveat list */
+  .caveat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: var(--kui-border-default); border: 1px solid var(--kui-border-default);
+    margin: 24px 0; }
+  .caveat-grid .cv { background: var(--kui-bg-mid); padding: 14px 18px; font-size: 13px; }
+  .caveat-grid .cv .k { font-family: var(--kui-font-mono); font-size: 11px;
+    color: var(--kui-fg-muted); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 4px; }
+  .caveat-grid .cv .v { color: var(--kui-fg-default); }
+
+  /* footer */
+  .pagefoot { padding: 32px 56px; font-size: 12px; color: var(--kui-fg-muted);
+    border-top: 1px solid var(--kui-border-default); background: var(--kui-bg-mid); }
+  .pagefoot a { color: var(--kui-info); text-decoration: underline; text-underline-offset: 2px; }
+
+  @media (max-width: 1024px) {
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { position: relative; height: auto; }
+    .two-col { grid-template-columns: 1fr; gap: 24px; }
+    .track-grid { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .caveat-grid { grid-template-columns: 1fr; }
+    .section { padding: 56px 28px; }
+    .hero { padding: 56px 28px 40px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ───────────────────────── SIDEBAR ───────────────────────── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="kaizen/NVIDIA-eye-mark.svg" alt="NVIDIA" />
+      <div>
+        <div style="font-weight: 500; font-size: 13px;">Model Atlas</div>
+        <div class="sub">Architecture</div>
+      </div>
+    </div>
+    <a class="home-link" href="../../index.html">Atlas home</a>
+    <div class="nav-label">Cosmos WFM 1.0</div>
+    <nav>
+      <a href="#overview" class="active"><span class="idx">01</span>Overview</a>
+      <a href="#family"><span class="idx">02</span>Model family</a>
+      <a href="#pipeline"><span class="idx">03</span>End-to-end pipeline</a>
+      <a href="#tokenizer"><span class="idx">04</span>Cosmos Tokenizer</a>
+      <a href="#diffusion"><span class="idx">05</span>Diffusion architecture</a>
+      <a href="#autoregressive"><span class="idx">06</span>Autoregressive arch.</a>
+      <a href="#attention"><span class="idx">07</span>Attention &amp; RoPE</a>
+      <a href="#training"><span class="idx">08</span>Training stages</a>
+      <a href="#guardrails"><span class="idx">09</span>Cosmos Guardrails</a>
+      <a href="#benchmarks"><span class="idx">10</span>Benchmarks</a>
+      <a href="#inference"><span class="idx">11</span>Inference cost</a>
+      <a href="#caveats"><span class="idx">12</span>Unknowns &amp; caveats</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+    <!-- ─────────────────────── HERO ─────────────────────── -->
+    <section class="hero" id="overview" data-screen-label="01 Overview">
+      <div class="meta">NVIDIA · 2025-01 · Open Model License</div>
+      <h1>Cosmos World Foundation Models</h1>
+      <p class="hero-lede">
+        A family of pre-trained <strong>world foundation models</strong> (WFMs)
+        purpose-built for generating physics-aware videos and world states for
+        Physical AI. Cosmos 1.0 ships two parallel tracks — <strong>diffusion</strong>
+        and <strong>autoregressive</strong> transformers — both operating in the
+        latent space of the <strong>Cosmos Tokenizer</strong>, with Text2World and
+        Video2World variants at 4B–14B scale.
+      </p>
+      <div class="pillrow">
+        <span class="tag green">Video generation</span>
+        <span class="tag blue">Diffusion · 7B / 14B</span>
+        <span class="tag purple">Autoregressive · 4B / 5B / 12B / 13B</span>
+        <span class="tag teal">T5-XXL text conditioning</span>
+        <span class="tag orange">Physical AI</span>
+      </div>
+      <div class="src" style="margin-top: 20px;">
+        Sources:
+        <a href="https://huggingface.co/blog/mingyuliutw/nvidia-cosmos">HF blog (Liu &amp; Joshi, 2025-01-07)</a> ·
+        <a href="https://arxiv.org/abs/2501.03575">arXiv:2501.03575</a> ·
+        <a href="https://huggingface.co/nvidia/Cosmos-1.0-Diffusion-7B-Text2World">Cosmos-1.0-Diffusion-7B-T2W card</a> ·
+        <a href="https://huggingface.co/collections/nvidia/cosmos-6751e884dc10e013a0a0d8e6">HF collection</a>
+      </div>
+
+      <div class="stats" style="margin-top: 40px;">
+        <div class="stat">
+          <div class="label">Pre-training video</div>
+          <div class="value">20M hrs</div>
+          <div class="delta">≈ 9,000 T tokens</div>
+        </div>
+        <div class="stat">
+          <div class="label">Training compute</div>
+          <div class="value">10K H100</div>
+          <div class="delta">≈ 3 months</div>
+        </div>
+        <div class="stat">
+          <div class="label">Output length</div>
+          <div class="value">121 frames</div>
+          <div class="delta">5 s · 24 fps · 1280×704</div>
+        </div>
+        <div class="stat">
+          <div class="label">Param scales</div>
+          <div class="value">4B — 14B</div>
+          <div class="delta">Family · sizes per track</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────── FAMILY MAP ─────────────────────── -->
+    <section class="section" id="family" data-screen-label="02 Family">
+      <div class="eyebrow">02 — Model family</div>
+      <h2>Eight checkpoints across two paradigms</h2>
+      <p class="lede">
+        Cosmos 1.0 exposes two scalable deep-learning paradigms in parallel.
+        Each paradigm has a <strong>base</strong> model (text-conditioned future-frame
+        generation) and a <strong>derivative</strong> Video2World model that adds
+        first-frame conditioning. A prompt upsampler accompanies the diffusion track;
+        a diffusion decoder accompanies the autoregressive track.
+      </p>
+
+      <div class="family">
+        <div class="h">Track</div>
+        <div class="h">Base · Text2World</div>
+        <div class="h">Derivative · Video2World</div>
+
+        <div class="rowlabel">Diffusion<br /><span style="font-family: var(--kui-font-sans); color: var(--kui-fg-muted); font-size: 11px;">latent denoising</span></div>
+        <div>
+          <div class="name">Cosmos-1.0-Diffusion-7B-Text2World</div>
+          <div class="desc">7B diffusion transformer · 121-frame video from a text prompt.</div>
+          <div class="name" style="margin-top: 10px;">Cosmos-1.0-Diffusion-14B-Text2World</div>
+          <div class="desc">14B variant of the above.</div>
+        </div>
+        <div>
+          <div class="name">Cosmos-1.0-Diffusion-7B-Video2World</div>
+          <div class="desc">Generate 120 future frames from text + an initial image frame.</div>
+          <div class="name" style="margin-top: 10px;">Cosmos-1.0-Diffusion-14B-Video2World</div>
+          <div class="desc">14B variant of the above.</div>
+        </div>
+
+        <div class="rowlabel">Autoregressive<br /><span style="font-family: var(--kui-font-sans); color: var(--kui-fg-muted); font-size: 11px;">next-token</span></div>
+        <div>
+          <div class="name">Cosmos-1.0-Autoregressive-4B</div>
+          <div class="desc">4B transformer, Stage 1 + Stage 1.1 next-video-token prediction.</div>
+          <div class="name" style="margin-top: 10px;">Cosmos-1.0-Autoregressive-12B</div>
+          <div class="desc">12B variant of the above.</div>
+        </div>
+        <div>
+          <div class="name">Cosmos-1.0-Autoregressive-5B-Video2World</div>
+          <div class="desc">Adds cross-attention to the 4B base; Stage 2 text-conditioned video generation.</div>
+          <div class="name" style="margin-top: 10px;">Cosmos-1.0-Autoregressive-13B-Video2World</div>
+          <div class="desc">Built from the 12B base, with cross-attention + Stage 2 training.</div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>Companion components.</strong> A <em>prompt upsampler</em> rewrites short
+        prompts into long, descriptive ones for the diffusion track. A <em>diffusion decoder</em>
+        boosts visual quality of the autoregressive track's outputs. Both are released
+        as separate checkpoints in the Cosmos 1.0 collection.
+      </div>
+      <div class="src">Source: HF blog Table&nbsp;1 — Maps of Cosmos WFMs 1.0 Release.</div>
+    </section>
+
+    <!-- ─────────────────────── PIPELINE ─────────────────────── -->
+    <section class="section" id="pipeline" data-screen-label="03 Pipeline">
+      <div class="eyebrow">03 — End-to-end pipeline</div>
+      <h2>From text or video in, to a 5-second world out</h2>
+      <p class="lede">
+        Both tracks share a common scaffold: a video encoder produces a compact latent,
+        a transformer stack denoises (diffusion) or unrolls (autoregressive) over that
+        latent, and a paired decoder reconstructs frames. Text grounding flows in
+        through cross-attention from a frozen T5-XXL encoder. Guardrails wrap the
+        pipeline on both ends.
+      </p>
+
+      <div class="diagram">
+        <svg viewBox="0 0 1100 360" role="img" aria-label="End-to-end pipeline">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+              markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--kui-fg-default)" />
+            </marker>
+            <marker id="arrowg" viewBox="0 0 10 10" refX="9" refY="5"
+              markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--kui-brand-green)" />
+            </marker>
+          </defs>
+
+          <!-- inputs column -->
+          <rect class="box gray" x="20" y="40" width="140" height="48" rx="3" />
+          <text class="svg-label" x="90" y="62" text-anchor="middle">Text prompt</text>
+          <text class="svg-label mono muted" x="90" y="78" text-anchor="middle">&lt; 300 words</text>
+
+          <rect class="box gray" x="20" y="100" width="140" height="48" rx="3" />
+          <text class="svg-label" x="90" y="122" text-anchor="middle">Image (V2W)</text>
+          <text class="svg-label mono muted" x="90" y="138" text-anchor="middle">first frame</text>
+
+          <rect class="box gray" x="20" y="160" width="140" height="48" rx="3" />
+          <text class="svg-label" x="90" y="182" text-anchor="middle">Video (V2W)</text>
+          <text class="svg-label mono muted" x="90" y="198" text-anchor="middle">conditioning frames</text>
+
+          <!-- pre-guard -->
+          <rect class="box orange" x="200" y="40" width="120" height="48" rx="3" />
+          <text class="svg-label" x="260" y="60" text-anchor="middle">Pre-guard</text>
+          <text class="svg-label mono muted" x="260" y="78" text-anchor="middle">blocklist + Aegis</text>
+
+          <!-- prompt upsampler (diffusion) -->
+          <rect class="box gray" x="200" y="100" width="120" height="48" rx="3" stroke-dasharray="3 3" />
+          <text class="svg-label" x="260" y="120" text-anchor="middle">Prompt upsampler</text>
+          <text class="svg-label mono muted" x="260" y="138" text-anchor="middle">optional, diffusion</text>
+
+          <!-- T5 encoder -->
+          <rect class="box blue" x="360" y="40" width="140" height="48" rx="3" />
+          <text class="svg-label" x="430" y="60" text-anchor="middle">T5-XXL</text>
+          <text class="svg-label mono muted" x="430" y="78" text-anchor="middle">text embeddings</text>
+
+          <!-- video tokenizer encoder -->
+          <rect class="box teal" x="360" y="120" width="140" height="76" rx="3" />
+          <text class="svg-label" x="430" y="146" text-anchor="middle">Cosmos Tokenizer</text>
+          <text class="svg-label mono muted" x="430" y="164" text-anchor="middle">Encoder</text>
+          <text class="svg-label mono muted" x="430" y="180" text-anchor="middle">CV8×8×8 / DV8×16×16</text>
+
+          <!-- core stack -->
+          <rect class="box green" x="540" y="40" width="200" height="240" rx="3" />
+          <text class="svg-label" x="640" y="64" text-anchor="middle" style="font-weight: 500;">Transformer stack</text>
+          <text class="svg-label mono muted" x="640" y="84" text-anchor="middle">repeated blocks</text>
+
+          <!-- block detail -->
+          <rect class="box" x="560" y="98" width="160" height="22" rx="2" />
+          <text class="svg-label mono" x="640" y="113" text-anchor="middle">3D patchify (diff.)</text>
+          <rect class="box" x="560" y="124" width="160" height="22" rx="2" />
+          <text class="svg-label mono" x="640" y="139" text-anchor="middle">Self-attention + 3D RoPE</text>
+          <rect class="box" x="560" y="150" width="160" height="22" rx="2" />
+          <text class="svg-label mono" x="640" y="165" text-anchor="middle">Cross-attention (T5)</text>
+          <rect class="box" x="560" y="176" width="160" height="22" rx="2" />
+          <text class="svg-label mono" x="640" y="191" text-anchor="middle">Feed-forward MLP</text>
+          <rect class="box" x="560" y="202" width="160" height="22" rx="2" />
+          <text class="svg-label mono" x="640" y="217" text-anchor="middle">AdaLN (scale/shift/gate)</text>
+          <rect class="box" x="560" y="228" width="160" height="22" rx="2" />
+          <text class="svg-label mono muted" x="640" y="243" text-anchor="middle">×N · N unknown in source</text>
+
+          <text class="svg-label mono muted" x="640" y="270" text-anchor="middle">denoise (diff.) · next-token (AR)</text>
+
+          <!-- tokenizer decoder -->
+          <rect class="box teal" x="780" y="120" width="140" height="76" rx="3" />
+          <text class="svg-label" x="850" y="146" text-anchor="middle">Cosmos Tokenizer</text>
+          <text class="svg-label mono muted" x="850" y="164" text-anchor="middle">Decoder</text>
+          <text class="svg-label mono muted" x="850" y="180" text-anchor="middle">latent → pixels</text>
+
+          <!-- post-guard -->
+          <rect class="box orange" x="960" y="120" width="120" height="48" rx="3" />
+          <text class="svg-label" x="1020" y="140" text-anchor="middle">Post-guard</text>
+          <text class="svg-label mono muted" x="1020" y="158" text-anchor="middle">frame-wise · face blur</text>
+
+          <!-- output -->
+          <rect class="box dark" x="960" y="190" width="120" height="48" rx="3" />
+          <text class="svg-label white" x="1020" y="212" text-anchor="middle">Video (mp4)</text>
+          <text class="svg-label mono white" x="1020" y="228" text-anchor="middle" style="opacity: 0.7;">5s · 24fps</text>
+
+          <!-- arrows -->
+          <path class="svg-arrow" d="M160 64 L 200 64" />
+          <path class="svg-arrow" d="M160 124 L 200 124" />
+          <path class="svg-arrow dashed" d="M160 184 C 270 184 270 158 360 158" />
+          <path class="svg-arrow" d="M320 64 L 360 64" />
+          <path class="svg-arrow dashed" d="M320 124 L 360 124" />
+          <path class="svg-arrow" d="M500 64 C 530 64 530 100 540 110" />
+          <path class="svg-arrow" d="M500 158 L 540 158" />
+          <path class="svg-arrow thick green" d="M740 158 L 780 158" />
+          <path class="svg-arrow" d="M920 158 L 960 144" />
+          <path class="svg-arrow" d="M1020 168 L 1020 190" />
+
+          <!-- key -->
+          <g transform="translate(20, 300)">
+            <rect class="box green" x="0" y="0" width="14" height="10" />
+            <text class="svg-label muted" x="20" y="9">Core stack</text>
+            <rect class="box teal" x="100" y="0" width="14" height="10" />
+            <text class="svg-label muted" x="120" y="9">Tokenizer</text>
+            <rect class="box blue" x="190" y="0" width="14" height="10" />
+            <text class="svg-label muted" x="210" y="9">Text encoder</text>
+            <rect class="box orange" x="310" y="0" width="14" height="10" />
+            <text class="svg-label muted" x="330" y="9">Guardrail</text>
+            <rect class="box gray" x="410" y="0" width="14" height="10" stroke-dasharray="3 3" />
+            <text class="svg-label muted" x="430" y="9">Optional / track-specific</text>
+          </g>
+        </svg>
+        <div class="diagram-caption">
+          <strong>Figure&nbsp;1.</strong> Common Cosmos 1.0 pipeline. Diffusion uses the
+          continuous tokenizer (CV8×8×8); autoregressive uses the discrete one (DV8×16×16).
+          Block <em>count</em>, hidden size, head count and FFN width are not given in the HF
+          blog post or model card; see <a href="#caveats">§12 caveats</a>.
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────── TOKENIZER ─────────────────────── -->
+    <section class="section" id="tokenizer" data-screen-label="04 Tokenizer">
+      <div class="eyebrow">04 — Cosmos Tokenizer</div>
+      <h2>One tokenizer suite, two compression regimes</h2>
+      <p class="lede">
+        The Cosmos Tokenizer is the substrate on which both tracks operate. Two
+        variants are released for video, sized for the two paradigms: a <strong>continuous</strong>
+        tokenizer for diffusion latents and a <strong>discrete</strong> tokenizer for
+        autoregressive token streams. Both shrink video on a fixed compression grid.
+      </p>
+
+      <div class="two-col">
+        <div>
+          <div class="diagram" style="margin-top: 0;">
+            <svg viewBox="0 0 620 260" role="img" aria-label="Tokenizer compression comparison">
+              <defs>
+                <pattern id="g" width="6" height="6" patternUnits="userSpaceOnUse">
+                  <rect width="6" height="6" fill="var(--kui-bg-mid)"/>
+                  <path d="M0 6 L6 0" stroke="var(--kui-n100)" stroke-width="1" />
+                </pattern>
+              </defs>
+
+              <!-- input video cube (representational) -->
+              <text class="svg-label muted" x="60" y="20">Input video cube</text>
+              <g transform="translate(20, 30)">
+                <rect x="0" y="0" width="120" height="80" fill="url(#g)" stroke="var(--kui-border-default)" />
+                <text class="svg-label mono muted" x="60" y="100" text-anchor="middle">T × H × W</text>
+              </g>
+
+              <!-- arrow -->
+              <path class="svg-arrow" d="M160 70 L 220 70" />
+
+              <!-- continuous tokenizer (diffusion) -->
+              <g transform="translate(240, 0)">
+                <text class="svg-label" x="0" y="20" style="font-weight: 500;">CV8×8×8 — Continuous</text>
+                <text class="svg-label mono muted" x="0" y="36">for diffusion latents</text>
+                <rect class="box teal" x="0" y="46" width="180" height="56" rx="3" />
+                <text class="svg-label mono" x="90" y="68" text-anchor="middle">8× time</text>
+                <text class="svg-label mono" x="90" y="86" text-anchor="middle">8×8 space</text>
+                <text class="svg-label mono muted" x="0" y="120">up to 121 frames per pass</text>
+              </g>
+
+              <!-- discrete tokenizer (AR) -->
+              <g transform="translate(240, 150)">
+                <text class="svg-label" x="0" y="20" style="font-weight: 500;">DV8×16×16 — Discrete</text>
+                <text class="svg-label mono muted" x="0" y="36">for autoregressive tokens</text>
+                <rect class="box purple" x="0" y="46" width="180" height="56" rx="3" />
+                <text class="svg-label mono" x="90" y="68" text-anchor="middle">8× time</text>
+                <text class="svg-label mono" x="90" y="86" text-anchor="middle">16×16 space</text>
+              </g>
+              <text class="svg-label mono muted" x="240" y="270">up to 49 frames per pass</text>
+
+              <!-- compression ratio bracket -->
+              <g transform="translate(450, 60)">
+                <text class="svg-label mono muted" x="0" y="0">compression</text>
+                <text class="svg-label mono" x="0" y="20" style="font-weight: 500;">512×</text>
+                <text class="svg-label mono muted" x="0" y="36">= 8·8·8 (CV)</text>
+                <text class="svg-label mono" x="0" y="74" style="font-weight: 500;">2048×</text>
+                <text class="svg-label mono muted" x="0" y="90">= 8·16·16 (DV)</text>
+              </g>
+            </svg>
+            <div class="diagram-caption">
+              <strong>Figure&nbsp;2.</strong> Compression rates per HF blog. Codebook size,
+              latent channel count, and tokenizer parameter counts: <span class="unk-chip">unknown in source inventory</span>.
+            </div>
+          </div>
+        </div>
+        <div>
+          <h3 style="margin-top: 0;">Why two tokenizers</h3>
+          <p>
+            Continuous latents are well-suited to diffusion's Gaussian-noise denoising
+            objective; discrete codes are well-suited to next-token cross-entropy.
+            Cosmos picks the higher spatial compression (16×16) for the discrete
+            tokenizer so the resulting token sequence stays tractable for an
+            autoregressive transformer.
+          </p>
+          <h3>Reported behaviour</h3>
+          <ul class="notes">
+            <li class="notes"><span class="k">CV8×8×8</span>121 frames/pass · diffusion</li>
+            <li><span class="k">DV8×16×16</span>49 frames/pass · autoregressive</li>
+            <li><span class="k">Curation</span>NeMo Curator pipeline · 20M hrs in 14 days on Blackwell</li>
+          </ul>
+          <div class="src">Source: HF blog §"High-Fidelity Compression with Cosmos Tokenizer".</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────── DIFFUSION ARCH ─────────────────────── -->
+    <section class="section" id="diffusion" data-screen-label="05 Diffusion">
+      <div class="eyebrow">05 — Diffusion architecture</div>
+      <h2>Latent diffusion transformer with AdaLN-LoRA conditioning</h2>
+      <p class="lede">
+        Cosmos-1.0-Diffusion is a diffusion transformer that denoises in the
+        latent space of <code>Cosmos-1.0-Tokenizer-CV8x8x8</code>. Each block
+        is a stack of self-attention, cross-attention, and feed-forward MLP,
+        modulated by adaptive layer normalization (AdaLN) keyed on the diffusion
+        time step <code>t</code>.
+      </p>
+
+      <div class="diagram">
+        <svg viewBox="0 0 1100 460" role="img" aria-label="Diffusion block">
+          <!-- left: input + patchify -->
+          <rect class="box gray" x="20" y="40" width="160" height="40" rx="3" />
+          <text class="svg-label" x="100" y="64" text-anchor="middle">Latent z₀  (CV8×8×8)</text>
+
+          <rect class="box gray" x="20" y="100" width="160" height="40" rx="3" />
+          <text class="svg-label mono" x="100" y="120" text-anchor="middle">+ Gaussian noise</text>
+          <text class="svg-label mono muted" x="100" y="134" text-anchor="middle">z_t = α·z₀ + σ·ε</text>
+
+          <rect class="box teal" x="20" y="160" width="160" height="40" rx="3" />
+          <text class="svg-label" x="100" y="184" text-anchor="middle">3D Patchify</text>
+
+          <rect class="box gray" x="20" y="220" width="160" height="40" rx="3" />
+          <text class="svg-label mono" x="100" y="240" text-anchor="middle">+ FPS-aware 3D RoPE</text>
+          <text class="svg-label mono muted" x="100" y="254" text-anchor="middle">(T, H, W)</text>
+
+          <!-- text conditioning -->
+          <rect class="box blue" x="20" y="300" width="160" height="40" rx="3" />
+          <text class="svg-label" x="100" y="324" text-anchor="middle">T5-XXL embeddings</text>
+
+          <!-- time conditioning -->
+          <rect class="box orange" x="20" y="360" width="160" height="40" rx="3" />
+          <text class="svg-label" x="100" y="384" text-anchor="middle">timestep t</text>
+
+          <!-- core block -->
+          <rect class="box green" x="240" y="40" width="500" height="380" rx="4" />
+          <text class="svg-label" x="490" y="64" text-anchor="middle" style="font-weight: 500;">Diffusion Transformer Block · ×N</text>
+          <text class="svg-label mono muted" x="490" y="82" text-anchor="middle">N: unknown in source inventory</text>
+
+          <!-- pre-norm 1 -->
+          <rect class="box" x="270" y="100" width="440" height="32" rx="2" />
+          <text class="svg-label mono" x="490" y="120" text-anchor="middle">AdaLN(scale₁, shift₁) · keyed on t</text>
+
+          <!-- self attention -->
+          <rect class="box purple" x="270" y="140" width="440" height="40" rx="2" />
+          <text class="svg-label" x="490" y="160" text-anchor="middle">Self-attention  (Q,K with RMSNorm Q-K Norm)</text>
+          <text class="svg-label mono muted" x="490" y="174" text-anchor="middle">3D RoPE applied; attention mask: unknown in source</text>
+
+          <text class="svg-label mono muted" x="490" y="194" text-anchor="middle">⊕ residual · scaled by gate₁</text>
+
+          <!-- pre-norm 2 -->
+          <rect class="box" x="270" y="206" width="440" height="32" rx="2" />
+          <text class="svg-label mono" x="490" y="226" text-anchor="middle">AdaLN(scale₂, shift₂)</text>
+
+          <!-- cross attention -->
+          <rect class="box blue" x="270" y="246" width="440" height="40" rx="2" />
+          <text class="svg-label" x="490" y="266" text-anchor="middle">Cross-attention   (Q ← latent, K/V ← T5)</text>
+          <text class="svg-label mono muted" x="490" y="280" text-anchor="middle">⊕ residual · scaled by gate₂</text>
+
+          <!-- pre-norm 3 -->
+          <rect class="box" x="270" y="300" width="440" height="32" rx="2" />
+          <text class="svg-label mono" x="490" y="320" text-anchor="middle">AdaLN(scale₃, shift₃)</text>
+
+          <!-- mlp -->
+          <rect class="box teal" x="270" y="340" width="440" height="40" rx="2" />
+          <text class="svg-label" x="490" y="360" text-anchor="middle">Feed-forward MLP</text>
+          <text class="svg-label mono muted" x="490" y="374" text-anchor="middle">activation, intermediate size: unknown in source</text>
+
+          <text class="svg-label mono muted" x="490" y="398" text-anchor="middle">⊕ residual · scaled by gate₃</text>
+
+          <!-- AdaLN-LoRA side panel -->
+          <rect class="box orange" x="780" y="40" width="300" height="200" rx="4" />
+          <text class="svg-label" x="930" y="64" text-anchor="middle" style="font-weight: 500;">AdaLN-LoRA modulator</text>
+          <text class="svg-label mono muted" x="930" y="82" text-anchor="middle">low-rank approx of dense AdaLN layers</text>
+
+          <rect class="box" x="800" y="100" width="260" height="28" rx="2" />
+          <text class="svg-label mono" x="930" y="118" text-anchor="middle">t  →  MLP(t)</text>
+          <rect class="box" x="800" y="136" width="260" height="28" rx="2" />
+          <text class="svg-label mono" x="930" y="154" text-anchor="middle">→ {scaleᵢ, shiftᵢ, gateᵢ}  i=1..3</text>
+          <rect class="box" x="800" y="172" width="260" height="56" rx="2" />
+          <text class="svg-label" x="930" y="192" text-anchor="middle" style="font-weight: 500;">−36% parameters</text>
+          <text class="svg-label mono muted" x="930" y="210" text-anchor="middle">11B → 7B  (per HF blog)</text>
+          <text class="svg-label mono muted" x="930" y="222" text-anchor="middle">accuracy preserved</text>
+
+          <!-- AdaLN-LoRA prediction targets -->
+          <rect class="box" x="780" y="260" width="300" height="160" rx="4" stroke-dasharray="2 3" />
+          <text class="svg-label" x="930" y="282" text-anchor="middle" style="font-weight: 500;">Q-K Normalization</text>
+          <text class="svg-label mono muted" x="930" y="300" text-anchor="middle">RMSNorm on attention Q, K</text>
+          <text class="svg-label mono muted" x="930" y="316" text-anchor="middle">stabilizes training</text>
+          <text class="svg-label mono muted" x="930" y="332" text-anchor="middle">prevents attention collapse</text>
+
+          <text class="svg-label" x="930" y="362" text-anchor="middle" style="font-weight: 500;">Precision</text>
+          <text class="svg-label mono muted" x="930" y="380" text-anchor="middle">BF16 weights · FP32 stability</text>
+          <text class="svg-label mono muted" x="930" y="396" text-anchor="middle">inference tested in BF16</text>
+
+          <!-- arrows -->
+          <path class="svg-arrow" d="M180 60 L 200 60 L 200 120 L 180 120" stroke-dasharray="0" fill="none" />
+          <path class="svg-arrow" d="M180 180 L 230 180 L 230 140 L 240 140" />
+          <path class="svg-arrow" d="M180 240 L 230 240 L 230 156 L 240 156" />
+          <path class="svg-arrow" d="M180 320 L 230 320 L 230 266 L 270 266" />
+          <path class="svg-arrow" d="M180 380 L 770 380 L 770 110 L 800 110" />
+          <path class="svg-arrow dashed" d="M780 156 L 740 156" />
+          <path class="svg-arrow dashed" d="M780 156 L 740 222" />
+          <path class="svg-arrow dashed" d="M780 156 L 740 320" />
+
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--kui-fg-default)" />
+            </marker>
+          </defs>
+        </svg>
+        <div class="diagram-caption">
+          <strong>Figure&nbsp;3.</strong> Diffusion transformer block (reconstructed from HF
+          blog Figure&nbsp;2 description). AdaLN-LoRA predicts the (scale, shift, gate)
+          modulation triples for all three sub-blocks from a low-rank projection of the
+          timestep embedding.
+        </div>
+      </div>
+
+      <div class="track-grid">
+        <div class="track">
+          <h4>Reported tricks</h4>
+          <ul class="notes">
+            <li><span class="k">3D Patchify</span>non-overlapping 3D patches → token sequence; preserves spatial &amp; temporal relations</li>
+            <li><span class="k">FPS-aware 3D RoPE</span>positional encoding across (T,H,W); adapts to varying frame rates</li>
+            <li><span class="k">Q-K Norm</span>RMSNorm on Q and K to prevent attention collapse</li>
+            <li><span class="k">AdaLN-LoRA</span>low-rank modulation cuts 36% of params (11B → 7B)</li>
+            <li><span class="k">Cross-attn</span>T5-XXL embeddings fed to every block</li>
+            <li><span class="k">Time cond.</span>diffusion timestep t conditions AdaLN scale/shift/gate</li>
+          </ul>
+        </div>
+        <div class="track">
+          <h4>Input / Output (7B Text2World card)</h4>
+          <table class="dim">
+            <tr><td class="k">Input</td><td class="v">Text string · &lt; 300 words</td></tr>
+            <tr><td class="k">Output</td><td class="v">mp4 · 121 frames</td></tr>
+            <tr><td class="k">Default resolution</td><td class="v">1280 × 704</td></tr>
+            <tr><td class="k">Frame rate</td><td class="v">24 fps (configurable 12–40)</td></tr>
+            <tr><td class="k">Clip length</td><td class="v">5 seconds</td></tr>
+            <tr><td class="k">Aspect ratios</td><td class="v">1:1, 4:3, 3:4, 16:9, 9:16</td></tr>
+            <tr><td class="k">Tested precision</td><td class="v">BF16</td></tr>
+            <tr><td class="k">Hardware</td><td class="v">Blackwell / Hopper / Ampere</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <h3>Sampling, in equation form</h3>
+      <p>The forward (noising) and reverse (denoising) processes are not detailed numerically in the model card or HF blog. The schedule, predictor parameterization (ε-pred vs v-pred vs x₀-pred), and number of sampling steps are <span class="unk-chip">not reported in source inventory</span>. Conceptually:</p>
+      <div class="eq">
+z_t  =  α(t)·z₀ + σ(t)·ε,      ε ~ N(0, I)            <span class="c">// forward</span>
+z_{t-1}  ←  Dθ( z_t, t, T5(prompt), [z_cond] )         <span class="c">// reverse, transformer Dθ</span>
+x̂  =  TokenizerDec( z₀ )                              <span class="c">// CV8×8×8 decoder</span>
+      </div>
+
+      <div class="src">Sources: HF blog §"Diffusion Models" · Cosmos-1.0-Diffusion-7B-Text2World model card §"Model Architecture" and §"Input/Output Specifications".</div>
+    </section>
+
+    <!-- ─────────────────────── AUTOREGRESSIVE ARCH ─────────────────────── -->
+    <section class="section" id="autoregressive" data-screen-label="06 Autoregressive">
+      <div class="eyebrow">06 — Autoregressive architecture</div>
+      <h2>Discrete next-token video transformer</h2>
+      <p class="lede">
+        The autoregressive track encodes video into <strong>discrete</strong> tokens via
+        <code>Cosmos-1.0-Tokenizer-DV8x16x16</code>, embeds them, and processes them
+        through repeated transformer blocks with absolute positional embeddings,
+        3D&nbsp;RoPE, optional cross-attention, and a 2-layer MLP. The tokenizer
+        decoder reconstructs the predicted video.
+      </p>
+
+      <div class="diagram">
+        <svg viewBox="0 0 1100 420" role="img" aria-label="Autoregressive block">
+          <defs>
+            <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--kui-fg-default)" />
+            </marker>
+          </defs>
+
+          <!-- left flow -->
+          <rect class="box gray" x="20" y="40" width="160" height="40" rx="3" />
+          <text class="svg-label" x="100" y="64" text-anchor="middle">Input video</text>
+          <rect class="box teal" x="20" y="100" width="160" height="40" rx="3" />
+          <text class="svg-label" x="100" y="124" text-anchor="middle">Tokenizer Encoder</text>
+          <text class="svg-label mono muted" x="100" y="138" text-anchor="middle">DV8×16×16</text>
+          <rect class="box gray" x="20" y="160" width="160" height="40" rx="3" />
+          <text class="svg-label" x="100" y="184" text-anchor="middle">Discrete tokens</text>
+          <text class="svg-label mono muted" x="100" y="198" text-anchor="middle">vocab size: unknown</text>
+          <rect class="box gray" x="20" y="220" width="160" height="40" rx="3" />
+          <text class="svg-label" x="100" y="244" text-anchor="middle">Learned embeddings</text>
+
+          <rect class="box blue" x="20" y="320" width="160" height="40" rx="3" />
+          <text class="svg-label" x="100" y="344" text-anchor="middle">T5-XXL embeddings</text>
+          <text class="svg-label mono muted" x="100" y="358" text-anchor="middle">Stage 2 / V2W only</text>
+
+          <!-- block -->
+          <rect class="box green" x="240" y="40" width="500" height="340" rx="4" />
+          <text class="svg-label" x="490" y="64" text-anchor="middle" style="font-weight: 500;">Autoregressive Transformer Block · ×N</text>
+          <text class="svg-label mono muted" x="490" y="82" text-anchor="middle">N: unknown in source inventory</text>
+
+          <rect class="box" x="270" y="100" width="440" height="30" rx="2" />
+          <text class="svg-label mono" x="490" y="120" text-anchor="middle">Absolute positional embedding  +  3D RoPE</text>
+
+          <rect class="box" x="270" y="138" width="440" height="22" rx="2" />
+          <text class="svg-label mono muted" x="490" y="153" text-anchor="middle">flatten 3D positions before attention</text>
+
+          <rect class="box purple" x="270" y="170" width="440" height="40" rx="2" />
+          <text class="svg-label" x="490" y="190" text-anchor="middle">Self-attention (causal over tokens)</text>
+          <text class="svg-label mono muted" x="490" y="204" text-anchor="middle">KV cache, GQA/MQA: unknown in source</text>
+
+          <rect class="box blue" x="270" y="220" width="440" height="40" rx="2" />
+          <text class="svg-label" x="490" y="240" text-anchor="middle">Cross-attention  (Stage 2 / V2W only)</text>
+          <text class="svg-label mono muted" x="490" y="254" text-anchor="middle">K, V from T5 encoded prompt</text>
+
+          <rect class="box teal" x="270" y="270" width="440" height="40" rx="2" />
+          <text class="svg-label" x="490" y="290" text-anchor="middle">2-layer MLP</text>
+          <text class="svg-label mono muted" x="490" y="304" text-anchor="middle">activation, hidden width: unknown in source</text>
+
+          <rect class="box" x="270" y="320" width="440" height="22" rx="2" />
+          <text class="svg-label mono muted" x="490" y="335" text-anchor="middle">Normalization techniques for training stability (HF blog)</text>
+
+          <text class="svg-label mono muted" x="490" y="365" text-anchor="middle">→ logits over discrete codebook · sampled next token</text>
+
+          <!-- right: outputs -->
+          <rect class="box teal" x="780" y="100" width="160" height="40" rx="3" />
+          <text class="svg-label" x="860" y="124" text-anchor="middle">Tokenizer Decoder</text>
+          <text class="svg-label mono muted" x="860" y="138" text-anchor="middle">DV8×16×16</text>
+
+          <rect class="box gray" x="780" y="160" width="160" height="40" rx="3" stroke-dasharray="3 3" />
+          <text class="svg-label" x="860" y="184" text-anchor="middle">Diffusion decoder</text>
+          <text class="svg-label mono muted" x="860" y="198" text-anchor="middle">optional, quality boost</text>
+
+          <rect class="box dark" x="780" y="220" width="160" height="48" rx="3" />
+          <text class="svg-label white" x="860" y="244" text-anchor="middle">Generated video</text>
+
+          <!-- speculative decoding callout -->
+          <rect class="box orange" x="780" y="300" width="280" height="80" rx="4" />
+          <text class="svg-label" x="920" y="322" text-anchor="middle" style="font-weight: 500;">Speculative decoding · Medusa</text>
+          <text class="svg-label mono muted" x="920" y="340" text-anchor="middle">fine-tuned on AV data (Alpamayo)</text>
+          <text class="svg-label mono muted" x="920" y="356" text-anchor="middle">806 tok/s on AR-4B</text>
+          <text class="svg-label mono muted" x="920" y="372" text-anchor="middle">8× H100 · 320×512 · 10 fps</text>
+
+          <!-- arrows -->
+          <path class="svg-arrow" d="M180 60 L 200 60 L 200 120 L 180 120" />
+          <path class="svg-arrow" d="M180 180 L 200 180 L 200 240 L 180 240" />
+          <path class="svg-arrow" d="M180 240 L 240 240" />
+          <path class="svg-arrow dashed" d="M180 340 L 230 340 L 230 240 L 270 240" />
+          <path class="svg-arrow thick green" d="M740 200 L 780 120" />
+          <path class="svg-arrow dashed" d="M860 140 L 860 160" />
+          <path class="svg-arrow" d="M860 200 L 860 220" />
+        </svg>
+        <div class="diagram-caption">
+          <strong>Figure&nbsp;4.</strong> Autoregressive transformer block, reconstructed from
+          HF blog Figure&nbsp;1: "discrete tokens transformed into learned embeddings, processed
+          through repeated transformer blocks, each consisting of absolute positional embedding
+          and 3D RoPE components that are flattened before entering the self-attention module.
+          Each block also includes a cross-attention module that incorporates encoded text
+          prompts (via T5), followed by a two-layer MLP."
+        </div>
+      </div>
+
+      <div class="src">Source: HF blog §"Autoregressive Models" · §"Real-time Inference Performance".</div>
+    </section>
+
+    <!-- ─────────────────────── ATTENTION & RoPE ─────────────────────── -->
+    <section class="section" id="attention" data-screen-label="07 Attention">
+      <div class="eyebrow">07 — Attention &amp; sequence handling</div>
+      <h2>3D RoPE, FPS-aware on the diffusion side; YaRN-extended on the AR side</h2>
+      <p class="lede">
+        Cosmos uses standard self- and cross-attention but customizes the positional
+        encoding for video: each track packs a (time, height, width) coordinate triple
+        per token and applies a 3D variant of rotary position embedding (RoPE).
+      </p>
+
+      <div class="track-grid">
+        <div class="track">
+          <h4>Diffusion side</h4>
+          <div class="head-eq">FPS-aware 3D RoPE on patch tokens</div>
+          <p class="sub">
+            After 3D patchification, every patch gets a (t, h, w) coordinate. RoPE is
+            applied along all three axes. The variant is <em>FPS-aware</em>: the temporal
+            axis is scaled by frame rate, so the same physical second occupies the same
+            phase regardless of input fps. This enables progressive training across
+            512p → 720p and multi-aspect-ratio buckets.
+          </p>
+          <ul class="notes" style="margin-top: 12px;">
+            <li><span class="k">Self-attn</span>over flattened 3D patch sequence</li>
+            <li><span class="k">Cross-attn</span>Q from latent, K/V from T5-XXL</li>
+            <li><span class="k">Q-K Norm</span>RMSNorm on Q, K (attention collapse)</li>
+            <li><span class="k">Mask / sparsity</span><span class="unk-chip">unknown in source inventory</span></li>
+          </ul>
+        </div>
+
+        <div class="track">
+          <h4>Autoregressive side</h4>
+          <div class="head-eq">Absolute PE + 3D RoPE, then YaRN extension</div>
+          <p class="sub">
+            Discrete tokens get an absolute positional embedding and a 3D RoPE component;
+            both are flattened before attention. Stage&nbsp;1 uses a 17-frame context
+            (1&nbsp;input → 16 predicted). Stage&nbsp;1.1 doubles the context to
+            <strong>34&nbsp;frames</strong> by applying the <strong>YaRN</strong> rotary
+            extension to the temporal axis — letting the model see longer dependencies
+            without retraining from scratch.
+          </p>
+          <ul class="notes" style="margin-top: 12px;">
+            <li><span class="k">Self-attn</span>causal over discrete token stream</li>
+            <li><span class="k">Cross-attn</span>only on Video2World variants (Stage 2)</li>
+            <li><span class="k">KV cache</span>standard AR behavior; details <span class="unk-chip">not reported</span></li>
+            <li><span class="k">GQA / MQA</span><span class="unk-chip">unknown in source inventory</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="src">Source: HF blog §"Diffusion Models", §"Autoregressive Models", §"Pre-training of Cosmos Autoregressive WFMs".</div>
+    </section>
+
+    <!-- ─────────────────────── TRAINING ─────────────────────── -->
+    <section class="section" id="training" data-screen-label="08 Training">
+      <div class="eyebrow">08 — Training stages</div>
+      <h2>Multi-stage pretraining; cooling down on high-quality pairs</h2>
+
+      <h3 style="margin-top: 24px;">Autoregressive pretraining</h3>
+      <div class="pipeline">
+        <div class="step">
+          <div class="num">STAGE 1</div>
+          <h5>Video prediction</h5>
+          <p>Predict 16 future frames given 1 input frame. Context length = 17 frames. Resolution 640 × 1024.</p>
+        </div>
+        <div class="step">
+          <div class="num">STAGE 1.1</div>
+          <h5>Long-context extension</h5>
+          <p>Context length grows to 34 frames via YaRN extension on temporal RoPE — longer video dependencies, no retrain.</p>
+        </div>
+        <div class="step">
+          <div class="num">STAGE 2</div>
+          <h5>Text conditioning</h5>
+          <p>Add cross-attention layers. Joint image + video training with 34-frame context. Larger batches for images.</p>
+        </div>
+        <div class="step">
+          <div class="num">COOLDOWN</div>
+          <h5>High-quality refinement</h5>
+          <p>Linear LR decay to zero over 30 000 iterations on curated high-quality image–video pairs.</p>
+        </div>
+      </div>
+
+      <h3 style="margin-top: 40px;">Diffusion pretraining</h3>
+      <div class="pipeline">
+        <div class="step">
+          <div class="num">A</div>
+          <h5>Joint image + video</h5>
+          <p>Domain-specific latent normalization aligns image and video latent distributions for joint training.</p>
+        </div>
+        <div class="step">
+          <div class="num">B</div>
+          <h5>Progressive resolution</h5>
+          <p>Start at 512p, transition to 720p with increased frame counts. Then fine-tune on high-quality subsets.</p>
+        </div>
+        <div class="step">
+          <div class="num">C</div>
+          <h5>Multi-aspect buckets</h5>
+          <p>Aspect-ratio buckets (e.g. 1:1, 16:9). Reflection padding preserves content during resize.</p>
+        </div>
+        <div class="step">
+          <div class="num">D</div>
+          <h5>Mixed precision</h5>
+          <p>BF16 weights for speed, FP32 stability path to minimize loss spikes.</p>
+        </div>
+        <div class="step">
+          <div class="num">E</div>
+          <h5>Conditioning</h5>
+          <p>T5-XXL for Text2World. Prior frames concatenated with augment noise for image / video conditioning.</p>
+        </div>
+      </div>
+
+      <h3 style="margin-top: 40px;">Pretraining data</h3>
+      <div class="card-grid cols-3">
+        <div class="card">
+          <h4>Scale</h4>
+          <p class="desc"><strong>20M hours</strong> of real-world human-interaction, environment, industrial, robotics and driving video — equivalent to <strong>≈ 9,000 trillion tokens</strong>.</p>
+        </div>
+        <div class="card">
+          <h4>Compute</h4>
+          <p class="desc"><strong>10,000 NVIDIA H100 GPUs</strong> over <strong>≈ 3 months</strong>. Data curation via NeMo Curator: 20M hrs processed in 14 days on Blackwell.</p>
+        </div>
+        <div class="card">
+          <h4>Coverage</h4>
+          <p class="desc">Hand motions, object manipulation, spatial awareness, navigation, camera movements. Curation optimized for Physical AI downstream tasks.</p>
+        </div>
+      </div>
+
+      <h3 style="margin-top: 40px;">Post-training</h3>
+      <p>
+        The HF blog describes two-stage <em>downstream</em> use rather than alignment-style
+        post-training of the base model:
+      </p>
+      <ul class="notes" style="max-width: 800px;">
+        <li><span class="k">Generalist</span>Base Cosmos WFMs trained on diverse data — broad coverage of physics and natural dynamics.</li>
+        <li><span class="k">Specialist</span>Developer-side fine-tunes for AV, humanoid robotics, night scenes with emergency vehicles, industrial robotics, etc. Uses NVIDIA NeMo Framework.</li>
+        <li><span class="k">RL / SFT / distillation on base</span><span class="unk-chip">not reported in source inventory</span></li>
+      </ul>
+
+      <div class="src">Source: HF blog §"Pre-training of Cosmos Autoregressive WFMs", §"Pre-training of Cosmos Diffusion WFMs", §"How to use Cosmos…".</div>
+    </section>
+
+    <!-- ─────────────────────── GUARDRAILS ─────────────────────── -->
+    <section class="section" id="guardrails" data-screen-label="09 Guardrails">
+      <div class="eyebrow">09 — Cosmos Guardrails</div>
+      <h2>Pre-guard on prompts, post-guard on frames</h2>
+      <p class="lede">
+        Cosmos ships <code>Cosmos-1.0-Guardrail</code> alongside the generative
+        checkpoints. The license explicitly conditions continued use on not
+        bypassing the guardrails.
+      </p>
+
+      <div class="diagram">
+        <svg viewBox="0 0 1080 220" role="img" aria-label="Guardrail flow">
+          <rect class="box gray" x="20" y="80" width="140" height="48" rx="3" />
+          <text class="svg-label" x="90" y="104" text-anchor="middle">Prompt</text>
+
+          <rect class="box orange" x="200" y="40" width="240" height="120" rx="4" />
+          <text class="svg-label" x="320" y="64" text-anchor="middle" style="font-weight: 500;">Pre-guard</text>
+          <rect class="box" x="220" y="80" width="200" height="28" rx="2" />
+          <text class="svg-label mono" x="320" y="98" text-anchor="middle">Blocklist check</text>
+          <rect class="box" x="220" y="116" width="200" height="28" rx="2" />
+          <text class="svg-label mono" x="320" y="134" text-anchor="middle">Aegis LlamaGuard FT</text>
+
+          <rect class="box green" x="480" y="80" width="160" height="48" rx="3" />
+          <text class="svg-label" x="560" y="104" text-anchor="middle">Cosmos WFM</text>
+
+          <rect class="box orange" x="680" y="40" width="240" height="120" rx="4" />
+          <text class="svg-label" x="800" y="64" text-anchor="middle" style="font-weight: 500;">Post-guard</text>
+          <rect class="box" x="700" y="80" width="200" height="28" rx="2" />
+          <text class="svg-label mono" x="800" y="98" text-anchor="middle">Frame-wise classifier</text>
+          <rect class="box" x="700" y="116" width="200" height="28" rx="2" />
+          <text class="svg-label mono" x="800" y="134" text-anchor="middle">Face blur</text>
+
+          <rect class="box dark" x="960" y="80" width="100" height="48" rx="3" />
+          <text class="svg-label white" x="1010" y="104" text-anchor="middle">Output</text>
+
+          <path class="svg-arrow" d="M160 104 L 200 104" />
+          <path class="svg-arrow" d="M440 104 L 480 104" />
+          <path class="svg-arrow" d="M640 104 L 680 104" />
+          <path class="svg-arrow" d="M920 104 L 960 104" />
+        </svg>
+        <div class="diagram-caption">
+          <strong>Figure&nbsp;5.</strong> Cosmos Guardrails (HF blog Figure&nbsp;3, reconstructed).
+          API-served diffusion videos also carry an <em>invisible watermark</em>.
+        </div>
+      </div>
+
+      <div class="src">Source: HF blog §"Ensuring Safety with Cosmos Guardrails" · NVIDIA newsroom 2025-01.</div>
+    </section>
+
+    <!-- ─────────────────────── BENCHMARKS ─────────────────────── -->
+    <section class="section" id="benchmarks" data-screen-label="10 Benchmarks">
+      <div class="eyebrow">10 — Benchmarks</div>
+      <h2>Cosmos benchmarks: 3D consistency, visual fidelity, physical alignment</h2>
+      <p class="lede">
+        NVIDIA Research (with Stanford and University of Toronto) released the Cosmos
+        benchmarks specifically for WFMs. The HF blog reports Cosmos diffusion and
+        autoregressive models outperform the <strong>VideoLDM</strong> baseline on all
+        three; <em>exact numbers are not in the blog post</em>.
+      </p>
+
+      <table class="bench" style="margin-top: 24px;">
+        <thead>
+          <tr>
+            <th>Benchmark axis</th>
+            <th>Metric</th>
+            <th>Direction</th>
+            <th>Cosmos vs VideoLDM (source-reported)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>3D Consistency</td>
+            <td>Sampson error · pose estimation success rate</td>
+            <td>lower · higher</td>
+            <td class="best">Cosmos better on both — exact values not in source</td>
+          </tr>
+          <tr>
+            <td>Visual Consistency &amp; Fidelity</td>
+            <td>PSNR</td>
+            <td>higher</td>
+            <td class="best">Cosmos higher — exact values not in source</td>
+          </tr>
+          <tr>
+            <td>Physical Alignment</td>
+            <td>Pixel / object / feature-level physics metrics</td>
+            <td>higher</td>
+            <td class="best">Cosmos higher; +9 conditioning frames &gt; +1 frame</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="bench-bars" style="margin-top: 36px;">
+        <h3>Qualitative shape of results (per HF blog Figure 4 description)</h3>
+        <div class="bar-row">
+          <div class="bar-label">Sampson error</div>
+          <div class="bar"><div style="width: 35%;"></div></div>
+          <div class="bar-value">lower = better</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">VideoLDM</div>
+          <div class="bar"><div class="baseline" style="width: 78%;"></div></div>
+          <div class="bar-value">baseline</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">Pose-est success</div>
+          <div class="bar"><div style="width: 82%;"></div></div>
+          <div class="bar-value">higher = better</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">VideoLDM</div>
+          <div class="bar"><div class="baseline" style="width: 42%;"></div></div>
+          <div class="bar-value">baseline</div>
+        </div>
+        <div class="legend" style="margin-top: 8px;">
+          <div class="item"><span class="sw" style="background: var(--kui-brand-green); border-color: var(--kui-brand-green);"></span>Cosmos (direction-only)</div>
+          <div class="item"><span class="sw" style="background: var(--kui-n200); border-color: var(--kui-n200);"></span>VideoLDM baseline (direction-only)</div>
+        </div>
+        <p style="font-size: 12px; color: var(--kui-fg-muted); margin-top: 12px; max-width: 760px;">
+          <strong>Caveat.</strong> The bars above encode <em>direction of improvement</em>, not
+          source-reported magnitudes. Numeric benchmark values are not present in the
+          HF blog or the public Cosmos-1.0-Diffusion-7B-Text2World model card; for
+          quantitative numbers, refer to the technical paper
+          (<a href="https://arxiv.org/abs/2501.03575" style="color: var(--kui-info);">arXiv:2501.03575</a>).
+        </p>
+      </div>
+
+      <div class="src">Source: HF blog §"Evaluating World Foundation Models with Cosmos Benchmarks", Figure 4.</div>
+    </section>
+
+    <!-- ─────────────────────── INFERENCE COST ─────────────────────── -->
+    <section class="section" id="inference" data-screen-label="11 Inference">
+      <div class="eyebrow">11 — Inference cost</div>
+      <h2>Memory and latency on H100</h2>
+      <p class="lede">
+        From the Cosmos-1.0-Diffusion-7B-Text2World model card. All numbers are
+        single-H100 reference figures; "offload" denotes which sub-components are
+        moved off-GPU. End-to-end runtime excludes model init.
+      </p>
+
+      <table class="bench" style="margin-top: 24px;">
+        <thead>
+          <tr>
+            <th>Offloading strategy</th>
+            <th>7B Text2World · peak GPU mem</th>
+            <th>14B Text2World · peak GPU mem</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Offload prompt upsampler</td>
+            <td class="num">74.0 GB</td>
+            <td class="num">&gt; 80.0 GB</td>
+          </tr>
+          <tr>
+            <td>+ guardrails</td>
+            <td class="num">57.1 GB</td>
+            <td class="num">70.5 GB</td>
+          </tr>
+          <tr>
+            <td>+ T5 encoder</td>
+            <td class="num">38.5 GB</td>
+            <td class="num">51.9 GB</td>
+          </tr>
+          <tr>
+            <td>+ tokenizer</td>
+            <td class="num">38.3 GB</td>
+            <td class="num">51.7 GB</td>
+          </tr>
+          <tr>
+            <td>+ diffusion model</td>
+            <td class="num best">24.4 GB</td>
+            <td class="num best">39.0 GB</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <table class="bench" style="margin-top: 24px;">
+        <thead>
+          <tr>
+            <th>End-to-end runtime · single H100</th>
+            <th>Configuration</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>7B Text2World</td>
+            <td>offload prompt upsampler</td>
+            <td class="num">~ 380 s</td>
+          </tr>
+          <tr>
+            <td>14B Text2World</td>
+            <td>offload prompt upsampler &amp; guardrails</td>
+            <td class="num">~ 590 s</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 style="margin-top: 40px;">Autoregressive real-time path</h3>
+      <div class="card-grid cols-2">
+        <div class="card">
+          <h4>Cosmos-1.0-Autoregressive-4B reference run</h4>
+          <table class="dim">
+            <tr><td class="k">Hardware</td><td class="v">8× NVIDIA H100</td></tr>
+            <tr><td class="k">Resolution</td><td class="v">320 × 512</td></tr>
+            <tr><td class="k">Frame rate</td><td class="v">10 fps</td></tr>
+            <tr><td class="k">Input</td><td class="v">9 frames (0.9 s, 1280 tokens)</td></tr>
+            <tr><td class="k">Output</td><td class="v">24 frames (2.4 s, 1920 tokens)</td></tr>
+            <tr><td class="k">Throughput</td><td class="v">806 tokens / s</td></tr>
+            <tr><td class="k">End-to-end</td><td class="v">2.38 s</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <h4>How it gets there</h4>
+          <ul class="notes">
+            <li><span class="k">Low-res tokenizer</span>pretrained on general data, fine-tuned for physical AI (AV, robotics)</li>
+            <li><span class="k">AR fine-tune</span>fine-tuned with the low-res tokenizer</li>
+            <li><span class="k">Medusa</span>speculative decoding, fine-tuned on AV data (Alpamayo dataset)</li>
+          </ul>
+          <div class="src" style="margin-top: 12px;">Source: HF blog §"Real-time Inference Performance".</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────── UNKNOWNS ─────────────────────── -->
+    <section class="section" id="caveats" data-screen-label="12 Caveats" style="border-bottom: none;">
+      <div class="eyebrow">12 — Unknowns &amp; caveats</div>
+      <h2>What the public model card and HF blog do not pin down</h2>
+      <p class="lede">
+        The HF blog and the public Cosmos-1.0-Diffusion-7B-Text2World model card give
+        a complete <em>structural</em> description of the architecture but omit most
+        numeric hyperparameters. Cells below are not inferred — they reflect what is
+        present (or missing) in the inventory and primary sources read for this page.
+      </p>
+
+      <div class="caveat-grid">
+        <div class="cv"><div class="k">Layer count (N blocks)</div><div class="v"><span class="unk-chip">unknown in source inventory</span></div></div>
+        <div class="cv"><div class="k">Hidden size</div><div class="v"><span class="unk-chip">unknown in source inventory</span></div></div>
+        <div class="cv"><div class="k">Attention heads</div><div class="v"><span class="unk-chip">unknown in source inventory</span></div></div>
+        <div class="cv"><div class="k">KV heads · GQA/MQA</div><div class="v"><span class="unk-chip">unknown in source inventory</span></div></div>
+        <div class="cv"><div class="k">MLP intermediate size</div><div class="v"><span class="unk-chip">unknown in source inventory</span></div></div>
+        <div class="cv"><div class="k">MLP activation</div><div class="v"><span class="unk-chip">unknown in source inventory</span></div></div>
+        <div class="cv"><div class="k">Tokenizer codebook size (DV8×16×16)</div><div class="v"><span class="unk-chip">unknown in source inventory</span></div></div>
+        <div class="cv"><div class="k">Tokenizer latent channels (CV8×8×8)</div><div class="v"><span class="unk-chip">unknown in source inventory</span></div></div>
+        <div class="cv"><div class="k">Diffusion noise schedule / predictor</div><div class="v"><span class="unk-chip">not reported in source inventory</span></div></div>
+        <div class="cv"><div class="k">Number of sampling steps</div><div class="v"><span class="unk-chip">not reported in source inventory</span></div></div>
+        <div class="cv"><div class="k">Numeric benchmark values</div><div class="v"><span class="unk-chip">not reported in source inventory</span></div></div>
+        <div class="cv"><div class="k">Sparse / sliding-window attention</div><div class="v"><span class="unk-chip">unknown in source inventory</span></div></div>
+        <div class="cv"><div class="k">RL / DPO post-training of base WFMs</div><div class="v"><span class="unk-chip">not reported in source inventory</span></div></div>
+        <div class="cv"><div class="k">Distillation between paradigms</div><div class="v"><span class="unk-chip">not reported in source inventory</span></div></div>
+      </div>
+
+      <div class="callout" style="margin-top: 32px;">
+        <strong>Where to look next.</strong> The technical report
+        (<a href="https://arxiv.org/abs/2501.03575" style="color: var(--kui-info-text);">arXiv:2501.03575 — "Cosmos World Foundation Model Platform for Physical AI"</a>)
+        is referenced from every model card and almost certainly contains the missing
+        dimensions, schedules, and benchmark tables. This atlas page intentionally
+        does not reproduce numbers from that paper unless they also appear in the HF
+        blog or the model card, in keeping with the source-inventory rules for this
+        request.
+      </div>
+
+      <h3 style="margin-top: 40px;">Provenance</h3>
+      <ul class="notes" style="max-width: 900px;">
+        <li><span class="k">Inventory</span>oss-model-releases-2025-plus.md · row "Cosmos World Foundation Models" · vendor NVIDIA · release 2025-01 · "Deep table"</li>
+        <li><span class="k">Primary 1</span><a style="color: var(--kui-info);" href="https://huggingface.co/blog/mingyuliutw/nvidia-cosmos">Announcing NVIDIA Cosmos WFMs — HF blog, Liu &amp; Joshi, 2025-01-07</a></li>
+        <li><span class="k">Primary 2</span><a style="color: var(--kui-info);" href="https://huggingface.co/nvidia/Cosmos-1.0-Diffusion-7B-Text2World">Cosmos-1.0-Diffusion-7B-Text2World · Hugging Face model card</a></li>
+        <li><span class="k">Primary 3</span><a style="color: var(--kui-info);" href="https://huggingface.co/collections/nvidia/cosmos-6751e884dc10e013a0a0d8e6">Cosmos 1.0 HF collection (8 generative checkpoints + tokenizer suite + guardrail)</a></li>
+        <li><span class="k">Paper ref.</span><a style="color: var(--kui-info);" href="https://arxiv.org/abs/2501.03575">arXiv:2501.03575 — referenced only, numeric details not pulled into this page</a></li>
+        <li><span class="k">License</span><a style="color: var(--kui-info);" href="https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license">NVIDIA Open Model License Agreement, v. 2025-01-06</a></li>
+      </ul>
+    </section>
+
+    <div class="pagefoot">
+      <strong>Cosmos World Foundation Models Architecture</strong> · single-page architecture briefing ·
+      built from primary sources listed above · this page is independent commentary, not an
+      official NVIDIA document · figures are <em>reconstructed</em> from the HF blog's textual descriptions of
+      Figure&nbsp;1 (autoregressive), Figure&nbsp;2 (diffusion), and Figure&nbsp;3 (guardrails) and from the
+      Cosmos-1.0-Diffusion-7B-Text2World model card.
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // simple scroll-spy for the left rail
+  (function () {
+    const links = Array.from(document.querySelectorAll('.sidebar nav a'));
+    const sections = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+    const byId = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const id = e.target.id;
+          links.forEach(l => l.classList.remove('active'));
+          const a = byId.get(id);
+          if (a) a.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-40% 0px -55% 0px', threshold: 0 });
+    sections.forEach(s => io.observe(s));
+  })();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evo 2 Genomic Foundation Model Architecture</title>
+<style>
+/* =====================================================================
+   Kaizen tokens (inlined subset — offline, no remote font CDN)
+   ===================================================================== */
+:root{
+  --kui-brand-green:#76B900; --kui-brand-green-darker:#5E9600;
+  --kui-brand-black:#000000;
+  --kui-n000:#FFFFFF; --kui-n050:#F2F2F2; --kui-n100:#E3E3E3; --kui-n150:#D8D8D8;
+  --kui-n200:#C6C6C6; --kui-n300:#8F8F8F; --kui-n400:#767676; --kui-n600:#5E5E5E;
+  --kui-n700:#343434; --kui-n800:#202020; --kui-n900:#0D0D0D; --kui-n950:#050505;
+  --kui-fg-strong:#202020; --kui-fg-default:#343434; --kui-fg-muted:#5E5E5E; --kui-fg-subtle:#6B6B6B;
+  --kui-bg-canvas:#F2F2F2; --kui-bg-mid:#FFFFFF;
+  --kui-border-subtle:#E3E3E3; --kui-border-default:#D8D8D8; --kui-border-strong:#767676;
+  --kui-success:#007D00; --kui-success-bg:#E8F4D6;
+  --kui-info:#0D69D4; --kui-info-bg:#E9F4FB; --kui-info-text:#2378CA;
+  --kui-warning:#C54600; --kui-warning-bg:#FDEFE6;
+  --kui-danger:#DC3528; --kui-danger-bg:#FCE9E8;
+  --kui-accent-teal:#1FA18D; --kui-accent-teal-dk:#006B5E;
+  --kui-accent-purple:#A05AB4; --kui-accent-magenta:#851F41;
+  --kui-radius-xs:2px; --kui-radius-sm:4px;
+  --kui-shadow-1:0 1px 2px 0 rgba(0,0,0,.08);
+  --kui-shadow-3:0 4px 12px 0 rgba(0,0,0,.12);
+  --kui-font-sans:"NVIDIA Sans","DM Sans",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --kui-font-mono:"Roboto Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font:400 14px/1.5 var(--kui-font-sans);
+  color:var(--kui-fg-strong);
+  background:var(--kui-bg-canvas);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+a{color:var(--kui-info);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre,.mono{font-family:var(--kui-font-mono);font-size:12.5px}
+h1,h2,h3,h4{margin:0;letter-spacing:-0.25px;font-weight:500;color:var(--kui-fg-strong)}
+h1{font-size:32px;line-height:1.15;font-weight:500}
+h2{font-size:24px;line-height:1.2}
+h3{font-size:16px;line-height:1.25}
+h4{font-size:13px;line-height:1.25;letter-spacing:0.4px;text-transform:uppercase;color:var(--kui-fg-muted);font-weight:500}
+p{margin:0 0 8px}
+
+/* =====================================================================
+   Top bar (NVIDIA black, eye-green dot)
+   ===================================================================== */
+.topbar{
+  background:var(--kui-brand-black); color:#fff;
+  height:48px; display:flex; align-items:center;
+  padding:0 24px; gap:16px;
+  position:sticky; top:0; z-index:20;
+  border-bottom:1px solid #000;
+}
+.topbar .mark{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:0.4px}
+.topbar .mark .eye{
+  width:18px;height:18px;border-radius:2px;
+  background:var(--kui-brand-green);
+  display:inline-block;
+  box-shadow: inset 0 0 0 2px #000;
+}
+.topbar .wordmark{font-size:13px; letter-spacing:1.5px}
+.topbar .sep{width:1px;height:20px;background:#343434;margin:0 4px}
+.topbar .crumb{font-size:12px;color:#C6C6C6;letter-spacing:0.3px}
+.topbar .crumb b{color:#fff;font-weight:500}
+.topbar .spacer{flex:1}
+.topbar .meta{font-size:11px;color:#8F8F8F;font-family:var(--kui-font-mono);letter-spacing:0.4px}
+
+/* =====================================================================
+   Layout: left nav rail + main
+   ===================================================================== */
+.shell{
+  display:grid;
+  grid-template-columns: 232px 1fr;
+  min-height: calc(100vh - 48px);
+}
+.nav{
+  background:var(--kui-bg-mid);
+  border-right:1px solid var(--kui-border-default);
+  padding:24px 0;
+  position:sticky; top:48px; align-self:start;
+  height: calc(100vh - 48px);
+  overflow-y:auto;
+}
+.nav .label{
+  font-size:10px; letter-spacing:1.4px; text-transform:uppercase;
+  color:var(--kui-fg-muted); padding:0 24px 8px;
+}
+.nav ol{list-style:none;margin:0;padding:0 0 16px}
+.nav ol li a{
+  display:flex; align-items:baseline; gap:10px;
+  padding:7px 24px; color:var(--kui-fg-strong);
+  font-size:13px; border-left:2px solid transparent;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out;
+}
+.nav ol li a:hover{background:var(--kui-n050); text-decoration:none}
+.nav ol li a.active{border-left-color:var(--kui-brand-green); background:var(--kui-n050)}
+.nav ol li a .num{font-family:var(--kui-font-mono);font-size:11px;color:var(--kui-fg-muted);min-width:18px}
+.home-link{
+  display:block;margin:0 24px 14px;padding:8px 10px;
+  border:1px solid var(--kui-border-default);border-radius:var(--kui-radius-sm);
+  background:var(--kui-bg-mid);color:var(--kui-fg-strong);
+  font-size:13px;font-weight:500;
+}
+.home-link:hover{border-color:var(--kui-brand-green);text-decoration:none;background:var(--kui-n050)}
+.nav .footnote{padding:16px 24px;border-top:1px solid var(--kui-border-subtle);margin-top:12px}
+.nav .footnote span{display:block;font-size:11px;color:var(--kui-fg-muted);line-height:1.45}
+
+.main{padding: 32px 40px 96px; max-width: 1240px}
+.section{margin-bottom:56px; scroll-margin-top: 72px}
+.section > .secnum{
+  font-family:var(--kui-font-mono);font-size:11px;letter-spacing:0.6px;
+  color:var(--kui-fg-muted); margin-bottom:4px
+}
+.section > h2{margin-bottom:6px}
+.section > .lede{color:var(--kui-fg-muted);font-size:14px;max-width:780px;margin-bottom:24px}
+
+/* =====================================================================
+   Reusable bits
+   ===================================================================== */
+.surface{
+  background:var(--kui-bg-mid);
+  border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);
+}
+.tag{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:11px; line-height:1; padding:5px 8px;
+  border-radius:var(--kui-radius-xs);
+  background:var(--kui-n050); color:var(--kui-fg-strong);
+  border:1px solid var(--kui-border-default);
+  font-family:var(--kui-font-mono); letter-spacing:0.3px;
+}
+.tag.green{background:var(--kui-success-bg);border-color:#C9E29A;color:#3E5A00}
+.tag.info{background:var(--kui-info-bg);border-color:#BBDBF1;color:var(--kui-info-text)}
+.tag.warn{background:var(--kui-warning-bg);border-color:#F5C8A8;color:var(--kui-warning)}
+.tag.neutral{background:transparent}
+.tag .dot{width:6px;height:6px;border-radius:0;background:currentColor;display:inline-block}
+
+.kbd{
+  display:inline-block;padding:1px 5px;border:1px solid var(--kui-border-default);
+  border-radius:2px;background:var(--kui-n050);font:500 11px/1.3 var(--kui-font-mono);color:var(--kui-fg-strong)
+}
+
+.note{
+  font-size:11px;color:var(--kui-fg-muted);
+  display:inline-flex;gap:6px;align-items:center;
+  font-family:var(--kui-font-mono);letter-spacing:0.3px;
+}
+.note::before{content:"";width:3px;height:3px;background:var(--kui-fg-muted)}
+
+.src{font-size:11px;color:var(--kui-fg-muted);font-family:var(--kui-font-mono)}
+.src a{color:var(--kui-fg-muted);text-decoration:underline;text-decoration-color:#D8D8D8}
+
+/* =====================================================================
+   HERO / identity card
+   ===================================================================== */
+.hero{
+  background:var(--kui-bg-mid);
+  border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);
+  display:grid; grid-template-columns: 1.4fr 1fr; gap:0;
+  overflow:hidden;
+  margin-bottom:48px;
+}
+.hero .l{padding:32px 36px 28px;border-right:1px solid var(--kui-border-default)}
+.hero .r{padding:0; background:var(--kui-n950); color:#F2F2F2; position:relative; overflow:hidden}
+.hero .eyebrow{
+  font:500 11px/1 var(--kui-font-mono);letter-spacing:1.6px;
+  color:var(--kui-brand-green-darker);text-transform:uppercase;margin-bottom:12px;
+}
+.hero h1{font-size:38px;line-height:1.05;letter-spacing:-0.5px;font-weight:500;max-width:560px}
+.hero h1 b{color:var(--kui-brand-green-darker);font-weight:500}
+.hero .sub{color:var(--kui-fg-muted);font-size:14px;margin-top:12px;max-width:540px}
+.hero .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:18px}
+
+.hero .specgrid{
+  margin-top:24px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  border-top:1px solid var(--kui-border-default);
+  margin-left:-36px;margin-right:-36px;margin-bottom:-28px;
+}
+.hero .specgrid .cell{
+  padding:14px 16px;border-right:1px solid var(--kui-border-default);
+}
+.hero .specgrid .cell:last-child{border-right:none}
+.hero .specgrid h4{margin-bottom:6px;font-size:10px}
+.hero .specgrid .v{font:500 18px/1.1 var(--kui-font-sans);color:var(--kui-fg-strong)}
+.hero .specgrid .v small{font-size:11px;color:var(--kui-fg-muted);font-weight:400;display:block;margin-top:3px;letter-spacing:0}
+
+/* Right panel — abstract genome figure (SVG) */
+.hero .r .glyph{position:absolute;inset:0}
+.hero .r .legend{
+  position:absolute; left:24px; right:24px; bottom:20px;
+  display:flex; gap:14px; flex-wrap:wrap; align-items:center;
+  font:400 11px/1 var(--kui-font-mono); letter-spacing:0.4px;
+}
+.hero .r .legend .li{display:inline-flex;align-items:center;gap:6px;color:#8F8F8F}
+.hero .r .legend .sw{width:10px;height:10px;display:inline-block;border-radius:1px}
+.hero .r .label{
+  position:absolute;top:20px;left:24px;color:#8F8F8F;
+  font:500 10px/1 var(--kui-font-mono);letter-spacing:1.6px;text-transform:uppercase;
+}
+
+/* =====================================================================
+   Two-column grids
+   ===================================================================== */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.card{
+  background:var(--kui-bg-mid); border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm); padding:18px 18px 16px;
+}
+.card > h3{margin-bottom:4px}
+.card > h4{margin-bottom:10px}
+.card .desc{color:var(--kui-fg-muted);font-size:13px}
+
+/* =====================================================================
+   Architecture diagram (end-to-end map)
+   ===================================================================== */
+.pipeline{
+  background:var(--kui-bg-mid); border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);
+  padding:24px 24px 20px;
+  overflow-x:auto;
+}
+.pipeline .row{
+  display:grid; gap:14px; align-items:stretch;
+  grid-template-columns: 220px 220px 1fr 220px 220px;
+  min-width: 980px;
+}
+.stage{
+  border:1px solid var(--kui-border-default); border-radius:var(--kui-radius-sm);
+  padding:12px 14px; background:#fff; position:relative;
+  display:flex;flex-direction:column;gap:8px;
+}
+.stage .hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.stage .ix{font:500 10px/1 var(--kui-font-mono);color:var(--kui-fg-muted);letter-spacing:0.6px}
+.stage .ttl{font:500 14px/1.2 var(--kui-font-sans);color:var(--kui-fg-strong)}
+.stage .desc{font-size:11.5px;color:var(--kui-fg-muted);line-height:1.4}
+.stage .specs{display:flex;flex-wrap:wrap;gap:4px;margin-top:auto}
+.stage .specs .tag{font-size:10px;padding:3px 6px}
+.stage.input{border-top:3px solid var(--kui-accent-teal)}
+.stage.proc{border-top:3px solid var(--kui-info)}
+.stage.core{border-top:3px solid var(--kui-brand-green);background:#FAFEF1}
+.stage.head{border-top:3px solid var(--kui-accent-purple)}
+.stage.out{border-top:3px solid var(--kui-warning)}
+
+.pipeline .arrow{
+  display:flex;align-items:center;justify-content:center;color:var(--kui-fg-muted);
+  font-family:var(--kui-font-mono);font-size:11px;
+}
+.pipeline .legend-row{
+  display:flex; flex-wrap:wrap; gap:14px; margin-top:16px;
+  padding-top:14px; border-top:1px solid var(--kui-border-subtle);
+  font:400 11px/1.2 var(--kui-font-mono); color:var(--kui-fg-muted)
+}
+.pipeline .legend-row .li{display:inline-flex;gap:6px;align-items:center}
+.pipeline .legend-row .sw{width:10px;height:3px;display:inline-block}
+
+/* Core column (StripedHyena 2 stack) */
+.core-col{
+  display:flex;flex-direction:column;gap:6px;
+  padding:10px;border:1px dashed var(--kui-border-default);border-radius:var(--kui-radius-sm);
+  background:#FAFEF1;
+}
+.core-col .core-hd{
+  font:500 11px/1 var(--kui-font-mono);letter-spacing:0.8px;text-transform:uppercase;
+  color:var(--kui-brand-green-darker); display:flex;justify-content:space-between;align-items:center;
+}
+.core-col .blk{
+  display:grid; grid-template-columns: 22px 1fr auto; align-items:center;
+  gap:8px; padding:6px 8px;
+  border:1px solid var(--kui-border-default); border-radius:2px; background:#fff;
+  font-size:12px;
+}
+.core-col .blk .ix{font:500 10px/1 var(--kui-font-mono);color:var(--kui-fg-muted)}
+.core-col .blk .name{font-weight:500}
+.core-col .blk .meta{font:400 10px/1 var(--kui-font-mono);color:var(--kui-fg-muted)}
+.core-col .blk.h{background:#EEF7DC}
+.core-col .blk.a{background:#E9F4FB}
+.core-col .blk.m{background:#F2F2F2}
+.core-col .dots{text-align:center;color:var(--kui-fg-subtle);font-size:11px;letter-spacing:4px;padding:2px 0}
+
+/* =====================================================================
+   StripedHyena 2 deep-dive diagram
+   ===================================================================== */
+.sh2-diagram{
+  display:grid; grid-template-columns: 1.05fr 1fr; gap:16px;
+}
+.sh2-flow{
+  background:var(--kui-bg-mid); border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm); padding:20px;
+}
+.sh2-flow h3{margin-bottom:14px}
+.sh2-flow .stripe{display:grid;grid-template-columns:48px 1fr; gap:10px; margin-bottom:8px}
+.sh2-flow .stripe .nb{
+  font:500 11px/1 var(--kui-font-mono);color:var(--kui-fg-muted);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  border:1px solid var(--kui-border-default);background:var(--kui-n050);
+  border-radius:2px; padding:4px 0;
+}
+.sh2-flow .stripe .nb b{font-size:14px;color:var(--kui-fg-strong);font-weight:500}
+.sh2-flow .stripe .row2{display:flex;gap:6px;align-items:stretch}
+.sh2-flow .stripe .cell{
+  flex:1;border:1px solid var(--kui-border-default);border-radius:2px;
+  padding:8px 10px;font-size:12px;
+  display:flex;flex-direction:column;gap:2px;
+  min-width:0;
+}
+.sh2-flow .stripe .cell .k{font:500 10px/1 var(--kui-font-mono);color:var(--kui-fg-muted);letter-spacing:0.4px}
+.sh2-flow .stripe .cell .n{font-weight:500;color:var(--kui-fg-strong)}
+.sh2-flow .stripe .cell.hyena{background:#EEF7DC;border-color:#CCE08A}
+.sh2-flow .stripe .cell.attn{background:#E9F4FB;border-color:#BBDBF1}
+.sh2-flow .stripe .cell.mlp{background:#FFFFFF}
+.sh2-flow .stripe .cell.tagged b{color:var(--kui-brand-green-darker)}
+
+.sh2-explain{
+  background:var(--kui-bg-mid); border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm); padding:20px;
+}
+.sh2-explain h3{margin-bottom:8px}
+.sh2-explain ul{margin:0;padding:0 0 0 18px;font-size:13px;color:var(--kui-fg-default)}
+.sh2-explain ul li{margin-bottom:6px}
+.sh2-explain ul li b{color:var(--kui-fg-strong);font-weight:500}
+.sh2-explain .kv{
+  display:grid;grid-template-columns: 140px 1fr; gap:0;
+  font-size:12.5px; margin-top:12px;
+  border-top:1px solid var(--kui-border-subtle);
+}
+.sh2-explain .kv .k,.sh2-explain .kv .v{padding:8px 0;border-bottom:1px solid var(--kui-border-subtle)}
+.sh2-explain .kv .k{color:var(--kui-fg-muted)}
+.sh2-explain .kv .v{font-family:var(--kui-font-mono);font-size:12px}
+
+/* =====================================================================
+   Context-length scale bar (1M-token visualization)
+   ===================================================================== */
+.scale{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm); padding:22px 24px 18px;
+}
+.scale h3{margin-bottom:14px}
+.scale .bars{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.scale .bar{display:grid;grid-template-columns:110px 1fr 130px;gap:12px;align-items:center;font-size:12.5px}
+.scale .bar .lbl{color:var(--kui-fg-strong);font-weight:500}
+.scale .bar .track{height:14px;background:var(--kui-n050);border:1px solid var(--kui-border-subtle);border-radius:0;position:relative;overflow:hidden}
+.scale .bar .fill{height:100%;background:var(--kui-brand-green);border-right:1px solid var(--kui-brand-green-darker)}
+.scale .bar .fill.alt{background:var(--kui-accent-teal)}
+.scale .bar .fill.gray{background:var(--kui-n300)}
+.scale .bar .val{font-family:var(--kui-font-mono);font-size:11.5px;color:var(--kui-fg-muted);text-align:right}
+.scale .axis{
+  display:flex;justify-content:space-between;
+  font-family:var(--kui-font-mono);font-size:10px;color:var(--kui-fg-subtle);
+  margin: 6px 0 0 122px; padding-right:142px;
+}
+.scale .caption{font-size:11px;color:var(--kui-fg-muted);margin-top:10px}
+
+/* =====================================================================
+   Checkpoints table
+   ===================================================================== */
+table.ck{
+  width:100%; border-collapse:collapse;
+  background:var(--kui-bg-mid); border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm); overflow:hidden;
+  font-size:13px;
+}
+table.ck th, table.ck td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--kui-border-subtle);vertical-align:top}
+table.ck th{
+  background:var(--kui-n050); font:500 11px/1 var(--kui-font-sans);
+  letter-spacing:0.4px; text-transform:uppercase; color:var(--kui-fg-muted);
+  border-bottom:1px solid var(--kui-border-default);
+}
+table.ck td.mono{font-family:var(--kui-font-mono);font-size:12px}
+table.ck tbody tr:last-child td{border-bottom:none}
+table.ck tbody tr:hover{background:#FAFAFA}
+table.ck .pill{
+  display:inline-block;padding:2px 7px;font:500 10px/1.4 var(--kui-font-mono);
+  border:1px solid var(--kui-border-default);border-radius:2px;background:#fff;
+  letter-spacing:0.3px;
+}
+table.ck .pill.fp8{background:var(--kui-info-bg);border-color:#BBDBF1;color:var(--kui-info-text)}
+table.ck .pill.bf16{background:var(--kui-success-bg);border-color:#C9E29A;color:#3E5A00}
+
+/* =====================================================================
+   Training & data
+   ===================================================================== */
+.train{display:grid;grid-template-columns: 1.4fr 1fr; gap:16px}
+.dataset-card{padding:20px}
+.dataset-card .big{font:500 32px/1 var(--kui-font-sans);letter-spacing:-0.5px;color:var(--kui-fg-strong)}
+.dataset-card .big .unit{font-size:14px;color:var(--kui-fg-muted);font-weight:400;margin-left:4px}
+.dataset-card .row{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:14px}
+.dataset-card .row > div h4{margin-bottom:6px}
+.dataset-card .donut-wrap{display:flex;gap:18px;align-items:center;margin-top:18px}
+.dataset-card .donut-legend{display:flex;flex-direction:column;gap:6px;font-size:12px}
+.dataset-card .donut-legend .li{display:flex;gap:8px;align-items:center}
+.dataset-card .donut-legend .sw{width:10px;height:10px;display:inline-block;border-radius:1px}
+.dataset-card .domains{
+  margin-top:18px;border-top:1px solid var(--kui-border-subtle);padding-top:14px;
+  display:flex;gap:16px;flex-wrap:wrap;
+}
+.dataset-card .domains .dom{font-size:12px;color:var(--kui-fg-default)}
+.dataset-card .domains .dom b{display:block;font:500 13px/1 var(--kui-font-sans);color:var(--kui-fg-strong);margin-bottom:3px}
+
+.train-stack{display:flex;flex-direction:column;gap:10px}
+.train-step{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:14px 16px;
+}
+.train-step .hd{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px}
+.train-step .hd .n{font:500 11px/1 var(--kui-font-mono);color:var(--kui-fg-muted)}
+.train-step h3{font-size:15px}
+.train-step .d{font-size:12.5px;color:var(--kui-fg-muted);line-height:1.45;margin-top:2px}
+
+/* =====================================================================
+   Benchmarks
+   ===================================================================== */
+.bench .bench-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.bench-card{padding:22px}
+.bench-card .head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:12px}
+.bench-card .metric{font:500 44px/1 var(--kui-font-sans);letter-spacing:-1px;color:var(--kui-fg-strong)}
+.bench-card .metric .pct{font-size:24px;color:var(--kui-fg-muted);font-weight:400;margin-left:2px}
+.bench-card .sub{color:var(--kui-fg-muted);font-size:12.5px;margin-top:4px}
+.bench-card .bar{height:8px;background:var(--kui-n050);margin-top:14px;position:relative;overflow:hidden}
+.bench-card .bar .fill{position:absolute;left:0;top:0;height:100%;background:var(--kui-brand-green)}
+.bench-card .bar .marker{position:absolute;top:-3px;width:1px;height:14px;background:var(--kui-fg-strong)}
+.bench-card .scale-row{display:flex;justify-content:space-between;font:400 10px/1 var(--kui-font-mono);color:var(--kui-fg-subtle);margin-top:5px}
+
+.cap-list{padding:18px 22px}
+.cap-list ul{margin:0;padding:0;list-style:none}
+.cap-list ul li{
+  display:grid;grid-template-columns:14px 1fr; gap:10px;
+  padding:9px 0; border-bottom:1px solid var(--kui-border-subtle); font-size:13px;
+}
+.cap-list ul li:last-child{border-bottom:none}
+.cap-list ul li .mk{
+  width:10px;height:10px;background:var(--kui-brand-green);margin-top:5px;
+}
+.cap-list ul li b{font-weight:500}
+.cap-list ul li small{display:block;color:var(--kui-fg-muted);margin-top:2px;font-size:11.5px}
+
+/* =====================================================================
+   Caveats
+   ===================================================================== */
+.caveat{
+  background:var(--kui-warning-bg); border:1px solid #F5C8A8;
+  border-left:3px solid var(--kui-warning);
+  border-radius:var(--kui-radius-sm);
+  padding:16px 18px; font-size:13px;
+}
+.caveat .ttl{font-weight:500;color:var(--kui-warning);margin-bottom:4px;font-size:13px}
+.caveat .ttl::before{content:"⚠";font-family:var(--kui-font-mono);margin-right:6px}
+.caveat .body{color:#7B2D00}
+.caveat code{background:#fff;padding:1px 5px;border-radius:2px;border:1px solid #F5C8A8;color:#7B2D00}
+
+.unknown-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.unk{
+  background:var(--kui-bg-mid);border:1px dashed var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:12px 14px;font-size:12.5px;
+}
+.unk b{display:block;font-weight:500;color:var(--kui-fg-strong);margin-bottom:3px;font-size:13px}
+.unk span{color:var(--kui-fg-muted)}
+
+/* =====================================================================
+   Sources
+   ===================================================================== */
+.sources{padding:22px 26px}
+.sources ol{margin:8px 0 0;padding:0 0 0 18px;font-size:13px}
+.sources ol li{margin-bottom:8px;color:var(--kui-fg-default)}
+.sources ol li b{display:block;color:var(--kui-fg-strong);font-weight:500;font-size:13.5px;margin-bottom:1px}
+
+/* =====================================================================
+   Misc
+   ===================================================================== */
+.kv-grid{display:grid;grid-template-columns:repeat(2,1fr);column-gap:18px}
+.kv-grid > div{display:grid;grid-template-columns:130px 1fr;padding:7px 0;border-bottom:1px solid var(--kui-border-subtle);font-size:12.5px}
+.kv-grid > div > .k{color:var(--kui-fg-muted)}
+.kv-grid > div > .v{color:var(--kui-fg-strong);font-family:var(--kui-font-mono);font-size:12px}
+
+@media (max-width: 1024px){
+  .shell{grid-template-columns: 200px 1fr}
+  .main{padding:24px 24px 80px}
+  .hero{grid-template-columns:1fr}
+  .hero .l{border-right:none;border-bottom:1px solid var(--kui-border-default)}
+  .hero .r{min-height:240px}
+  .hero .specgrid{grid-template-columns:repeat(2,1fr)}
+  .sh2-diagram, .train, .bench .bench-row, .grid-2, .grid-3, .grid-4{grid-template-columns:1fr}
+  .unknown-grid{grid-template-columns:1fr}
+}
+@media (max-width: 760px){
+  .shell{grid-template-columns:1fr}
+  .nav{position:relative;height:auto;border-right:none;border-bottom:1px solid var(--kui-border-default)}
+  .nav ol{display:flex;flex-wrap:wrap;padding:0 12px 12px}
+  .nav ol li a{border-left:none;border-bottom:2px solid transparent}
+  .nav ol li a.active{border-bottom-color:var(--kui-brand-green)}
+  .topbar{padding:0 16px}
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== TOPBAR ===================== -->
+<div class="topbar" role="banner">
+  <div class="mark">
+    <span class="eye" aria-hidden="true"></span>
+    <span class="wordmark">NVIDIA</span>
+  </div>
+  <div class="sep"></div>
+  <div class="crumb">Model Architecture Atlas &nbsp;/&nbsp; <b>Evo 2</b></div>
+  <div class="spacer"></div>
+  <div class="meta">v1.0 · source-backed · 2025-02-19</div>
+</div>
+
+<div class="shell">
+
+  <!-- ===================== LEFT NAV ===================== -->
+  <aside class="nav" aria-label="Section navigation">
+    <div class="label">On this page</div>
+    <a class="home-link" href="../../index.html">Atlas home</a>
+    <ol id="toc">
+      <li><a href="#identity"     ><span class="num">01</span>Identity</a></li>
+      <li><a href="#checkpoints"  ><span class="num">02</span>Checkpoint family</a></li>
+      <li><a href="#pipeline"     ><span class="num">03</span>End-to-end map</a></li>
+      <li><a href="#sh2"          ><span class="num">04</span>StripedHyena 2</a></li>
+      <li><a href="#context"      ><span class="num">05</span>1M-token context</a></li>
+      <li><a href="#training"     ><span class="num">06</span>Training &amp; data</a></li>
+      <li><a href="#capabilities" ><span class="num">07</span>Capabilities</a></li>
+      <li><a href="#benchmarks"   ><span class="num">08</span>Reported benchmarks</a></li>
+      <li><a href="#interp"       ><span class="num">09</span>Mech. interpretability</a></li>
+      <li><a href="#caveats"      ><span class="num">10</span>Unknowns &amp; caveats</a></li>
+      <li><a href="#sources"      ><span class="num">11</span>Sources</a></li>
+    </ol>
+    <div class="footnote">
+      <span><b style="color:var(--kui-fg-strong);font-weight:500">Source-backed atlas.</b></span>
+      <span style="margin-top:6px">All numbers in diagram labels are reported by the linked primary sources. Anything Arc/NVIDIA did not publish is marked <span class="mono" style="color:var(--kui-warning)">not reported</span>.</span>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="main">
+
+    <!-- =========== HERO / IDENTITY =========== -->
+    <section id="identity" class="hero">
+      <div class="l">
+        <div class="eyebrow">Genomic foundation model · 2025-02-19</div>
+        <h1>Evo 2: a DNA language model that reads, writes, and reasons across <b>1,000,000 nucleotides</b> at single-base resolution.</h1>
+        <div class="sub">
+          A StripedHyena 2 autoregressive sequence model pretrained on OpenGenome2 — the largest open biological corpus to date. Built by Arc Institute &amp; NVIDIA, with collaborators at Stanford, UC Berkeley, and UCSF. Code, data, and weights released under Apache-2.0.
+        </div>
+        <div class="chips">
+          <span class="tag green"><span class="dot"></span>Apache-2.0</span>
+          <span class="tag info">Weights + data + code released</span>
+          <span class="tag">DNA · single-nucleotide</span>
+          <span class="tag">Autoregressive</span>
+          <span class="tag">Convolutional multi-hybrid</span>
+        </div>
+
+        <div class="specgrid">
+          <div class="cell">
+            <h4>Architecture</h4>
+            <div class="v">StripedHyena 2 <small>convolutional multi-hybrid</small></div>
+          </div>
+          <div class="cell">
+            <h4>Largest checkpoint</h4>
+            <div class="v">40 B params <small>evo2_40b · 1 M ctx</small></div>
+          </div>
+          <div class="cell">
+            <h4>Max context</h4>
+            <div class="v">1,000,000 nt <small>single-base resolution</small></div>
+          </div>
+          <div class="cell">
+            <h4>Pretraining corpus</h4>
+            <div class="v">9.3 T tokens <small>128 K+ genomes, all 3 domains</small></div>
+          </div>
+        </div>
+      </div>
+      <div class="r" aria-hidden="true">
+        <div class="label">Long-range genomic context</div>
+        <!-- Abstract genome-strand SVG glyph -->
+        <svg class="glyph" viewBox="0 0 600 480" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="strand" x1="0" x2="1">
+              <stop offset="0" stop-color="#76B900"/>
+              <stop offset="1" stop-color="#1FA18D"/>
+            </linearGradient>
+            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M40 0H0V40" fill="none" stroke="#1A1A1A" stroke-width="0.5"/>
+            </pattern>
+          </defs>
+          <rect width="600" height="480" fill="#050505"/>
+          <rect width="600" height="480" fill="url(#grid)" opacity="0.7"/>
+
+          <!-- Long horizontal "1M nt" strand -->
+          <g stroke-linecap="round">
+            <line x1="30" y1="120" x2="570" y2="120" stroke="#222" stroke-width="2"/>
+            <line x1="30" y1="120" x2="540" y2="120" stroke="#76B900" stroke-width="3" stroke-dasharray="2 6" />
+          </g>
+          <!-- Bases along strand -->
+          <g font-family="ui-monospace, Menlo, monospace" font-size="9" fill="#76B900" opacity="0.85">
+            <text x="30" y="108">A</text><text x="60" y="108">C</text><text x="90" y="108">G</text>
+            <text x="120" y="108">T</text><text x="150" y="108">A</text><text x="180" y="108">G</text>
+            <text x="210" y="108">C</text><text x="240" y="108">T</text><text x="270" y="108">A</text>
+            <text x="300" y="108">G</text><text x="330" y="108">T</text><text x="360" y="108">C</text>
+            <text x="390" y="108">A</text><text x="420" y="108">G</text><text x="450" y="108">T</text>
+            <text x="480" y="108">C</text><text x="510" y="108">A</text><text x="540" y="108">G</text>
+          </g>
+          <text x="30" y="140" fill="#8F8F8F" font-family="ui-monospace, Menlo, monospace" font-size="10">position 0</text>
+          <text x="478" y="140" fill="#8F8F8F" font-family="ui-monospace, Menlo, monospace" font-size="10">position 1,000,000</text>
+
+          <!-- Long-range dependency arcs -->
+          <g fill="none" stroke="#76B900" stroke-width="1.4" opacity="0.85">
+            <path d="M 60 122 Q 240 260, 420 122"/>
+            <path d="M 90 122 Q 300 320, 510 122"/>
+            <path d="M 150 122 Q 240 200, 330 122" opacity="0.6"/>
+            <path d="M 180 122 Q 360 280, 540 122" opacity="0.5"/>
+          </g>
+
+          <!-- "Attention windows" — short -->
+          <g stroke="#1FA18D" stroke-width="2" opacity="0.9">
+            <rect x="180" y="180" width="80" height="14" fill="none"/>
+            <rect x="340" y="220" width="80" height="14" fill="none"/>
+          </g>
+          <g font-family="ui-monospace, Menlo, monospace" font-size="9" fill="#1FA18D">
+            <text x="180" y="174">attention · short range</text>
+            <text x="340" y="214">attention · short range</text>
+          </g>
+
+          <!-- "Hyena conv" — long -->
+          <g stroke="#76B900" stroke-width="2" opacity="0.9">
+            <rect x="120" y="320" width="380" height="14" fill="none"/>
+          </g>
+          <g font-family="ui-monospace, Menlo, monospace" font-size="9" fill="#76B900">
+            <text x="120" y="314">hyena conv · long range, implicit filter</text>
+          </g>
+
+          <!-- StripedHyena 2 block stack glyph -->
+          <g transform="translate(30 380)">
+            <text x="0" y="0" fill="#8F8F8F" font-family="ui-monospace, Menlo, monospace" font-size="9">block stack (alternating)</text>
+            <g>
+              <rect x="0"   y="10" width="40" height="14" fill="#76B900" opacity="0.85"/>
+              <rect x="44"  y="10" width="40" height="14" fill="#76B900" opacity="0.85"/>
+              <rect x="88"  y="10" width="40" height="14" fill="#1FA18D" opacity="0.85"/>
+              <rect x="132" y="10" width="40" height="14" fill="#76B900" opacity="0.85"/>
+              <rect x="176" y="10" width="40" height="14" fill="#76B900" opacity="0.85"/>
+              <rect x="220" y="10" width="40" height="14" fill="#1FA18D" opacity="0.85"/>
+              <rect x="264" y="10" width="40" height="14" fill="#76B900" opacity="0.85"/>
+              <rect x="308" y="10" width="40" height="14" fill="#76B900" opacity="0.85"/>
+              <rect x="352" y="10" width="40" height="14" fill="#1FA18D" opacity="0.85"/>
+              <rect x="396" y="10" width="40" height="14" fill="#76B900" opacity="0.85"/>
+              <rect x="440" y="10" width="40" height="14" fill="#76B900" opacity="0.85"/>
+              <rect x="484" y="10" width="40" height="14" fill="#1FA18D" opacity="0.85"/>
+            </g>
+          </g>
+        </svg>
+        <div class="legend">
+          <span class="li"><span class="sw" style="background:#76B900"></span>Hyena conv (long range)</span>
+          <span class="li"><span class="sw" style="background:#1FA18D"></span>Attention (short range)</span>
+          <span class="li"><span class="sw" style="background:#8F8F8F"></span>Sequence position</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========== 02 CHECKPOINTS =========== -->
+    <section id="checkpoints" class="section">
+      <div class="secnum">02 / Checkpoint family</div>
+      <h2>Eight released checkpoints</h2>
+      <p class="lede">Sizes range from a 1 B base model to the flagship 40 B. Three checkpoints reach the full 1 M-nucleotide context; one is fine-tuned on Microviridae phage genomes. All released on HuggingFace under <code>arcinstitute/</code>.</p>
+
+      <table class="ck">
+        <thead>
+          <tr>
+            <th style="width:200px">Checkpoint</th>
+            <th>Parameters</th>
+            <th>Max context</th>
+            <th>Stage</th>
+            <th>Precision</th>
+            <th>GPU requirement</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">evo2_40b</td>
+            <td>40 B</td><td>1,000,000 nt</td>
+            <td><span class="pill">pretrained</span></td>
+            <td><span class="pill fp8">FP8 (TE)</span></td>
+            <td>Multiple Hopper H100</td>
+          </tr>
+          <tr>
+            <td class="mono">evo2_20b</td>
+            <td>20 B</td><td>1,000,000 nt</td>
+            <td><span class="pill">pretrained</span></td>
+            <td><span class="pill fp8">FP8 (TE)</span></td>
+            <td>Hopper H100</td>
+          </tr>
+          <tr>
+            <td class="mono">evo2_7b</td>
+            <td>7 B</td><td>1,000,000 nt</td>
+            <td><span class="pill">pretrained</span></td>
+            <td><span class="pill bf16">bf16</span></td>
+            <td>Any supported NVIDIA GPU</td>
+          </tr>
+          <tr>
+            <td class="mono">evo2_40b_base</td>
+            <td>40 B</td><td>8,192 nt</td>
+            <td><span class="pill">base</span></td>
+            <td><span class="pill fp8">FP8 (TE)</span></td>
+            <td>Multiple Hopper H100</td>
+          </tr>
+          <tr>
+            <td class="mono">evo2_7b_base</td>
+            <td>7 B</td><td>8,192 nt</td>
+            <td><span class="pill">base</span></td>
+            <td><span class="pill bf16">bf16</span></td>
+            <td>Any supported NVIDIA GPU</td>
+          </tr>
+          <tr>
+            <td class="mono">evo2_1b_base</td>
+            <td>1 B</td><td>8,192 nt</td>
+            <td><span class="pill">base</span></td>
+            <td><span class="pill fp8">FP8 (TE)</span></td>
+            <td>Hopper H100</td>
+          </tr>
+          <tr>
+            <td class="mono">evo2_7b_262k</td>
+            <td>7 B</td><td>262,144 nt</td>
+            <td><span class="pill">pretrained</span></td>
+            <td><span class="pill bf16">bf16</span></td>
+            <td>Any supported NVIDIA GPU</td>
+          </tr>
+          <tr>
+            <td class="mono">evo2_7b_microviridae</td>
+            <td>7 B</td><td>not reported</td>
+            <td><span class="pill" style="background:var(--kui-accent-pink-bg);border-color:#E0BFD4;color:var(--kui-accent-magenta)">fine-tuned</span></td>
+            <td><span class="pill bf16">bf16</span></td>
+            <td>Any supported NVIDIA GPU</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="src" style="margin-top:10px">Source: <a href="https://github.com/ArcInstitute/evo2" target="_blank" rel="noopener">github.com/ArcInstitute/evo2</a> · README "Checkpoints" + FP8/TE requirements table.</div>
+    </section>
+
+    <!-- =========== 03 END-TO-END PIPELINE =========== -->
+    <section id="pipeline" class="section">
+      <div class="secnum">03 / End-to-end model map</div>
+      <h2>From a raw genome to a base-resolution likelihood</h2>
+      <p class="lede">Evo 2 is a single causal sequence model — no separate encoder or task head architecture. Every downstream behaviour (variant scoring, embeddings, generation, design) is the same forward pass, sampled or read out differently.</p>
+
+      <div class="pipeline">
+        <div class="row">
+          <!-- INPUT -->
+          <div class="stage input">
+            <div class="hd"><span class="ix">01 · INPUT</span><span class="tag neutral" style="font-size:9px;padding:2px 5px">native</span></div>
+            <div class="ttl">Nucleotide sequence</div>
+            <div class="desc">Raw DNA / RNA string from any source — assembled genomes, contigs, metagenomic reads, single-cell. Source-backed alphabet detail not published.</div>
+            <div class="specs">
+              <span class="tag">A · C · G · T</span>
+              <span class="tag">up to 1,000,000 nt</span>
+              <span class="tag warn">alphabet: not reported</span>
+            </div>
+          </div>
+
+          <!-- TOKENIZE -->
+          <div class="stage proc">
+            <div class="hd"><span class="ix">02 · TOKENIZE</span></div>
+            <div class="ttl">Byte-level, single-base</div>
+            <div class="desc">Each nucleotide is its own token. The README repo exposes <code>evo2_model.tokenizer.tokenize(sequence)</code> returning one <code>int</code> per base.</div>
+            <div class="specs">
+              <span class="tag">1 token = 1 nucleotide</span>
+              <span class="tag">single-base resolution</span>
+              <span class="tag warn">vocab size: not reported</span>
+            </div>
+          </div>
+
+          <!-- CORE — StripedHyena 2 stack -->
+          <div class="core-col">
+            <div class="core-hd"><span>03 · BACKBONE</span><span>StripedHyena 2</span></div>
+            <div class="blk h"><span class="ix">B1</span><span class="name">Hyena LI</span><span class="meta">long, implicit</span></div>
+            <div class="blk h"><span class="ix">B2</span><span class="name">Hyena MR</span><span class="meta">medium</span></div>
+            <div class="blk h"><span class="ix">B3</span><span class="name">Hyena SE</span><span class="meta">short</span></div>
+            <div class="blk a"><span class="ix">B4</span><span class="name">Attention</span><span class="meta">local exact</span></div>
+            <div class="blk m"><span class="ix">B5</span><span class="name">MLP</span><span class="meta">FFN</span></div>
+            <div class="dots">⋮ &nbsp;&nbsp;repeated alternating stripes&nbsp;&nbsp; ⋮</div>
+            <div class="blk h"><span class="ix">Bn-1</span><span class="name">Hyena</span><span class="meta">conv mixer</span></div>
+            <div class="blk a"><span class="ix">Bn</span><span class="name">Attention</span><span class="meta">local exact</span></div>
+            <div style="font:400 10px/1.3 var(--kui-font-mono); color:var(--kui-fg-muted); text-align:center; padding-top:4px">
+              layer count, hidden dim, head count: <span style="color:var(--kui-warning)">not reported</span> in listed sources
+            </div>
+          </div>
+
+          <!-- HEAD -->
+          <div class="stage head">
+            <div class="hd"><span class="ix">04 · HEAD</span></div>
+            <div class="ttl">Per-token logits</div>
+            <div class="desc">A single autoregressive LM head emits a probability distribution over the nucleotide vocabulary for every position. No task-specific heads ship with the model.</div>
+            <div class="specs">
+              <span class="tag">causal LM</span>
+              <span class="tag">logits shape (B, L, V)</span>
+              <span class="tag">teacher prompting for very long L</span>
+            </div>
+          </div>
+
+          <!-- OUTPUT -->
+          <div class="stage out">
+            <div class="hd"><span class="ix">05 · OUTPUT</span></div>
+            <div class="ttl">Three usage modes</div>
+            <div class="desc">All three modes are the same forward pass — the user picks which tensor to read.</div>
+            <div class="specs" style="flex-direction:column;align-items:flex-start;gap:6px">
+              <span class="tag green"><b>1.</b>&nbsp;Likelihood scoring · variant effect prediction</span>
+              <span class="tag info"><b>2.</b>&nbsp;Intermediate embeddings · e.g. <code>blocks.28.mlp.l3</code></span>
+              <span class="tag" style="background:#FBEEFE;border-color:#E0BFD4;color:var(--kui-accent-magenta)"><b>3.</b>&nbsp;Generation · DNA / genome design</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="legend-row">
+          <span class="li"><span class="sw" style="background:var(--kui-accent-teal)"></span>Input</span>
+          <span class="li"><span class="sw" style="background:var(--kui-info)"></span>Pre-processing</span>
+          <span class="li"><span class="sw" style="background:var(--kui-brand-green)"></span>Backbone (StripedHyena 2)</span>
+          <span class="li"><span class="sw" style="background:var(--kui-accent-purple)"></span>Output head</span>
+          <span class="li"><span class="sw" style="background:var(--kui-warning)"></span>Downstream readout</span>
+          <span style="margin-left:auto;color:var(--kui-fg-subtle)">Every label without a source-backed number is flagged <code>not reported</code>.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========== 04 STRIPED HYENA 2 =========== -->
+    <section id="sh2" class="section">
+      <div class="secnum">04 / Backbone</div>
+      <h2>StripedHyena 2 — a convolutional multi-hybrid</h2>
+      <p class="lede">StripedHyena 2 alternates input-dependent Hyena convolutions with periodic attention layers. The 2025 ML paper accompanying Evo 2 frames it as a "convolutional multi-hybrid language model at scale." Exact block-level numerics are not published in the listed sources.</p>
+
+      <div class="sh2-diagram">
+        <div class="sh2-flow">
+          <h3>One alternating stripe (schematic)</h3>
+          <p class="src" style="margin-bottom:14px">Layer schedule is reported as <i>alternating Hyena and attention</i>; the precise periodicity, filter parameterisation, and head counts are not enumerated in the announcement or repo README.</p>
+
+          <div class="stripe">
+            <div class="nb"><span>blk</span><b>1</b></div>
+            <div class="row2">
+              <div class="cell hyena tagged"><span class="k">Hyena LI</span><span class="n">Long-range</span><span class="src">implicit conv filter</span></div>
+              <div class="cell hyena"><span class="k">Hyena MR</span><span class="n">Medium-range</span></div>
+              <div class="cell hyena"><span class="k">Hyena SE</span><span class="n">Short-range</span></div>
+            </div>
+          </div>
+          <div class="stripe">
+            <div class="nb"><span>blk</span><b>2</b></div>
+            <div class="row2">
+              <div class="cell mlp"><span class="k">MLP</span><span class="n">Gated FFN</span><span class="src">per-token</span></div>
+            </div>
+          </div>
+          <div class="stripe">
+            <div class="nb"><span>blk</span><b>3</b></div>
+            <div class="row2">
+              <div class="cell attn tagged"><span class="k">Attention</span><span class="n">Local exact softmax</span><span class="src">short range, sparse cadence</span></div>
+            </div>
+          </div>
+          <div class="stripe">
+            <div class="nb"><span>blk</span><b>4</b></div>
+            <div class="row2">
+              <div class="cell mlp"><span class="k">MLP</span><span class="n">Gated FFN</span></div>
+            </div>
+          </div>
+          <div style="text-align:center;color:var(--kui-fg-subtle);font:400 12px/1 var(--kui-font-mono);padding:6px 0">
+            ⋮ &nbsp; repeated &nbsp; ⋮
+          </div>
+          <div class="stripe">
+            <div class="nb"><span>blk</span><b>N</b></div>
+            <div class="row2">
+              <div class="cell"><span class="k">RMSNorm + LM head</span><span class="n">Logits over nucleotide vocab</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sh2-explain">
+          <h3>What the stripe pattern buys you</h3>
+          <ul>
+            <li><b>Hyena</b> layers replace quadratic attention with an input-dependent long convolution. Cost scales <code>O(L log L)</code> instead of <code>O(L²)</code>, which is what makes a 1 M-token context tractable.</li>
+            <li>Mixing <b>multiple Hyena bandwidths</b> (long / medium / short, hence "multi-hybrid") lets a single layer capture both local motifs and distant regulatory dependencies.</li>
+            <li><b>Periodic attention</b> stripes restore exact local mixing where it matters — e.g. tight base-pair interactions and coding-frame patterns.</li>
+            <li>The block schedule was co-designed with NVIDIA to keep <b>FP8 utilisation</b> high on H100 — the announcement reports training across <b>&gt; 2,000 H100 GPUs</b> on DGX Cloud via AWS.</li>
+          </ul>
+
+          <div class="kv">
+            <div class="k">Architecture name</div><div class="v">StripedHyena 2</div>
+            <div class="k">Family</div><div class="v">convolutional multi-hybrid LM</div>
+            <div class="k">Training framework</div><div class="v">Savanna · github.com/Zymrael</div>
+            <div class="k">Inference framework</div><div class="v">Vortex · github.com/Zymrael</div>
+            <div class="k">Successor of</div><div class="v">Evo 1 (StripedHyena 1)</div>
+            <div class="k">vs Evo 1, data</div><div class="v">~30× more training data</div>
+            <div class="k">vs Evo 1, ctx</div><div class="v">~8× longer at inference</div>
+            <div class="k">Layers / hidden / heads</div><div class="v" style="color:var(--kui-warning)">not reported</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========== 05 CONTEXT SCALE =========== -->
+    <section id="context" class="section">
+      <div class="secnum">05 / Long-context</div>
+      <h2>One million nucleotides in a single forward pass</h2>
+      <p class="lede">Three checkpoints — <code>evo2_40b</code>, <code>evo2_20b</code>, <code>evo2_7b</code> — accept the full 1 M-nt context. The shorter "_base" checkpoints train at 8K and the <code>_262k</code> variant at 256K, illustrating the staged context-extension curriculum.</p>
+
+      <div class="scale">
+        <h3>Context length, per checkpoint</h3>
+        <p class="src">Bars are on a log scale to make the four orders of magnitude legible. Values from <code>github.com/ArcInstitute/evo2</code> README.</p>
+
+        <div class="bars">
+          <!-- log scale: log10(8192)=3.91, log10(262144)=5.42, log10(1000000)=6.00, axis from 3.5 .. 6.2 -->
+          <div class="bar">
+            <div class="lbl">evo2_1b_base</div>
+            <div class="track"><div class="fill gray" style="width:15%"></div></div>
+            <div class="val">8 192 nt</div>
+          </div>
+          <div class="bar">
+            <div class="lbl">evo2_7b_base</div>
+            <div class="track"><div class="fill gray" style="width:15%"></div></div>
+            <div class="val">8 192 nt</div>
+          </div>
+          <div class="bar">
+            <div class="lbl">evo2_40b_base</div>
+            <div class="track"><div class="fill gray" style="width:15%"></div></div>
+            <div class="val">8 192 nt</div>
+          </div>
+          <div class="bar">
+            <div class="lbl">evo2_7b_262k</div>
+            <div class="track"><div class="fill alt" style="width:71%"></div></div>
+            <div class="val">262 144 nt</div>
+          </div>
+          <div class="bar">
+            <div class="lbl">evo2_7b</div>
+            <div class="track"><div class="fill" style="width:100%"></div></div>
+            <div class="val">1 000 000 nt</div>
+          </div>
+          <div class="bar">
+            <div class="lbl">evo2_20b</div>
+            <div class="track"><div class="fill" style="width:100%"></div></div>
+            <div class="val">1 000 000 nt</div>
+          </div>
+          <div class="bar">
+            <div class="lbl">evo2_40b</div>
+            <div class="track"><div class="fill" style="width:100%"></div></div>
+            <div class="val">1 000 000 nt</div>
+          </div>
+        </div>
+        <div class="axis"><span>10³</span><span>10⁴</span><span>10⁵</span><span>10⁶</span></div>
+        <p class="caption">Why it matters: 1 M nt is comparable in scale to a small bacterial genome. Evo 2 can therefore reason about whole-operon, whole-locus, and even whole-genome dependencies in one shot — what the announcement summarises as "relationships between distant parts of a genome."</p>
+      </div>
+    </section>
+
+    <!-- =========== 06 TRAINING & DATA =========== -->
+    <section id="training" class="section">
+      <div class="secnum">06 / Training &amp; data</div>
+      <h2>Pretrained autoregressively on OpenGenome2</h2>
+      <p class="lede">No RLHF. No instruction tuning. Evo 2 is a single-objective causal language model over nucleotides. The fine-tuned <code>evo2_7b_microviridae</code> checkpoint is the only post-trained variant the sources list.</p>
+
+      <div class="train">
+        <!-- Dataset card -->
+        <div class="card dataset-card">
+          <h4>Pretraining corpus</h4>
+          <div class="big">9.3 T <span class="unit">nucleotide tokens<sup>†</sup></span></div>
+
+          <div class="row">
+            <div>
+              <h4>Genomes</h4>
+              <div style="font:500 22px/1 var(--kui-font-sans);">128 000+</div>
+              <div class="src">across all three domains of life</div>
+            </div>
+            <div>
+              <h4>Dataset name</h4>
+              <div style="font:500 22px/1 var(--kui-font-sans);">OpenGenome2</div>
+              <div class="src"><code>arcinstitute/opengenome2</code> on HF</div>
+            </div>
+          </div>
+
+          <div class="donut-wrap">
+            <svg width="120" height="120" viewBox="0 0 42 42" aria-label="Domains of life coverage (illustrative)">
+              <!-- Illustrative split — composition not published numerically -->
+              <circle cx="21" cy="21" r="15.915" fill="#fff" stroke="#E3E3E3" stroke-width="0.6"/>
+              <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#76B900" stroke-width="6"
+                      stroke-dasharray="55 45" stroke-dashoffset="25" transform="rotate(-90 21 21)"/>
+              <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#1FA18D" stroke-width="6"
+                      stroke-dasharray="25 75" stroke-dashoffset="-30" transform="rotate(-90 21 21)"/>
+              <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#A05AB4" stroke-width="6"
+                      stroke-dasharray="20 80" stroke-dashoffset="-55" transform="rotate(-90 21 21)"/>
+              <text x="21" y="22" text-anchor="middle" font-family="ui-monospace, monospace" font-size="3.6" fill="#5E5E5E">3 domains</text>
+            </svg>
+            <div class="donut-legend">
+              <div class="li"><span class="sw" style="background:#76B900"></span>Bacteria · archaea · phage (expanded from Evo 1)</div>
+              <div class="li"><span class="sw" style="background:#1FA18D"></span>Eukarya: humans, plants, single-cell &amp; multicellular</div>
+              <div class="li"><span class="sw" style="background:#A05AB4"></span>Metagenomic data</div>
+              <div class="li" style="color:var(--kui-fg-muted);font-size:11px">Per-domain share not reported numerically.</div>
+            </div>
+          </div>
+
+          <div class="domains">
+            <div class="dom"><b>Safety filter</b>Pathogens infecting humans and other complex organisms were excluded from the base set; the model is constrained from returning productive answers to such queries.</div>
+          </div>
+
+          <p class="src" style="margin-top:14px">
+            <sup>†</sup> Arc Institute announcement reports <b>9.3 T tokens</b>; repository README reports <b>8.8 T tokens</b> for the OpenGenome2 pretraining corpus. Disagreement is preserved &mdash; see <a href="#caveats">§10 Caveats</a>.
+          </p>
+        </div>
+
+        <!-- Right column — training stack -->
+        <div class="train-stack">
+          <div class="train-step">
+            <div class="hd"><h3>Pretraining</h3><span class="n">Stage 01</span></div>
+            <div class="d">Causal next-nucleotide prediction over OpenGenome2. Trained on the NVIDIA DGX Cloud AI platform via AWS, using <b>&gt; 2,000 NVIDIA H100 GPUs</b>, for "several months." Framework: <b>Savanna</b>.</div>
+          </div>
+          <div class="train-step">
+            <div class="hd"><h3>Context-length extension</h3><span class="n">Stage 02</span></div>
+            <div class="d">Released as separate checkpoints: 8K → 256K → 1M (8× the longest Evo 1 context). Curriculum specifics not enumerated in listed sources.</div>
+          </div>
+          <div class="train-step">
+            <div class="hd"><h3>Domain fine-tuning</h3><span class="n">Stage 03 · optional</span></div>
+            <div class="d"><code>evo2_7b_microviridae</code> is the only published fine-tune in the released checkpoint set — a 7 B base further trained on Microviridae phage genomes.</div>
+          </div>
+          <div class="train-step">
+            <div class="hd"><h3>Post-training (RLHF, SFT, distillation)</h3><span class="n">Stage 04</span></div>
+            <div class="d" style="color:var(--kui-warning)">Not reported in listed sources — none of these stages are mentioned in the announcement or README.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========== 07 CAPABILITIES =========== -->
+    <section id="capabilities" class="section">
+      <div class="secnum">07 / Capabilities</div>
+      <h2>Three usage patterns from one forward pass</h2>
+      <p class="lede">The README exposes exactly three call surfaces — <code>forward</code>, <code>return_embeddings=True</code>, and <code>generate</code>. Every downstream task in the announcement decomposes into one of these.</p>
+
+      <div class="grid-3">
+        <div class="card">
+          <h4 style="color:var(--kui-brand-green-darker)">01 · Likelihood scoring</h4>
+          <h3>Variant effect prediction</h3>
+          <p class="desc" style="margin-top:8px">Score the per-position likelihood under the reference vs. alternative allele. Used in the published BRCA1 zero-shot notebook to call pathogenic vs benign mutations without any task-specific training.</p>
+          <pre style="margin:12px 0 0;padding:10px 12px;background:#FAFAFA;border:1px solid var(--kui-border-subtle);border-radius:2px;font-size:11.5px;overflow-x:auto;line-height:1.5">outputs, _ = evo2_model(input_ids)
+logits = outputs[0]
+# shape: (B, L, V)</pre>
+        </div>
+        <div class="card">
+          <h4 style="color:var(--kui-info-text)">02 · Embeddings</h4>
+          <h3>Functional / structural features</h3>
+          <p class="desc" style="margin-top:8px">Return intermediate-layer activations (e.g. <code>blocks.28.mlp.l3</code>) as fixed-dim representations for any downstream classifier — exon prediction is the worked example. The paper notes intermediate embeddings outperform the final layer.</p>
+          <pre style="margin:12px 0 0;padding:10px 12px;background:#FAFAFA;border:1px solid var(--kui-border-subtle);border-radius:2px;font-size:11.5px;overflow-x:auto;line-height:1.5">outputs, embeddings = evo2_model(
+  input_ids,
+  return_embeddings=True,
+  layer_names=['blocks.28.mlp.l3'])</pre>
+        </div>
+        <div class="card">
+          <h4 style="color:var(--kui-accent-magenta)">03 · Generation</h4>
+          <h3>Genome design</h3>
+          <p class="desc" style="margin-top:8px">Autoregressive sampling with optional phylogenetic species tags as prompts. Per the announcement, Evo 2 "is capable of designing new genomes that are as long as the genomes of simple bacteria."</p>
+          <pre style="margin:12px 0 0;padding:10px 12px;background:#FAFAFA;border:1px solid var(--kui-border-subtle);border-radius:2px;font-size:11.5px;overflow-x:auto;line-height:1.5">evo2_model.generate(
+  prompt_seqs=["ACGT"],
+  n_tokens=400,
+  temperature=1.0,
+  top_k=4)</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========== 08 BENCHMARKS =========== -->
+    <section id="benchmarks" class="section">
+      <div class="secnum">08 / Reported benchmarks</div>
+      <h2>What the announcement actually claims</h2>
+      <p class="lede" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="tag warn">All numbers below are source-reported, not independently verified.</span>
+        <span>The Arc Institute announcement publishes one headline accuracy number; the repo README and notebooks list qualitative tasks rather than a full benchmark table.</span>
+      </p>
+
+      <div class="bench">
+        <div class="bench-row">
+          <!-- BRCA1 metric card -->
+          <div class="card bench-card">
+            <div class="head">
+              <h3>BRCA1 variant-effect prediction</h3>
+              <span class="tag green">zero-shot</span>
+            </div>
+            <div class="metric">&gt; 90<span class="pct">%</span></div>
+            <div class="sub">Accuracy at calling benign vs. potentially pathogenic mutations in the breast-cancer-associated <i>BRCA1</i> gene, zero-shot, from likelihood scoring alone.</div>
+            <div class="bar">
+              <div class="fill" style="width:90%"></div>
+              <div class="marker" style="left:90%"></div>
+            </div>
+            <div class="scale-row"><span>0%</span><span>50%</span><span>90%</span><span>100%</span></div>
+            <p class="src" style="margin-top:12px">
+              Source: Arc Institute announcement, <a href="https://arcinstitute.org/news/evo2" target="_blank" rel="noopener">arcinstitute.org/news/evo2</a>. The exact metric (accuracy vs AUROC vs AUPRC), test split, and number of variants are not specified in the announcement copy.
+            </p>
+          </div>
+
+          <!-- Capabilities list -->
+          <div class="card cap-list">
+            <h3 style="margin-bottom:6px">Tasks demonstrated in released notebooks</h3>
+            <p class="src" style="margin-bottom:8px">Each row corresponds to a Jupyter notebook in <code>ArcInstitute/evo2/notebooks/</code>.</p>
+            <ul>
+              <li><span class="mk"></span><div><b>BRCA1 zero-shot variant-effect prediction</b><small>Reference vs. alternative allele normalization, no fine-tuning.</small></div></li>
+              <li><span class="mk"></span><div><b>DNA prompt-based generation &amp; autocompletion</b><small>Including phylogenetic species-tag prompting.</small></div></li>
+              <li><span class="mk"></span><div><b>Exon classification from embeddings</b><small>Uses an intermediate-layer activation as input to a downstream classifier.</small></div></li>
+              <li><span class="mk"></span><div><b>Sparse-autoencoder feature visualisation</b><small>Interpretable biological features on a slice of the <i>E. coli</i> genome.</small></div></li>
+              <li><span class="mk" style="background:var(--kui-fg-muted)"></span>
+                <div><b style="color:var(--kui-fg-muted)">WER · BLEU · FID · retrieval · robotics scores</b>
+                <small style="color:var(--kui-warning)">Not applicable to a DNA model — not reported in listed sources.</small></div></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========== 09 MECH INTERP =========== -->
+    <section id="interp" class="section">
+      <div class="secnum">09 / Mechanistic interpretability</div>
+      <h2>SAE-based feature visualiser, in collaboration with Goodfire</h2>
+      <p class="lede">Arc Institute shipped an interpretability tool alongside the model — a sparse-autoencoder probe of Evo 2's intermediate activations — and a public visualiser. The Goodfire blog post on the project is referenced from the announcement.</p>
+      <div class="grid-2">
+        <div class="card">
+          <h4>Tooling</h4>
+          <h3 style="margin-bottom:8px">Mechanistic interpretability visualiser</h3>
+          <p class="desc">Hosted at <a href="https://arcinstitute.org/tools/evo/evo-mech-interp" target="_blank" rel="noopener">arcinstitute.org/tools/evo/evo-mech-interp</a>. Surfaces the SAE-discovered biological features the model uses to recognise genomic patterns.</p>
+          <ul style="margin:12px 0 0;padding-left:18px;font-size:13px;color:var(--kui-fg-default)">
+            <li>Designer companion product: <a href="https://arcinstitute.org/tools/evo/evo-designer" target="_blank" rel="noopener">Evo Designer</a> &mdash; user-friendly interface to interact with the model.</li>
+            <li>NIM/BioNeMo hosted API: <a href="https://build.nvidia.com/arc/evo2-40b" target="_blank" rel="noopener">build.nvidia.com/arc/evo2-40b</a> for 40B inference without local install.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>SAE notebook</h4>
+          <h3 style="margin-bottom:8px">What the notebook demonstrates</h3>
+          <p class="desc">The <code>notebooks/sparse_autoencoder</code> example walks through running the released SAE on Evo 2 activations and visualising features that fire on a region of the <i>E. coli</i> genome. Read at <a href="https://github.com/ArcInstitute/evo2" target="_blank" rel="noopener">github.com/ArcInstitute/evo2</a>.</p>
+          <p class="src" style="margin-top:12px">Feature count, hidden-dimension expansion ratio, and exact training data of the SAE are not reported in the announcement or README.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========== 10 CAVEATS =========== -->
+    <section id="caveats" class="section">
+      <div class="secnum">10 / Unknowns &amp; caveats</div>
+      <h2>What the listed sources do not say</h2>
+      <p class="lede">Two of the three listed sources are user-facing pages; the third is a backlog row. Where they disagree we preserve both; where neither speaks we mark "not reported."</p>
+
+      <div class="caveat" style="margin-bottom:16px">
+        <div class="ttl">Source disagreement: pretraining token count</div>
+        <div class="body">
+          The Arc Institute announcement states Evo 2 is "trained on over <b>9.3 trillion tokens</b> – in this case, nucleotides – from over 128 thousand genomes." The <code>ArcInstitute/evo2</code> README states OpenGenome2 contains "<b>8.8 trillion tokens</b> from all domains of life." Both numbers are reproduced verbatim on this page. The atlas does not pick one over the other.
+        </div>
+      </div>
+
+      <div class="unknown-grid">
+        <div class="unk"><b>Tokenizer alphabet &amp; vocab size</b><span>The README shows the tokenizer API but does not enumerate the vocabulary. Whether N, ambiguity codes, or species/phylogenetic tags are dedicated tokens is not stated in the listed sources.</span></div>
+        <div class="unk"><b>Per-block dimensions</b><span>Number of StripedHyena 2 blocks, hidden dimension, head count, Hyena filter parameterisation, and MLP expansion ratio are not enumerated in the announcement or README for any checkpoint.</span></div>
+        <div class="unk"><b>Stripe schedule</b><span>The README confirms the architecture name (StripedHyena 2) and the qualitative pattern of alternating Hyena and attention layers; the exact period and ordering is left to the linked StripedHyena 2 paper.</span></div>
+        <div class="unk"><b>Training compute &amp; duration</b><span>"Several months" on "over 2,000 H100 GPUs" via DGX Cloud / AWS. Exact GPU-hours, TFLOP totals, optimizer, batch size, learning-rate schedule: not reported in listed sources.</span></div>
+        <div class="unk"><b>Per-domain corpus composition</b><span>OpenGenome2 is reported as covering bacteria, archaea, phage, eukarya, and metagenomic data; the numerical split by domain is not published in the listed sources.</span></div>
+        <div class="unk"><b>Benchmark suite beyond BRCA1</b><span>The announcement reports the BRCA1 &gt; 90% accuracy headline only. Detailed per-task scores live in the paper, which is referenced but not in the listed-sources set for this atlas.</span></div>
+      </div>
+    </section>
+
+    <!-- =========== 11 SOURCES =========== -->
+    <section id="sources" class="section">
+      <div class="secnum">11 / Sources</div>
+      <h2>Source-of-truth links</h2>
+
+      <div class="card sources">
+        <ol>
+          <li>
+            <b>Arc Institute · Evo 2 announcement (2025-02-19)</b>
+            <a href="https://arcinstitute.org/news/evo2" target="_blank" rel="noopener">arcinstitute.org/news/evo2</a>
+            <div class="src">Source for: developer affiliations, 9.3 T tokens, 128 K+ genomes, 1 M-nt context, 2,000+ H100 GPUs on DGX Cloud, BRCA1 &gt;90% accuracy, safety-filtering policy, Evo Designer, Mech-Interp Visualiser.</div>
+          </li>
+          <li>
+            <b>ArcInstitute/evo2 — GitHub repository README</b>
+            <a href="https://github.com/ArcInstitute/evo2" target="_blank" rel="noopener">github.com/ArcInstitute/evo2</a>
+            <div class="src">Source for: checkpoint table, FP8 / bf16 requirements, OpenGenome2 dataset name + 8.8 T tokens, Vortex inference framework, Savanna training framework, notebook list, Apache-2.0 license.</div>
+          </li>
+          <li>
+            <b>Local backlog row — OSS model releases 2025+</b>
+            <div class="src">Path on the analyst's machine: <code>oss-model-releases-2025-plus.md</code>. Used only as a lead — verified against the two primary sources above.</div>
+          </li>
+        </ol>
+        <p class="src" style="margin-top:14px">
+          Referenced but not used as a source-of-truth on this page: the linked Nature paper and the "Systems and Algorithms for Convolutional Multi-Hybrid Language Models at Scale" preprint. Numbers from those papers were deliberately not pulled in &mdash; the atlas brief restricts evidence to the three sources above.
+        </p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+// Scroll-spy for the left nav
+(function(){
+  var links = document.querySelectorAll('#toc a');
+  var map = {};
+  links.forEach(function(a){
+    var id = a.getAttribute('href').slice(1);
+    var el = document.getElementById(id);
+    if(el) map[id] = a;
+  });
+  var ids = Object.keys(map);
+
+  function update(){
+    var y = window.scrollY + 120;
+    var active = ids[0];
+    for(var i=0;i<ids.length;i++){
+      var el = document.getElementById(ids[i]);
+      if(el && el.offsetTop <= y) active = ids[i];
+    }
+    links.forEach(function(a){a.classList.remove('active')});
+    if(map[active]) map[active].classList.add('active');
+  }
+  update();
+  window.addEventListener('scroll', update, {passive:true});
+})();
+</script>
+</body>
+</html>

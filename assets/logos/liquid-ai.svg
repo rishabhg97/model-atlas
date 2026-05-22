@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 145 44" role="img" aria-label="Liquid AI">
+  <rect width="145" height="44" rx="8" fill="#e8fbff"/>
+  <path d="M27 9c8 10 13 16 13 23a13 13 0 0 1-26 0c0-7 5-13 13-23z" fill="#0ea5b7"/>
+  <text x="52" y="28" fill="#0a6671" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">Liquid AI</text>
+</svg>

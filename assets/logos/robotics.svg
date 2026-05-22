@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 145 44" role="img" aria-label="Robotics">
+  <rect width="145" height="44" rx="8" fill="#f3f4f6"/>
+  <rect x="15" y="13" width="26" height="20" rx="4" fill="#4b5563"/>
+  <circle cx="23" cy="23" r="2.5" fill="#fff"/>
+  <circle cx="33" cy="23" r="2.5" fill="#fff"/>
+  <text x="54" y="28" fill="#374151" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">Robotics</text>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 44" role="img" aria-label="Qwen">
+  <rect width="150" height="44" rx="8" fill="#f2ecff"/>
+  <rect x="14" y="12" width="20" height="20" rx="5" fill="#7c3aed"/>
+  <path d="M29 28l7 6" stroke="#7c3aed" stroke-width="4" stroke-linecap="square"/>
+  <text x="48" y="28" fill="#44208c" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">Qwen</text>
+</svg>

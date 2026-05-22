@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 145 44" role="img" aria-label="Sarvam AI">
+  <rect width="145" height="44" rx="8" fill="#fff1e8"/>
+  <circle cx="25" cy="22" r="12" fill="#c2410c"/>
+  <path d="M19 22h12M25 16v12" stroke="#fff" stroke-width="3"/>
+  <text x="49" y="28" fill="#7c2d12" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">Sarvam</text>
+</svg>

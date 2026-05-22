@@ -6,125 +6,206 @@
   <title>Model Architecture Atlas</title>
   <style>
     :root {
-      --bg: #f5f5f2;
-      --ink: #111216;
-      --muted: #646871;
-      --soft: #ebece7;
-      --line: #d7d8d2;
-      --panel: #ffffff;
-      --dark: #171a20;
+      /* NVIDIA Kaizen dark theme — N900 canvas, N800 surface, green accent */
+      --bg: #0d0d0d;
+      --surface: #1a1a1a;
+      --surface-soft: #141414;
+      --surface-elev: #242424;
+      --ink: #ededeb;
+      --ink-2: #d8d8d8;
+      --muted: #9a9a9c;
+      --subtle: #6e6e72;
+      --line: #262626;
+      --line-2: #353535;
+      --line-strong: #5e5e5e;
       --green: #76b900;
-      --blue: #0d69d4;
-      --violet: #7052d8;
-      --amber: #bc7a1f;
-      --rose: #c14c68;
+      --green-dark: #5e9600;
+      --green-soft: #1d2710;
+      --green-text: #cfe89a;
+      --blue: #4ea3ee;
+      --blue-soft: #0e1f37;
+      --blue-text: #7eb6ed;
+      --violet: #a78bfa;
+      --teal: #4dd6c1;
+      --amber: #e0a957;
+      --rose: #ef7591;
+      --danger: #ef5350;
+      --danger-soft: #3a1518;
+      --danger-text: #ff97a1;
+      /* SVG palette for inline architecture diagrams */
+      --svg-block-fill: #202020;
+      --svg-block-stroke: #3a3a3a;
+      --svg-text: #ededeb;
+      --svg-text-dim: #9a9a9c;
+      --svg-arrow: #9a9a9c;
+      /* legacy aliases */
+      --soft: var(--surface-elev);
+      --panel: var(--surface);
+      --dark: var(--ink-2);
+
+      --radius-xs: 2px;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+
+      --transition-fast: 120ms ease-out;
+      --transition: 200ms cubic-bezier(0.2, 0.6, 0.2, 1);
+      --shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.02);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
     }
 
     * { box-sizing: border-box; }
 
+    html { -webkit-text-size-adjust: 100%; }
+
     body {
       margin: 0;
-      background: var(--bg);
+      background:
+        radial-gradient(ellipse 800px 400px at 75% -10%, rgba(118, 185, 0, 0.06), transparent 60%),
+        var(--bg);
       color: var(--ink);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-feature-settings: "ss01" 1, "cv11" 1, "tnum" 1;
       line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
     }
 
     main {
-      width: min(1180px, calc(100% - 40px));
+      width: min(1280px, calc(100% - 40px));
       margin: 0 auto;
-      padding: 44px 0 64px;
+      padding: 36px 0 80px;
     }
 
-    header {
+    /* ========== MASTHEAD ========== */
+    .masthead {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 360px;
-      gap: 30px;
+      grid-template-columns: minmax(0, 1fr) 380px;
+      gap: 48px;
       align-items: end;
-      padding-bottom: 28px;
+      padding-bottom: 32px;
       border-bottom: 1px solid var(--line);
     }
 
     .eyebrow {
-      margin: 0 0 10px;
-      color: var(--green);
-      font-size: 12px;
-      font-weight: 900;
-      letter-spacing: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 22px;
+      color: var(--ink);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
     }
 
+    .eyebrow::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      background: var(--green);
+      border-radius: 1px;
+    }
+
+    .eyebrow .ver {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .eyebrow .divider { color: var(--line-2); }
+
     h1 {
-      max-width: 840px;
+      max-width: 14ch;
       margin: 0;
-      font-size: clamp(44px, 8vw, 90px);
-      line-height: 0.95;
-      letter-spacing: 0;
+      font-size: clamp(42px, 6.4vw, 76px);
+      line-height: 0.96;
+      letter-spacing: -0.025em;
+      font-weight: 600;
       overflow-wrap: anywhere;
     }
 
+    h1 .accent { color: var(--green); }
+
     .summary {
-      margin: 0;
+      max-width: 56ch;
+      margin: 20px 0 0;
       color: var(--muted);
       font-size: 15px;
     }
 
-    .meter {
+    .counters {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 8px;
-    }
-
-    .meter div {
-      min-height: 88px;
-      padding: 14px;
+      gap: 1px;
       border: 1px solid var(--line);
-      border-radius: 6px;
-      background: var(--panel);
+      background: var(--line);
+      border-radius: var(--radius-md);
+      overflow: hidden;
     }
 
-    .meter span,
-    .card-meta span,
-    .path,
-    .status,
-    .control-group span,
-    .filter-label {
+    .counter {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 116px;
+      padding: 16px;
+      background: var(--surface);
+    }
+
+    .counter span {
       color: var(--muted);
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: 0;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
     }
 
-    .meter strong {
-      display: block;
-      margin-top: 8px;
+    .counter strong {
       font-size: 32px;
+      font-weight: 600;
       line-height: 1;
+      letter-spacing: -0.025em;
+      font-variant-numeric: tabular-nums;
     }
 
+    .counter--showing strong { color: var(--green); }
+
+    /* ========== TOOLBAR ========== */
     .toolbar {
       display: grid;
-      gap: 12px;
-      margin: 24px 0;
+      gap: 10px;
+      margin: 28px 0 24px;
     }
 
     .toolbar-top {
       display: grid;
       grid-template-columns: minmax(220px, 1fr) auto;
-      gap: 12px;
+      gap: 10px;
       align-items: center;
     }
 
     .search {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       min-width: 0;
-      padding: 12px 14px;
+      padding: 13px 16px;
       border: 1px solid var(--line);
-      border-radius: 6px;
-      background: var(--panel);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    }
+
+    .search:focus-within {
+      border-color: var(--green);
+      box-shadow: 0 0 0 1px var(--green);
     }
 
     .search svg {
@@ -134,8 +215,9 @@
       color: var(--muted);
     }
 
-    input,
-    select {
+    .search input::placeholder { color: var(--subtle); }
+
+    input, select {
       width: 100%;
       min-width: 0;
       border: 0;
@@ -147,9 +229,47 @@
 
     select {
       cursor: pointer;
-      font-size: 14px;
-      font-weight: 800;
+      font-size: 13px;
+      font-weight: 600;
+      appearance: none;
+      -webkit-appearance: none;
+      padding-right: 18px;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path fill='%239a9a9c' d='M2 4.5l4 4 4-4z'/></svg>");
+      background-repeat: no-repeat;
+      background-position: right 0 center;
     }
+
+    .view-toggle {
+      display: inline-flex;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .view-toggle button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-width: 0;
+      min-height: 46px;
+      padding: 0 16px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background var(--transition-fast), color var(--transition-fast);
+    }
+
+    .view-toggle button + button { border-left: 1px solid var(--line); }
+    .view-toggle button:hover { background: var(--surface-elev); color: var(--ink); }
+    .view-toggle button.active { background: var(--green); color: #0d0d0d; }
 
     .control-panel {
       display: grid;
@@ -160,273 +280,382 @@
     .control-group {
       display: grid;
       min-width: 0;
-      gap: 6px;
-      padding: 10px 12px;
+      gap: 4px;
+      padding: 10px 14px;
       border: 1px solid var(--line);
-      border-radius: 6px;
-      background: var(--panel);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      transition: border-color var(--transition-fast);
     }
 
-    .view-toggle {
-      display: inline-flex;
-      min-width: 0;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      overflow: hidden;
-      background: var(--panel);
-    }
+    .control-group:hover { border-color: var(--line-strong); }
+    .control-group:focus-within { border-color: var(--green); }
 
-    .view-toggle button {
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-    }
-
-    .view-toggle button + button {
-      border-left: 1px solid var(--line);
+    .control-group span {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
     }
 
     .filters {
       display: flex;
       flex-wrap: wrap;
-      justify-content: flex-start;
-      gap: 8px;
+      gap: 6px;
+      padding-top: 4px;
     }
 
-    button {
-      min-height: 42px;
-      padding: 0 14px;
+    .filter-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 32px;
+      padding: 0 12px;
       border: 1px solid var(--line);
-      border-radius: 6px;
-      background: var(--panel);
+      border-radius: 999px;
+      background: var(--surface);
       color: var(--ink);
       cursor: pointer;
       font: inherit;
-      font-size: 13px;
-      font-weight: 800;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all var(--transition-fast);
     }
 
-    button.active {
-      border-color: var(--dark);
-      background: var(--dark);
-      color: #fff;
+    .filter-chip:hover { border-color: var(--line-strong); }
+
+    .filter-chip.active {
+      border-color: var(--green);
+      background: var(--green);
+      color: #0d0d0d;
     }
 
-    button.ghost {
-      background: transparent;
+    .filter-chip .count {
+      color: var(--subtle);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
     }
 
+    .filter-chip.active .count { color: rgba(13, 13, 13, 0.55); }
+
+    button { font: inherit; cursor: pointer; }
+
+    /* ========== GRID ========== */
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 14px;
     }
 
-    .grid[hidden],
-    .table-wrap[hidden] {
-      display: none;
-    }
+    .grid[hidden], .table-wrap[hidden] { display: none; }
 
+    /* ========== CARD ========== */
     .card {
       display: grid;
-      grid-template-rows: auto auto minmax(0, 1fr) auto;
-      gap: 16px;
-      min-height: 420px;
-      padding: 16px;
+      grid-template-rows: auto auto auto auto;
+      gap: 14px;
+      position: relative;
+      padding: 18px;
       border: 1px solid var(--line);
-      border-radius: 6px;
-      background: var(--panel);
+      border-radius: var(--radius-md);
+      background: var(--surface);
       color: inherit;
       text-decoration: none;
       min-width: 0;
-      transition: border-color 160ms ease, transform 160ms ease;
+      transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+    }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      width: 16px;
+      height: 16px;
+      background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'><path d='M5 4h7v7M11.5 4.5L4 12' stroke='%2376b900' stroke-width='1.5' stroke-linecap='square'/></svg>") no-repeat center;
+      opacity: 0;
+      transform: translate(-4px, 4px);
+      transition: all var(--transition);
+      pointer-events: none;
     }
 
     .card:hover {
       border-color: var(--green);
       transform: translateY(-2px);
+      box-shadow: var(--shadow-hover);
     }
 
-    .card-top {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
+    .card:hover::after {
+      opacity: 1;
+      transform: translate(0, 0);
+    }
+
+    .card:focus-visible {
+      outline: 2px solid var(--green);
+      outline-offset: 2px;
+    }
+
+    .card-head {
+      display: grid;
+      grid-template-columns: 52px minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
       min-width: 0;
+    }
+
+    .brand-mark {
+      position: relative;
+      width: 52px;
+      height: 52px;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-sm);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      overflow: hidden;
+    }
+
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      inset: auto -10% -55% auto;
+      width: 65%;
+      height: 110%;
+      background: rgba(255, 255, 255, 0.18);
+      transform: skewX(-22deg);
+    }
+
+    .brand-mark::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: inherit;
+      pointer-events: none;
+    }
+
+    .brand-mark span {
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand-mark img {
+      position: relative;
+      z-index: 1;
+      width: 86%;
+      max-height: 68%;
+      object-fit: contain;
+    }
+
+    .brand-mark.has-logo {
+      background: #f7f8fa !important;
+    }
+
+    .brand-mark.has-logo::after {
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    .brand-logo {
+      display: block;
+      width: auto;
+      max-width: min(170px, 100%);
+      height: 22px;
+      margin: 0 0 8px;
+      object-fit: contain;
+      object-position: left center;
+    }
+
+    .card-headtext {
+      min-width: 0;
+      padding-right: 28px; /* room for the corner mark */
+    }
+
+    .card-kind {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+      padding: 2px 8px 2px 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface-soft);
+      color: var(--ink);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .card-kind .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
     }
 
     h2 {
       margin: 0;
-      font-size: 24px;
-      line-height: 1.1;
-      letter-spacing: 0;
+      font-size: 18px;
+      line-height: 1.2;
+      letter-spacing: -0.018em;
+      font-weight: 600;
+      overflow-wrap: anywhere;
     }
 
-    .company-line {
+    .card-sub {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
       align-items: center;
-      margin-top: 10px;
+      gap: 4px 8px;
+      margin-top: 6px;
       color: var(--muted);
-      font-size: 13px;
-      font-weight: 800;
-    }
-
-    .symbol {
-      display: inline-flex;
-      min-height: 26px;
-      align-items: center;
-      padding: 3px 8px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: #fafaf7;
-      color: var(--ink);
       font-size: 12px;
-      letter-spacing: 0;
-      text-transform: uppercase;
+      font-weight: 500;
+      min-width: 0;
     }
 
-    .mark {
-      display: grid;
-      place-items: center;
-      flex: 0 0 auto;
-      width: 48px;
-      height: 42px;
-      border-radius: 6px;
-      background: var(--soft);
-      color: var(--ink);
-      font-weight: 900;
-    }
-
-    .card:nth-child(4n + 1) .mark { background: #dff2bb; }
-    .card:nth-child(4n + 2) .mark { background: #ddecff; }
-    .card:nth-child(4n + 3) .mark { background: #eee8ff; }
-    .card:nth-child(4n + 4) .mark { background: #fae3bd; }
-
-    .card p {
-      margin: 0;
+    .card-sub .sep { color: var(--line-2); }
+    .card-sub .symbol {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 11px;
       color: var(--muted);
     }
+    .card-sub .symbol.private { opacity: 0.75; }
 
+    /* model visual */
     .model-visual {
-      display: grid;
-      width: 100%;
-      min-width: 0;
-      min-height: 138px;
-      overflow: hidden;
       margin: 0;
       border: 1px solid var(--line);
-      border-radius: 6px;
-      background:
-        linear-gradient(135deg, rgba(17, 18, 22, 0.04), rgba(255, 255, 255, 0.2)),
-        #fafaf7;
+      border-radius: var(--radius-sm);
+      background: var(--surface-soft);
+      overflow: hidden;
     }
 
     .model-visual svg {
       display: block;
       width: 100%;
-      max-width: 100%;
-      min-width: 0;
-      height: 138px;
+      height: auto;
+      aspect-ratio: 420 / 160;
     }
 
-    .visual-label {
-      font-size: 10px;
-      font-weight: 800;
-      letter-spacing: 0;
+    /* stats */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+    }
+
+    .stat {
+      padding: 9px 12px;
+      background: var(--surface);
+      min-width: 0;
+    }
+
+    .stat span {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
     }
 
-    .card-meta {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-      align-self: end;
-    }
-
-    .card-meta div {
-      min-width: 0;
-      padding: 10px;
-      border-left: 3px solid var(--line);
-      background: #fafaf7;
-    }
-
-    .card-meta div:nth-child(1) { border-color: var(--green); }
-    .card-meta div:nth-child(2) { border-color: var(--blue); }
-    .card-meta div:nth-child(3) { border-color: var(--violet); }
-    .card-meta div:nth-child(4) { border-color: var(--amber); }
-
-    .card-meta strong {
+    .stat strong {
       display: block;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+      font-variant-numeric: tabular-nums;
       overflow-wrap: anywhere;
-      font-size: 14px;
-      line-height: 1.25;
     }
 
-    .card-meta .wide {
-      grid-column: 1 / -1;
-    }
-
-    .status-row {
+    /* tag row */
+    .tag-row {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 8px;
+      gap: 4px;
+      min-width: 0;
     }
 
-    .status {
-      padding: 5px 8px;
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border: 1px solid var(--line);
       border-radius: 999px;
-      background: var(--soft);
-      color: var(--ink);
-    }
-
-    .aa-pill {
-      background: #e8f2ff;
-      color: #073a76;
-    }
-
-    .status.available { background: #dff2bb; }
-    .status.missing { background: #ffe0e7; color: #611124; }
-
-    .path {
-      max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      text-transform: none;
+      background: var(--surface);
       color: var(--muted);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
     }
 
+    .tag--avail {
+      background: var(--green-soft);
+      border-color: transparent;
+      color: var(--green-text);
+    }
+
+    .tag--missing {
+      background: var(--danger-soft);
+      border-color: transparent;
+      color: var(--danger-text);
+    }
+
+    .tag--aa {
+      background: var(--blue-soft);
+      border-color: transparent;
+      color: var(--blue-text);
+    }
+
+    .tag .dot-sm {
+      width: 5px;
+      height: 5px;
+      border-radius: 999px;
+      background: currentColor;
+      opacity: 0.6;
+    }
+
+    /* empty */
     .empty {
       display: none;
-      padding: 28px;
-      border: 1px dashed var(--line);
-      border-radius: 6px;
-      background: var(--panel);
+      padding: 36px;
+      border: 1px dashed var(--line-2);
+      border-radius: var(--radius-md);
+      background: var(--surface);
       color: var(--muted);
       text-align: center;
+      font-size: 14px;
     }
 
     .empty.visible { display: block; }
 
+    /* table */
     .table-wrap {
       overflow-x: auto;
       border: 1px solid var(--line);
-      border-radius: 6px;
-      background: var(--panel);
+      border-radius: var(--radius-md);
+      background: var(--surface);
     }
 
     table {
       width: 100%;
-      min-width: 860px;
+      min-width: 920px;
       border-collapse: collapse;
-      font-size: 14px;
+      font-size: 13px;
     }
 
-    th,
-    td {
+    th, td {
       padding: 12px 14px;
       border-bottom: 1px solid var(--line);
       text-align: left;
@@ -435,82 +664,139 @@
 
     th {
       color: var(--muted);
-      font-size: 12px;
-      font-weight: 900;
-      letter-spacing: 0;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
-      background: #fafaf7;
+      background: var(--surface-soft);
+      position: sticky;
+      top: 0;
     }
 
+    tbody tr { transition: background var(--transition-fast); }
     tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: var(--surface-soft); }
 
     td a {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
       color: var(--ink);
-      font-weight: 900;
+      font-weight: 600;
       text-decoration: none;
     }
 
-    td a:hover { color: var(--green); }
+    td a:hover .title-text { color: var(--green); }
+    .title-text { transition: color var(--transition-fast); }
 
-    .table-note {
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.35;
+    .row-mark {
+      flex: 0 0 auto;
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-xs);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      position: relative;
+      overflow: hidden;
     }
 
+    .row-mark::after {
+      content: "";
+      position: absolute;
+      inset: auto -10% -55% auto;
+      width: 65%;
+      height: 110%;
+      background: rgba(255, 255, 255, 0.18);
+      transform: skewX(-22deg);
+    }
+
+    .row-mark span { position: relative; z-index: 1; }
+
+    .row-mark img {
+      position: relative;
+      z-index: 1;
+      width: 86%;
+      max-height: 68%;
+      object-fit: contain;
+    }
+
+    .row-mark.has-logo {
+      background: #f7f8fa !important;
+    }
+
+    .table-note {
+      margin-top: 4px;
+      max-width: 56ch;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+
+    /* footer */
     footer {
-      margin-top: 34px;
-      padding-top: 20px;
+      margin-top: 48px;
+      padding-top: 24px;
       border-top: 1px solid var(--line);
       color: var(--muted);
       font-size: 13px;
+      line-height: 1.6;
     }
 
     code {
-      padding: 2px 5px;
-      border-radius: 4px;
-      background: var(--soft);
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: var(--surface);
+      border: 1px solid var(--line);
       color: var(--ink);
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12px;
     }
 
-    @media (max-width: 760px) {
-      main { width: min(100% - 24px, 1180px); padding-top: 28px; }
-      header,
-      .toolbar-top {
-        grid-template-columns: 1fr;
-      }
+    /* mobile */
+    @media (max-width: 900px) {
+      main { width: min(100% - 24px, 1280px); padding-top: 28px; }
+      .masthead { grid-template-columns: 1fr; gap: 28px; align-items: start; }
+      .toolbar-top { grid-template-columns: 1fr; }
+      .view-toggle { width: 100%; }
+      .view-toggle button { flex: 1; }
+      .control-panel { grid-template-columns: 1fr 1fr; }
+      .grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    }
+
+    @media (max-width: 520px) {
       .control-panel { grid-template-columns: 1fr; }
-      .grid { grid-template-columns: minmax(0, 1fr); }
-      .meter,
-      .card-meta {
-        grid-template-columns: 1fr;
-      }
-      h1 {
-        max-width: 12ch;
-        font-size: 40px;
-        line-height: 1;
-      }
-      .card { min-height: 0; }
-      .model-visual { max-width: 100%; }
-      .model-visual svg { height: 126px; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .stat:nth-child(3) { grid-column: span 2; }
+      h1 { font-size: 38px; }
+      .counters { grid-template-columns: 1fr 1fr 1fr; }
+      .counter { min-height: 96px; padding: 12px 14px; }
+      .counter strong { font-size: 24px; }
     }
   </style>
 </head>
 <body>
   <main>
-    <header>
+    <header class="masthead">
       <div>
-        <p class="eyebrow">Downloaded architecture pages</p>
-        <h1>Model Architecture Atlas</h1>
+        <p class="eyebrow">
+          <span>Atlas</span>
+          <span class="divider">/</span>
+          <span class="ver">Model architecture index</span>
+        </p>
+        <h1>Model<br>Architecture<br>Atlas<span class="accent">.</span></h1>
+        <p class="summary">A searchable home surface for downloaded model architecture artifacts &mdash; text, vision-language, diffusion, robotics, weather, genomics, time-series, and GUI-agent systems. Every linked page keeps its own CSS, JavaScript, assets, diagrams, and layout.</p>
       </div>
-      <div class="meter" aria-label="Atlas counts">
-        <div><span>Pages</span><strong id="page-count">0</strong></div>
-        <div><span>Families</span><strong id="family-count">0</strong></div>
-        <div><span>Showing</span><strong id="result-count">0</strong></div>
+      <div class="counters" aria-label="Atlas counts">
+        <div class="counter"><span>Pages</span><strong id="page-count">0</strong></div>
+        <div class="counter"><span>Families</span><strong id="family-count">0</strong></div>
+        <div class="counter counter--showing"><span>Showing</span><strong id="result-count">0</strong></div>
       </div>
     </header>
-
-    <p class="summary">A searchable home surface for downloaded model architecture artifacts across text, vision-language, diffusion, robotics, weather, genomics, time-series, and GUI-agent systems. Each linked page keeps its own CSS, JavaScript, assets, diagrams, and layout decisions.</p>
 
     <section class="toolbar" aria-label="Atlas controls">
       <div class="toolbar-top">
@@ -521,8 +807,14 @@
           <input id="search" type="search" placeholder="Search models, families, or tags" autocomplete="off">
         </label>
         <div class="view-toggle" id="view-toggle" aria-label="View mode">
-          <button type="button" data-view="cards" class="active">Cards</button>
-          <button type="button" data-view="table">Table</button>
+          <button type="button" data-view="cards" class="active">
+            <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="1" width="6" height="6" stroke="currentColor" fill="none" stroke-width="1.5"></rect><rect x="9" y="1" width="6" height="6" stroke="currentColor" fill="none" stroke-width="1.5"></rect><rect x="1" y="9" width="6" height="6" stroke="currentColor" fill="none" stroke-width="1.5"></rect><rect x="9" y="9" width="6" height="6" stroke="currentColor" fill="none" stroke-width="1.5"></rect></svg>
+            Cards
+          </button>
+          <button type="button" data-view="table">
+            <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="3" width="14" height="10" stroke="currentColor" fill="none" stroke-width="1.5"></rect><path d="M1 7h14M1 11h14M6 3v10" stroke="currentColor" stroke-width="1.5" fill="none"></path></svg>
+            Table
+          </button>
         </div>
       </div>
       <div class="control-panel">
@@ -591,8 +883,7 @@
             <th>Family</th>
             <th>Date</th>
             <th>Modality</th>
-            <th>Total</th>
-            <th>Active</th>
+            <th>Params</th>
             <th>Tags</th>
           </tr>
         </thead>
@@ -1584,6 +1875,17 @@
       return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}B`;
     }
 
+    function paramsLabel(page) {
+      const total = page.sizeTotalB;
+      const active = page.sizeActiveB;
+      const totalStr = Number.isFinite(total) ? formatSize(total) : null;
+      const activeStr = Number.isFinite(active) ? formatSize(active) : null;
+      if (!totalStr) return "Unknown";
+      // MoE / sparse: show Total/Active when active is set and differs from total
+      if (activeStr && active !== total) return `${totalStr}/${activeStr}`;
+      return totalStr;
+    }
+
     function matchesDate(page) {
       if (state.dateRange === "all") return true;
       const year = dateYear(page);
@@ -1659,11 +1961,14 @@
 
     function renderFilters() {
       filters.innerHTML = "";
+      const counts = {};
+      for (const page of ATLAS_PAGES) counts[page.family] = (counts[page.family] || 0) + 1;
       for (const family of families()) {
         const button = document.createElement("button");
         button.type = "button";
-        button.textContent = family;
-        button.classList.toggle("active", family === state.family);
+        button.className = "filter-chip" + (family === state.family ? " active" : "");
+        const count = family === "All" ? ATLAS_PAGES.length : (counts[family] || 0);
+        button.innerHTML = `${escapeHtml(family)} <span class="count">${count}</span>`;
         button.addEventListener("click", () => {
           state.family = family;
           render();
@@ -1750,113 +2055,285 @@
       window.history.replaceState(null, "", next);
     }
 
+    const FAMILY_COLORS = {
+      "NVIDIA": "#76b900",
+      "DeepSeek": "#3d6cc8",
+      "Qwen": "#7c3aed",
+      "Gemma": "#1a73e8",
+      "Kimi": "#1fa18d",
+      "GLM": "#7e22ce",
+      "Xiaomi": "#ff5722",
+      "OpenAI": "#10a37f",
+      "Stability AI": "#9747ff",
+      "Wan-AI": "#f97316",
+      "Arc Institute / NVIDIA": "#1fa18d",
+      "Microsoft Research": "#0d69d4",
+      "Amazon Science / AWS AI Labs": "#ff9900",
+      "ByteDance Seed": "#ed3f74",
+      "Liquid AI": "#0ea5b7",
+      "Sarvam AI": "#c2410c",
+      "Ling": "#be185d",
+      "Zyphra": "#7c3aed",
+      "Robotics": "#5f6368",
+      "inclusionAI": "#be185d"
+    };
+
+    const BRAND_LOGOS = {
+      "NVIDIA": "assets/logos/nvidia.svg",
+      "DeepSeek": "assets/logos/deepseek.svg",
+      "Qwen": "assets/logos/qwen.svg",
+      "Google DeepMind": "assets/logos/google-deepmind.svg",
+      "Kimi": "assets/logos/moonshot.svg",
+      "Moonshot AI": "assets/logos/moonshot.svg",
+      "GLM": "assets/logos/zai.svg",
+      "Z.ai": "assets/logos/zai.svg",
+      "Xiaomi": "assets/logos/xiaomi.svg",
+      "OpenAI": "assets/logos/openai.svg",
+      "Stability AI": "assets/logos/stability.svg",
+      "Wan-AI": "assets/logos/wan-ai.svg",
+      "Alibaba / Wan-AI": "assets/logos/wan-ai.svg",
+      "Arc Institute / NVIDIA": "assets/logos/arc-institute.svg",
+      "Microsoft Research": "assets/logos/microsoft.svg",
+      "Microsoft": "assets/logos/microsoft.svg",
+      "Amazon Science / AWS AI Labs": "assets/logos/amazon.svg",
+      "Amazon": "assets/logos/amazon.svg",
+      "ByteDance Seed": "assets/logos/bytedance.svg",
+      "ByteDance": "assets/logos/bytedance.svg",
+      "Liquid AI": "assets/logos/liquid-ai.svg",
+      "Sarvam AI": "assets/logos/sarvam.svg",
+      "Ling": "assets/logos/ling.svg",
+      "Zyphra": "assets/logos/zyphra.svg",
+      "Robotics": "assets/logos/robotics.svg",
+      "Academic / OpenVLA lineage": "assets/logos/robotics.svg",
+      "inclusionAI": "assets/logos/inclusionai.svg",
+      "inclusionAI / Ant Group": "assets/logos/inclusionai.svg"
+    };
+
+    const KIND_META = {
+      dense: { label: "Dense", color: "#0d69d4" },
+      moe: { label: "MoE", color: "#7c3aed" },
+      hybrid: { label: "Hybrid", color: "#1fa18d" },
+      latent: { label: "Latent MoE", color: "#bc7a1f" }
+    };
+
+    const KIND_FULL_LABEL = {
+      dense: "Dense stack",
+      moe: "Mixture of experts",
+      hybrid: "Hybrid stack",
+      latent: "Latent hybrid"
+    };
+
+    function familyColor(family) {
+      if (FAMILY_COLORS[family]) return FAMILY_COLORS[family];
+      let hash = 0;
+      const key = String(family || "");
+      for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+      const hue = Math.abs(hash) % 360;
+      return `hsl(${hue}, 48%, 40%)`;
+    }
+
+    function brandInitials(page) {
+      if (page.mark) return page.mark;
+      const src = page.family || page.company || page.model || "";
+      const words = src.split(/[\s/+\-_]+/).filter(Boolean);
+      if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+      return src.slice(0, 2).toUpperCase();
+    }
+
+    function brandLogo(page) {
+      const keys = [page.family, page.company, page.model, page.title].filter(Boolean);
+      for (const key of keys) {
+        if (BRAND_LOGOS[key]) return BRAND_LOGOS[key];
+      }
+      for (const key of keys) {
+        const match = Object.keys(BRAND_LOGOS).find((name) => String(key).includes(name));
+        if (match) return BRAND_LOGOS[match];
+      }
+      return "";
+    }
+
+    function brandMarkHtml(page, className) {
+      const logo = brandLogo(page);
+      const fcolor = familyColor(page.family);
+      if (logo) {
+        return `<span class="${className} has-logo" style="background:${fcolor}" aria-hidden="true"><img src="${escapeHtml(logo)}" alt="" loading="lazy"></span>`;
+      }
+      return `<span class="${className}" style="background:${fcolor}" aria-hidden="true"><span>${escapeHtml(brandInitials(page))}</span></span>`;
+    }
+
     function modelVisual(page) {
       const visual = page.visual || {};
+      const kind = visual.kind || "hybrid";
       const accent = visual.accent || "#76b900";
       const labels = visual.labels || [];
-      const labelText = (index, fallback) => labels[index] || fallback;
-      const gradientId = `cardGradient-${safeId(page.href || page.model)}`;
-      const common = `
+      const lbl = (i, fallback) => labels[i] || fallback;
+      const id = safeId(page.href || page.model || "");
+      const titleText = (visual.title || page.model || "").toUpperCase().slice(0, 40);
+      const kindLabel = (KIND_FULL_LABEL[kind] || kind).toUpperCase();
+      const aria = `${page.model || ""} ${kindLabel.toLowerCase()} architecture diagram`;
+
+      // dark-theme palette for SVG primitives
+      const C = {
+        bgDark: "#0d0d0d",
+        block: "#1f1f1f",
+        blockStroke: "#3a3a3a",
+        text: "#ededeb",
+        textDim: "#9a9a9c",
+        arrow: "#9a9a9c",
+        surface: "#ededeb",   // light block (LM head / Out) — contrasts on dark
+        surfaceText: "#0d0d0d"
+      };
+
+      const bg = `
         <defs>
-          <linearGradient id="${gradientId}" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0" stop-color="${accent}" stop-opacity="0.22"></stop>
-            <stop offset="1" stop-color="#111216" stop-opacity="0.05"></stop>
+          <pattern id="dots-${id}" width="14" height="14" patternUnits="userSpaceOnUse">
+            <circle cx="1" cy="1" r="0.9" fill="${accent}" fill-opacity="0.22"></circle>
+          </pattern>
+          <linearGradient id="grad-${id}" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0" stop-color="${accent}" stop-opacity="0.18"></stop>
+            <stop offset="1" stop-color="${accent}" stop-opacity="0.03"></stop>
           </linearGradient>
+          <marker id="arrow-${id}" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0 0L10 5L0 10z" fill="${C.arrow}"></path>
+          </marker>
         </defs>
-        <rect x="0" y="0" width="420" height="138" rx="6" fill="url(#${gradientId})"></rect>
-        <text x="18" y="28" class="visual-label" fill="#111216">${escapeHtml(visual.title || page.model)}</text>
+        <rect width="420" height="160" fill="${C.bgDark}"></rect>
+        <rect width="420" height="160" fill="url(#grad-${id})"></rect>
+        <rect width="420" height="160" fill="url(#dots-${id})"></rect>
+        <text x="16" y="20" fill="${C.text}" font-size="9.5" font-weight="700" letter-spacing="1.3">${escapeHtml(titleText)}</text>
+        <text x="404" y="20" text-anchor="end" fill="${accent}" font-size="9.5" font-weight="800" letter-spacing="1.5">${escapeHtml(kindLabel)}</text>
+        <line x1="16" y1="28" x2="404" y2="28" stroke="${accent}" stroke-opacity="0.32" stroke-width="1"></line>
       `;
 
-      if (visual.kind === "dense") {
+      if (kind === "dense") {
         return `
-          <svg viewBox="0 0 420 138" role="img" aria-label="${page.model} architecture thumbnail">
-            ${common}
-            <g fill="#fff" stroke="${accent}" stroke-width="2">
-              <rect x="32" y="62" width="42" height="34" rx="4"></rect>
-              <rect x="92" y="48" width="42" height="62" rx="4"></rect>
-              <rect x="152" y="48" width="42" height="62" rx="4"></rect>
-              <rect x="212" y="48" width="42" height="62" rx="4"></rect>
-              <rect x="272" y="48" width="42" height="62" rx="4"></rect>
-              <rect x="332" y="62" width="42" height="34" rx="4"></rect>
-            </g>
-            <g fill="#111216" font-size="10" font-weight="800" text-anchor="middle">
-              <text x="53" y="83">TOK</text>
-              <text x="113" y="83">${labelText(0, "GQA")}</text>
-              <text x="173" y="83">${labelText(1, "RoPE")}</text>
-              <text x="233" y="83">${labelText(2, "FFN")}</text>
-              <text x="293" y="83">${labelText(3, "Norm")}</text>
-              <text x="353" y="83">LOG</text>
-            </g>
-            <path d="M76 79H90M136 79H150M196 79H210M256 79H270M316 79H330" stroke="#111216" stroke-width="2"></path>
+          <svg viewBox="0 0 420 160" role="img" aria-label="${escapeHtml(aria)}" xmlns="http://www.w3.org/2000/svg">
+            ${bg}
+            <rect x="20" y="70" width="50" height="50" fill="${accent}" rx="3"></rect>
+            <text x="45" y="100" text-anchor="middle" fill="#0d0d0d" font-size="10.5" font-weight="700">Embed</text>
+            <line x1="70" y1="95" x2="86" y2="95" stroke="${C.arrow}" stroke-width="1.5" marker-end="url(#arrow-${id})"></line>
+            <text x="200" y="48" text-anchor="middle" fill="${C.text}" font-size="9" font-weight="700" letter-spacing="0.6">DECODER LAYER &#215; N</text>
+            <rect x="90" y="56" width="220" height="80" fill="${accent}" fill-opacity="0.08" stroke="${accent}" stroke-width="1.2" rx="3"></rect>
+            <rect x="102" y="66" width="92" height="22" fill="${C.block}" stroke="${accent}" stroke-width="1.2" rx="2"></rect>
+            <text x="148" y="81" text-anchor="middle" font-size="10" font-weight="700" fill="${C.text}">${escapeHtml(lbl(0, "Attn"))}</text>
+            <rect x="206" y="66" width="92" height="22" fill="${C.block}" stroke="${accent}" stroke-width="1.2" rx="2"></rect>
+            <text x="252" y="81" text-anchor="middle" font-size="10" font-weight="700" fill="${C.text}">${escapeHtml(lbl(1, "RoPE"))}</text>
+            <rect x="102" y="100" width="92" height="22" fill="${C.block}" stroke="${accent}" stroke-width="1.2" rx="2"></rect>
+            <text x="148" y="115" text-anchor="middle" font-size="10" font-weight="700" fill="${C.text}">${escapeHtml(lbl(2, "MLP"))}</text>
+            <rect x="206" y="100" width="92" height="22" fill="${C.block}" stroke="${accent}" stroke-width="1.2" rx="2"></rect>
+            <text x="252" y="115" text-anchor="middle" font-size="10" font-weight="700" fill="${C.text}">${escapeHtml(lbl(3, "Norm"))}</text>
+            <line x1="310" y1="95" x2="328" y2="95" stroke="${C.arrow}" stroke-width="1.5" marker-end="url(#arrow-${id})"></line>
+            <rect x="332" y="70" width="60" height="50" fill="${C.surface}" rx="3"></rect>
+            <text x="362" y="100" text-anchor="middle" fill="${C.surfaceText}" font-size="10.5" font-weight="700">LM head</text>
           </svg>
         `;
       }
 
-      if (visual.kind === "latent") {
+      if (kind === "moe") {
+        const experts = [false, true, false, false, true, false, false, true];
+        let routing = "";
+        let merge = "";
+        experts.forEach((on, i) => {
+          const ey = 46 + i * 12 + 5;
+          const stroke = on ? accent : C.blockStroke;
+          const sw = on ? 1.5 : 0.9;
+          const opacity = on ? 1 : 0.55;
+          routing += `<path d="M150 95 L228 ${ey}" stroke="${stroke}" stroke-width="${sw}" fill="none" opacity="${opacity}"></path>`;
+          if (on) merge += `<path d="M292 ${ey} L334 95" stroke="${accent}" stroke-width="1.5" fill="none"></path>`;
+        });
+        const expertBlocks = experts.map((on, i) => {
+          const y = 46 + i * 12;
+          const fill = on ? accent : C.block;
+          const stroke = on ? accent : C.blockStroke;
+          return `<rect x="228" y="${y}" width="64" height="10" fill="${fill}" stroke="${stroke}" stroke-width="1" rx="1.5"></rect>`;
+        }).join("");
         return `
-          <svg viewBox="0 0 420 138" role="img" aria-label="${page.model} architecture thumbnail">
-            ${common}
-            <g fill="#fff" stroke="${accent}" stroke-width="2">
-              <rect x="34" y="50" width="64" height="54" rx="4"></rect>
-              <rect x="118" y="50" width="64" height="54" rx="4"></rect>
-              <rect x="202" y="38" width="88" height="78" rx="4"></rect>
-              <rect x="318" y="50" width="64" height="54" rx="4"></rect>
-            </g>
-            <g stroke="#111216" stroke-width="2" fill="none">
-              <path d="M98 77H118M182 77H202M290 77H318"></path>
-              <path d="M222 56h48M222 77h48M222 98h48"></path>
-            </g>
-            <g fill="#111216" font-size="10" font-weight="800" text-anchor="middle">
-              <text x="66" y="73">${labelText(0, "Mamba")}</text>
-              <text x="66" y="87">state</text>
-              <text x="150" y="80">${labelText(1, "Latent")}</text>
-              <text x="246" y="80">${labelText(2, "MoE")}</text>
-              <text x="350" y="80">${labelText(3, "MTP")}</text>
-            </g>
+          <svg viewBox="0 0 420 160" role="img" aria-label="${escapeHtml(aria)}" xmlns="http://www.w3.org/2000/svg">
+            ${bg}
+            <rect x="20" y="75" width="42" height="40" fill="${accent}" rx="3"></rect>
+            <text x="41" y="100" text-anchor="middle" fill="#0d0d0d" font-size="10.5" font-weight="700">Tok</text>
+            <line x1="62" y1="95" x2="86" y2="95" stroke="${C.arrow}" stroke-width="1.5" marker-end="url(#arrow-${id})"></line>
+            <rect x="88" y="68" width="62" height="54" fill="${C.block}" stroke="${C.blockStroke}" stroke-width="1.4" rx="3"></rect>
+            <text x="119" y="85" text-anchor="middle" font-size="10" font-weight="700" fill="${C.text}">Router</text>
+            <text x="119" y="100" text-anchor="middle" font-size="9.5" fill="${accent}" font-weight="800">top-K</text>
+            <text x="119" y="113" text-anchor="middle" font-size="8.5" fill="${C.textDim}" font-weight="600">gate</text>
+            ${routing}
+            ${expertBlocks}
+            <text x="260" y="42" text-anchor="middle" font-size="9" font-weight="700" letter-spacing="0.6" fill="${C.text}">EXPERTS &#215; ${experts.length}</text>
+            ${merge}
+            <circle cx="338" cy="95" r="6" fill="${accent}" stroke="${accent}"></circle>
+            <line x1="346" y1="95" x2="362" y2="95" stroke="${C.arrow}" stroke-width="1.5" marker-end="url(#arrow-${id})"></line>
+            <rect x="364" y="75" width="34" height="40" fill="${C.surface}" rx="3"></rect>
+            <text x="381" y="100" text-anchor="middle" fill="${C.surfaceText}" font-size="9.5" font-weight="700">Out</text>
           </svg>
         `;
       }
 
-      if (visual.kind === "hybrid") {
+      if (kind === "hybrid") {
+        const aLabel = lbl(0, "A");
+        const bLabel = lbl(1, "B");
+        const cLabel = lbl(2, "C");
+        const pattern = labels.length >= 3 ? ["a", "b", "a", "c", "a", "b", "a"] : ["a", "b", "a", "b", "a", "b", "a"];
+        let blocks = "";
+        for (let i = 0; i < 7; i++) {
+          const x = 20 + i * 54;
+          const t = pattern[i];
+          // a = filled accent; b = light surface; c = dark surface w/ accent outline
+          const fill = t === "a" ? accent : (t === "b" ? C.surface : C.block);
+          const stroke = t === "a" ? accent : (t === "b" ? C.surface : accent);
+          const txt = t === "a" ? "#0d0d0d" : (t === "b" ? C.surfaceText : accent);
+          const text = t === "a" ? aLabel : (t === "b" ? bLabel : cLabel);
+          blocks += `<rect x="${x}" y="64" width="46" height="58" fill="${fill}" stroke="${stroke}" stroke-width="1.4" rx="3"></rect>`;
+          const tl = text.length > 7 ? ` textLength="40" lengthAdjust="spacingAndGlyphs"` : "";
+          blocks += `<text x="${x + 23}" y="98" text-anchor="middle" font-size="9.5" font-weight="700" fill="${txt}"${tl}>${escapeHtml(text)}</text>`;
+          if (i < 6) blocks += `<line x1="${x + 46}" y1="93" x2="${x + 54}" y2="93" stroke="${C.arrow}" stroke-width="1.2"></line>`;
+        }
+        const trailing = lbl(3, "");
         return `
-          <svg viewBox="0 0 420 138" role="img" aria-label="${page.model} architecture thumbnail">
-            ${common}
-            <g stroke="#111216" stroke-width="2" fill="none">
-              <path d="M42 92C82 40 122 40 162 92S242 144 282 92 362 40 392 80"></path>
-            </g>
-            <g fill="#fff" stroke="${accent}" stroke-width="2">
-              <rect x="44" y="52" width="68" height="34" rx="4"></rect>
-              <rect x="136" y="52" width="68" height="34" rx="4"></rect>
-              <rect x="228" y="52" width="68" height="34" rx="4"></rect>
-              <rect x="320" y="52" width="58" height="34" rx="4"></rect>
-            </g>
-            <g fill="#111216" font-size="10" font-weight="800" text-anchor="middle">
-              <text x="78" y="73">${labelText(0, "Mamba")}</text>
-              <text x="170" y="73">${labelText(1, "GQA")}</text>
-              <text x="262" y="73">${labelText(2, "MoE")}</text>
-              <text x="349" y="73">${labelText(3, "RL")}</text>
-            </g>
+          <svg viewBox="0 0 420 160" role="img" aria-label="${escapeHtml(aria)}" xmlns="http://www.w3.org/2000/svg">
+            ${bg}
+            <text x="210" y="48" text-anchor="middle" fill="${C.text}" font-size="9" font-weight="700" letter-spacing="0.6">INTERLEAVED BLOCK PATTERN</text>
+            ${blocks}
+            ${trailing ? `<text x="20" y="146" font-size="9" font-weight="700" fill="${accent}" letter-spacing="0.6">&#43; ${escapeHtml(trailing.toUpperCase())}</text>` : ""}
           </svg>
         `;
       }
 
+      if (kind === "latent") {
+        return `
+          <svg viewBox="0 0 420 160" role="img" aria-label="${escapeHtml(aria)}" xmlns="http://www.w3.org/2000/svg">
+            ${bg}
+            <rect x="20" y="58" width="86" height="78" fill="${C.block}" stroke="${accent}" stroke-width="1.4" rx="3"></rect>
+            <text x="63" y="92" text-anchor="middle" font-size="10" font-weight="700" fill="${C.text}">${escapeHtml(lbl(0, "Mamba-2"))}</text>
+            <text x="63" y="106" text-anchor="middle" font-size="9" font-weight="600" fill="${C.textDim}">state</text>
+            <line x1="106" y1="97" x2="124" y2="97" stroke="${C.arrow}" stroke-width="1.5" marker-end="url(#arrow-${id})"></line>
+            <rect x="126" y="80" width="64" height="34" fill="${accent}" rx="3"></rect>
+            <text x="158" y="101" text-anchor="middle" fill="#0d0d0d" font-size="10" font-weight="700">${escapeHtml(lbl(1, "Latent"))}</text>
+            <line x1="190" y1="97" x2="208" y2="97" stroke="${C.arrow}" stroke-width="1.5" marker-end="url(#arrow-${id})"></line>
+            <rect x="210" y="58" width="106" height="78" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="1.4" rx="3"></rect>
+            <text x="263" y="78" text-anchor="middle" font-size="10" font-weight="700" fill="${C.text}">${escapeHtml(lbl(2, "MoE"))}</text>
+            <g fill="${C.block}" stroke="${accent}" stroke-width="1">
+              <rect x="218" y="86" width="22" height="14" rx="1.5"></rect>
+              <rect x="244" y="86" width="22" height="14" rx="1.5"></rect>
+              <rect x="270" y="86" width="22" height="14" rx="1.5"></rect>
+              <rect x="296" y="86" width="14" height="14" rx="1.5"></rect>
+              <rect x="218" y="106" width="22" height="14" rx="1.5" fill="${accent}"></rect>
+              <rect x="244" y="106" width="22" height="14" rx="1.5"></rect>
+              <rect x="270" y="106" width="22" height="14" rx="1.5" fill="${accent}"></rect>
+              <rect x="296" y="106" width="14" height="14" rx="1.5"></rect>
+            </g>
+            <line x1="316" y1="97" x2="334" y2="97" stroke="${C.arrow}" stroke-width="1.5" marker-end="url(#arrow-${id})"></line>
+            <rect x="338" y="76" width="60" height="42" fill="${C.surface}" rx="3"></rect>
+            <text x="368" y="102" text-anchor="middle" fill="${C.surfaceText}" font-size="10.5" font-weight="700">${escapeHtml(lbl(3, "MTP"))}</text>
+          </svg>
+        `;
+      }
+
+      // fallback
       return `
-        <svg viewBox="0 0 420 138" role="img" aria-label="${page.model} architecture thumbnail">
-          ${common}
-          <g fill="#fff" stroke="${accent}" stroke-width="2">
-            <rect x="36" y="56" width="58" height="42" rx="4"></rect>
-            <rect x="122" y="56" width="58" height="42" rx="4"></rect>
-            <rect x="208" y="42" width="74" height="70" rx="4"></rect>
-            <rect x="318" y="56" width="58" height="42" rx="4"></rect>
-          </g>
-          <path d="M94 77H122M180 77H208M282 77H318" stroke="#111216" stroke-width="2"></path>
-          <g fill="#111216" font-size="10" font-weight="800" text-anchor="middle">
-            <text x="65" y="80">${labelText(0, "CSA")}</text>
-            <text x="151" y="80">${labelText(1, "HCA")}</text>
-            <text x="245" y="74">${labelText(2, "mHC")}</text>
-            <text x="245" y="88">mix</text>
-            <text x="347" y="80">${labelText(3, "MoE")}</text>
-          </g>
+        <svg viewBox="0 0 420 160" role="img" aria-label="${escapeHtml(aria)}" xmlns="http://www.w3.org/2000/svg">
+          ${bg}
+          <text x="210" y="100" text-anchor="middle" font-size="14" font-weight="600" fill="${C.text}">${escapeHtml(page.model || "")}</text>
         </svg>
       `;
     }
@@ -1865,34 +2342,41 @@
       const link = document.createElement("a");
       link.className = "card";
       link.href = page.href;
-      const tags = (page.tags || []).join(", ") || "HTML artifact";
-      const aaText = `${page.aaIndex || "Unknown"} ${page.aaLabel ? `- ${page.aaLabel}` : ""}`;
+      link.setAttribute("aria-label", `${page.title}, ${page.company || page.family}`);
+
+      const kind = (page.visual && page.visual.kind) || "hybrid";
+      const km = KIND_META[kind] || { label: kind, color: "#6a6e77" };
+      const aaPresent = page.aaIndex && page.aaIndex !== "Not listed" && page.aaIndex !== "Unknown";
+      const symbol = page.symbol || "";
+      const symbolMuted = symbol === "Private" || symbol === "N/A" || symbol === "";
+      const tagsList = (page.tags || []).slice(0, 4);
+      const logo = brandLogo(page);
+
       link.innerHTML = `
-        <figure class="model-visual">${modelVisual(page)}</figure>
-        <div class="card-top">
-          <div>
+        <div class="card-head">
+          ${brandMarkHtml(page, "brand-mark")}
+          <div class="card-headtext">
+            ${logo ? `<img class="brand-logo" src="${escapeHtml(logo)}" alt="${escapeHtml(page.company || page.family)} logo" loading="lazy">` : ""}
+            <div class="card-kind"><span class="dot" style="background:${km.color}"></span>${escapeHtml(km.label)}</div>
             <h2>${escapeHtml(page.title)}</h2>
-            <div class="company-line">
+            <div class="card-sub">
               <span>${escapeHtml(page.company || page.family)}</span>
-              <span class="symbol">${escapeHtml(page.symbol || "Private")}</span>
-            </div>
-            <div class="status-row">
-              <span class="status">${escapeHtml(page.status || "page")}</span>
-              <span class="status aa-pill">AA ${page.aaIndex || "n/a"}</span>
-              <span class="path">${escapeHtml(page.href)}</span>
+              ${symbol ? `<span class="sep">&middot;</span><span class="symbol${symbolMuted ? " private" : ""}">${escapeHtml(symbol)}</span>` : ""}
+              <span class="sep">&middot;</span>
+              <span>${escapeHtml(dateLabel(page))}</span>
             </div>
           </div>
-          <div class="mark">${escapeHtml(page.mark || page.family.slice(0, 2).toUpperCase())}</div>
         </div>
-        <p>${escapeHtml(page.note || "")}</p>
-        <div class="card-meta">
-          <div><span>Release/report</span><strong>${escapeHtml(dateLabel(page))}</strong></div>
-          <div><span>Modality</span><strong>${escapeHtml(modalityLabel(page))}</strong></div>
-          <div><span>Context</span><strong>${escapeHtml(page.context || "Unknown")}</strong></div>
-          <div><span>Model size</span><strong>${escapeHtml(page.size || "Unknown")}</strong></div>
-          <div><span>Dataset size</span><strong>${escapeHtml(page.dataset || "Unknown")}</strong></div>
-          <div><span>AA Index</span><strong>${escapeHtml(aaText)}</strong></div>
-          <div class="wide"><span>Tags</span><strong>${escapeHtml(tags)}</strong></div>
+        <figure class="model-visual" aria-hidden="true">${modelVisual(page)}</figure>
+        <div class="stats">
+          <div class="stat"><span>Params</span><strong>${escapeHtml(paramsLabel(page))}</strong></div>
+          <div class="stat"><span>Context</span><strong>${escapeHtml(page.context || "Unknown")}</strong></div>
+          <div class="stat"><span>Modality</span><strong>${escapeHtml(modalityLabel(page))}</strong></div>
+        </div>
+        <div class="tag-row">
+          <span class="tag" data-status>HTML</span>
+          ${aaPresent ? `<span class="tag tag--aa">AA ${escapeHtml(page.aaIndex)}</span>` : ""}
+          ${tagsList.map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join("")}
         </div>
       `;
       return link;
@@ -1903,14 +2387,16 @@
       const tags = (page.tags || []).join(", ");
       tr.innerHTML = `
         <td>
-          <a href="${escapeHtml(page.href)}">${escapeHtml(page.title)}</a>
+          <a href="${escapeHtml(page.href)}">
+            ${brandMarkHtml(page, "row-mark")}
+            <span class="title-text">${escapeHtml(page.title)}</span>
+          </a>
           <div class="table-note">${escapeHtml(page.note || "")}</div>
         </td>
         <td>${escapeHtml(page.family)}</td>
         <td>${escapeHtml(dateLabel(page))}</td>
         <td>${escapeHtml(modalityLabel(page))}<div class="table-note">${escapeHtml(page.modalityDetail || "")}</div></td>
-        <td>${escapeHtml(formatSize(page.sizeTotalB))}</td>
-        <td>${escapeHtml(formatSize(page.sizeActiveB))}</td>
+        <td>${escapeHtml(paramsLabel(page))}</td>
         <td>${escapeHtml(tags || "HTML artifact")}</td>
       `;
       return tr;
@@ -1924,23 +2410,29 @@
     async function markAvailability() {
       if (state.view !== "cards") return;
       await Promise.all(Array.from(document.querySelectorAll(".card")).map(async (cardNode) => {
-        const badge = cardNode.querySelector(".status");
+        const badge = cardNode.querySelector("[data-status]");
+        if (!badge) return;
         const href = cardNode.getAttribute("href");
+        const applyStatus = (status) => {
+          badge.className = `tag${status.className ? ` ${status.className}` : ""}`;
+          badge.setAttribute("data-status", "");
+          badge.textContent = status.text;
+        };
         if (availabilityCache.has(href)) {
-          const cached = availabilityCache.get(href);
-          if (cached.className) badge.classList.add(cached.className);
-          badge.textContent = cached.text;
+          applyStatus(availabilityCache.get(href));
           return;
         }
         try {
           const response = await fetch(href, {method: "HEAD"});
-          const status = response.ok ? {className: "available", text: "available"} : {className: "missing", text: "missing"};
+          const status = response.ok
+            ? {className: "tag--avail", text: "Available"}
+            : {className: "tag--missing", text: "Missing"};
           availabilityCache.set(href, status);
-          badge.classList.add(status.className);
-          badge.textContent = status.text;
+          applyStatus(status);
         } catch {
-          availabilityCache.set(href, {className: "", text: "local path"});
-          badge.textContent = "local path";
+          const status = {className: "", text: "Local"};
+          availabilityCache.set(href, status);
+          applyStatus(status);
         }
       }));
     }

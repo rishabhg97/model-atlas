@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 155 44" role="img" aria-label="Stability AI">
+  <rect width="155" height="44" rx="8" fill="#f4ecff"/>
+  <rect x="15" y="12" width="23" height="20" rx="4" fill="#9747ff"/>
+  <path d="M20 18h13M20 25h9" stroke="#fff" stroke-width="3"/>
+  <text x="50" y="28" fill="#6330a6" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="700">Stability</text>
+</svg>

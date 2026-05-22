@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 170 44" role="img" aria-label="Moonshot AI">
+  <rect width="170" height="44" rx="8" fill="#eafaf6"/>
+  <path d="M29 12a13 13 0 1 0 0 20 10 10 0 1 1 0-20z" fill="#139b86"/>
+  <text x="49" y="28" fill="#0b5f54" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="700">Moonshot AI</text>
+</svg>

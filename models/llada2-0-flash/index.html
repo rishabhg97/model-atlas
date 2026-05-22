@@ -1,0 +1,1547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LLaDA2.0-flash Architecture</title>
+<style>
+/* =========================================================
+   Kaizen Design System tokens (subset, inlined for offline use)
+   ========================================================= */
+:root {
+  --kui-brand-green:#76B900; --kui-brand-green-darker:#5E9600;
+  --kui-n000:#FFFFFF; --kui-n050:#F2F2F2; --kui-n100:#E3E3E3; --kui-n150:#D8D8D8;
+  --kui-n200:#C6C6C6; --kui-n300:#8F8F8F; --kui-n400:#767676; --kui-n500:#6B6B6B;
+  --kui-n600:#5E5E5E; --kui-n700:#343434; --kui-n800:#202020; --kui-n900:#0D0D0D; --kui-n950:#050505;
+  --kui-fg-strong:#202020; --kui-fg-default:#343434; --kui-fg-muted:#5E5E5E; --kui-fg-subtle:#6B6B6B;
+  --kui-bg-canvas:#F2F2F2; --kui-bg-mid:#FFFFFF;
+  --kui-border-subtle:#E3E3E3; --kui-border-default:#D8D8D8; --kui-border-strong:#767676;
+  --kui-success:#007D00; --kui-info:#0D69D4; --kui-info-bg:#E9F4FB; --kui-info-text:#2378CA;
+  --kui-warning:#C54600; --kui-warning-bg:#FDEFE6; --kui-danger:#DC3528; --kui-danger-bg:#FCE9E8;
+  --kui-success-bg:#E8F4D6;
+  --kui-accent-teal:#1FA18D; --kui-accent-teal-dk:#006B5E;
+  --kui-accent-magenta:#851F41; --kui-accent-purple:#A05AB4;
+  --kui-accent-violet:#9747FF; --kui-accent-pink-bg:#FBEEFE; --kui-accent-blue-bg:#E9F4FB;
+  --kui-accent-sky:#9ACCF2;
+  --kui-radius-xs:2px; --kui-radius-sm:4px; --kui-radius-lg:8px;
+  --kui-font-sans:"NVIDIA Sans","DM Sans",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --kui-font-display:"Inter","NVIDIA Sans","DM Sans",system-ui,sans-serif;
+  --kui-font-mono:"Roboto Mono",ui-monospace,"SF Mono",Consolas,monospace;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font:400 14px/1.5 var(--kui-font-sans);
+  color:var(--kui-fg-strong);
+  background:var(--kui-bg-canvas);
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+}
+h1,h2,h3,h4,p{margin:0}
+a{color:var(--kui-info);text-decoration:none}
+a:hover{text-decoration:underline}
+code,kbd,.mono{font-family:var(--kui-font-mono);font-size:12px}
+
+/* =========================================================
+   Layout
+   ========================================================= */
+.page{max-width:1320px;margin:0 auto;padding:24px 32px 96px}
+
+/* ---- Top bar ---- */
+.topbar{
+  display:flex;align-items:center;gap:16px;
+  padding:10px 0 18px;border-bottom:1px solid var(--kui-border-default);
+  margin-bottom:24px;
+}
+.home-link{
+  display:inline-flex;align-items:center;gap:6px;
+  min-height:32px;padding:0 10px;
+  border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);
+  background:var(--kui-bg-mid);
+  color:var(--kui-fg-default);
+  font-size:12px;font-weight:700;
+}
+.home-link:hover{border-color:var(--kui-brand-green);text-decoration:none}
+.topbar .nvlogo{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:0.5px}
+.topbar .nvlogo .eye{width:24px;height:18px;background:var(--kui-brand-green);
+  -webkit-mask:radial-gradient(circle at 50% 50%,transparent 22%,#000 23%) no-repeat center/100% 100%;
+  mask:radial-gradient(circle at 50% 50%,transparent 22%,#000 23%) no-repeat center/100% 100%;
+  border-radius:50%/45%;
+}
+.topbar .crumb{color:var(--kui-fg-muted);font-size:12px;letter-spacing:.4px;text-transform:uppercase}
+.topbar .crumb .sep{margin:0 8px;color:var(--kui-n200)}
+.topbar .spacer{flex:1}
+.topbar .meta{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--kui-fg-muted)}
+.topbar .meta .dot{width:6px;height:6px;background:var(--kui-brand-green);border-radius:50%}
+
+/* =========================================================
+   Hero
+   ========================================================= */
+.hero{
+  display:grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap:24px;
+  margin-bottom:32px;
+}
+.hero .left{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:32px;
+  position:relative;overflow:hidden;
+}
+.hero .left::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--kui-brand-green);
+}
+.hero .eyebrow{
+  font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--kui-fg-muted);margin-bottom:14px;display:flex;gap:10px;align-items:center;
+}
+.hero .eyebrow .tag{
+  background:var(--kui-n900);color:#fff;padding:3px 7px;border-radius:2px;font-size:10px;letter-spacing:1px
+}
+.hero h1{
+  font:700 44px/1.05 var(--kui-font-display);letter-spacing:-1px;
+  color:var(--kui-fg-strong);margin-bottom:14px;
+}
+.hero h1 .accent{color:var(--kui-brand-green-darker)}
+.hero .lede{
+  font:400 16px/1.5 var(--kui-font-sans);color:var(--kui-fg-default);max-width:62ch;
+}
+.hero .lede strong{font-weight:500;color:var(--kui-fg-strong)}
+.hero .keyfacts{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;
+  margin-top:24px;border-top:1px solid var(--kui-border-default);
+}
+.hero .keyfacts .kf{
+  border-bottom:1px solid var(--kui-border-default);
+  border-right:1px solid var(--kui-border-default);
+  padding:14px 16px;
+}
+.hero .keyfacts .kf:nth-child(2n){border-right:none}
+.hero .keyfacts .kf:nth-last-child(-n+2){border-bottom:none}
+.hero .keyfacts .label{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--kui-fg-muted);margin-bottom:4px}
+.hero .keyfacts .value{font:700 22px/1.1 var(--kui-font-display);color:var(--kui-fg-strong);font-variant-numeric:tabular-nums}
+.hero .keyfacts .value.small{font-size:14px;font-weight:500;font-family:var(--kui-font-sans)}
+.hero .keyfacts .sub{font-size:11px;color:var(--kui-fg-muted);margin-top:2px}
+
+/* WSD micro-diagram in hero right */
+.hero .right{
+  background:var(--kui-n950);color:#E3E3E3;
+  border:1px solid var(--kui-n800);
+  border-radius:var(--kui-radius-sm);
+  padding:24px;display:flex;flex-direction:column;gap:16px;
+}
+.hero .right .ribbon{
+  font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--kui-accent-teal)
+}
+.hero .right h3{
+  font:500 18px/1.3 var(--kui-font-sans);color:#fff;letter-spacing:-.2px
+}
+.hero .right .sub{font-size:12px;color:var(--kui-n200);line-height:1.5}
+.wsd-viz{margin-top:8px;border-top:1px solid #1f1f1f;padding-top:16px}
+.wsd-viz svg{display:block;width:100%;height:auto}
+.wsd-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--kui-n200);margin-top:12px}
+.wsd-legend .item{display:inline-flex;gap:6px;align-items:center}
+.wsd-legend .sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+/* =========================================================
+   Section
+   ========================================================= */
+.section{margin-bottom:48px}
+.section-head{
+  display:flex;align-items:baseline;justify-content:space-between;
+  margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--kui-border-default);
+}
+.section-head .label{display:flex;align-items:baseline;gap:14px}
+.section-head .num{
+  font:500 11px/1 var(--kui-font-mono);letter-spacing:1.2px;color:var(--kui-fg-muted);
+  border:1px solid var(--kui-border-default);padding:5px 7px;border-radius:2px;
+}
+.section-head h2{font:500 22px/1.2 var(--kui-font-sans);letter-spacing:-.2px}
+.section-head .lede{color:var(--kui-fg-muted);font-size:13px;max-width:54ch;text-align:right}
+
+/* Card primitive */
+.card{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:20px;
+}
+.card .title{font:500 14px/1.25 var(--kui-font-sans);letter-spacing:-.2px;margin-bottom:4px}
+.card .sub{font-size:12px;color:var(--kui-fg-muted);margin-bottom:14px}
+
+/* Grid helpers */
+.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+
+/* Tag chips */
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:11px;font-weight:500;letter-spacing:.2px;
+  padding:3px 8px;border-radius:2px;border:1px solid var(--kui-border-default);
+  color:var(--kui-fg-default);background:var(--kui-bg-mid);
+}
+.chip.green{background:var(--kui-success-bg);border-color:#bfd99a;color:#3e5b07}
+.chip.info{background:var(--kui-info-bg);border-color:#bfd9f4;color:var(--kui-info-text)}
+.chip.warn{background:var(--kui-warning-bg);border-color:#f3c7a4;color:var(--kui-warning)}
+.chip.purple{background:var(--kui-accent-pink-bg);border-color:#e3c1f0;color:var(--kui-accent-purple)}
+.chip.teal{background:#E3F2EF;border-color:#9fd6c9;color:var(--kui-accent-teal-dk)}
+.chip.solid{background:var(--kui-n900);color:#fff;border-color:var(--kui-n900)}
+.chip.code{font-family:var(--kui-font-mono);font-weight:400}
+
+/* =========================================================
+   Pipeline diagram
+   ========================================================= */
+.pipeline{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);
+  padding:24px;
+}
+.pipe-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;align-items:stretch}
+.pipe-step{
+  position:relative;
+  padding:16px 18px;
+  border-right:1px dashed var(--kui-border-default);
+  display:flex;flex-direction:column;gap:8px;
+}
+.pipe-step:last-child{border-right:none}
+.pipe-step .idx{
+  font:500 10px/1 var(--kui-font-mono);
+  color:var(--kui-brand-green-darker);letter-spacing:1.2px;
+}
+.pipe-step .name{font:500 14px/1.2 var(--kui-font-sans);letter-spacing:-.2px}
+.pipe-step .desc{font-size:12px;line-height:1.5;color:var(--kui-fg-muted)}
+.pipe-step .vis{
+  margin-top:6px;border:1px solid var(--kui-border-subtle);background:var(--kui-n050);
+  border-radius:2px;padding:10px 10px 12px;
+  font-family:var(--kui-font-mono);font-size:11px;color:var(--kui-fg-default);
+  min-height:84px;display:flex;flex-direction:column;justify-content:center;
+}
+.tok-strip{display:flex;gap:2px;flex-wrap:wrap}
+.tok{
+  font:500 10px/1 var(--kui-font-mono);
+  padding:4px 5px;background:#fff;border:1px solid var(--kui-border-default);border-radius:2px;
+  color:var(--kui-fg-strong);
+}
+.tok.mask{background:var(--kui-n800);color:#fff;border-color:var(--kui-n800)}
+.tok.fresh{background:var(--kui-success-bg);border-color:#bfd99a;color:#3e5b07}
+.tok.uncertain{background:var(--kui-warning-bg);border-color:#f3c7a4;color:var(--kui-warning)}
+.tok.frozen{background:#f2f2f2;color:var(--kui-fg-muted)}
+
+/* =========================================================
+   Block diffusion schedule (WSD)
+   ========================================================= */
+.wsd-card{padding:0;overflow:hidden}
+.wsd-card .head{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;
+  border-bottom:1px solid var(--kui-border-default);
+}
+.wsd-card .phase{
+  padding:18px 22px;border-right:1px solid var(--kui-border-default);
+}
+.wsd-card .phase:last-child{border-right:none}
+.wsd-card .phase .ph-label{
+  font:500 10px/1 var(--kui-font-mono);letter-spacing:1.4px;
+  color:var(--kui-fg-muted);text-transform:uppercase;margin-bottom:6px;
+}
+.wsd-card .phase .ph-name{font:500 18px/1.2 var(--kui-font-sans);letter-spacing:-.2px}
+.wsd-card .phase .ph-desc{font-size:12px;line-height:1.5;color:var(--kui-fg-muted);margin-top:4px;max-width:38ch}
+.wsd-card .phase .ph-chip{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}
+.wsd-card .phase.warmup{border-top:3px solid var(--kui-accent-teal)}
+.wsd-card .phase.stable{border-top:3px solid var(--kui-brand-green)}
+.wsd-card .phase.decay{border-top:3px solid var(--kui-accent-purple)}
+.wsd-card .timeline{padding:22px}
+.wsd-card .timeline svg{display:block;width:100%;height:auto}
+
+/* =========================================================
+   MoE internals
+   ========================================================= */
+.moe-grid{
+  display:grid;grid-template-columns: 1.05fr 0.95fr;gap:16px;align-items:stretch;
+}
+.moe-diagram{
+  background:var(--kui-n950);color:#E3E3E3;
+  border:1px solid var(--kui-n800);
+  border-radius:var(--kui-radius-sm);padding:20px;
+}
+.moe-diagram .title{color:#fff;font:500 14px/1.25 var(--kui-font-sans);margin-bottom:4px}
+.moe-diagram .sub{color:var(--kui-n200);font-size:12px;margin-bottom:14px}
+.moe-diagram svg{display:block;width:100%;height:auto}
+
+.spec-table{width:100%;border-collapse:collapse}
+.spec-table th,.spec-table td{
+  text-align:left;padding:10px 12px;border-bottom:1px solid var(--kui-border-default);
+  font-size:13px;vertical-align:top;
+}
+.spec-table th{
+  font:500 11px/1 var(--kui-font-mono);letter-spacing:1.2px;
+  color:var(--kui-fg-muted);text-transform:uppercase;padding:8px 12px;
+  background:var(--kui-n050);
+}
+.spec-table td.val{font-family:var(--kui-font-mono);font-size:12.5px;color:var(--kui-fg-strong);font-variant-numeric:tabular-nums}
+.spec-table td.val.unknown{color:var(--kui-fg-muted);font-style:italic;font-family:var(--kui-font-sans)}
+.spec-table .src{font-size:11px;color:var(--kui-fg-muted)}
+
+/* =========================================================
+   AR → dLLM conversion pipeline
+   ========================================================= */
+.convo{
+  background:var(--kui-bg-mid);border:1px solid var(--kui-border-default);
+  border-radius:var(--kui-radius-sm);padding:24px;
+}
+.convo .lane{
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;
+}
+.convo .stage{
+  padding:16px;border-right:1px solid var(--kui-border-default);
+  display:flex;flex-direction:column;gap:8px;position:relative;
+}
+.convo .stage:last-child{border-right:none}
+.convo .stage .marker{
+  display:flex;align-items:center;gap:8px;font:500 10px/1 var(--kui-font-mono);
+  letter-spacing:1.2px;color:var(--kui-fg-muted);text-transform:uppercase;
+}
+.convo .stage .marker .dot{
+  width:10px;height:10px;border-radius:50%;background:var(--kui-brand-green);
+  border:1px solid var(--kui-brand-green-darker);
+}
+.convo .stage.dim .marker .dot{background:#fff;border:1px solid var(--kui-border-strong)}
+.convo .stage .name{font:500 15px/1.2 var(--kui-font-sans);letter-spacing:-.2px}
+.convo .stage .desc{font-size:12px;line-height:1.5;color:var(--kui-fg-muted)}
+.convo .stage .meta{
+  font-family:var(--kui-font-mono);font-size:11px;color:var(--kui-fg-default);
+  background:var(--kui-n050);border:1px solid var(--kui-border-subtle);
+  padding:6px 8px;border-radius:2px;margin-top:auto;
+}
+.convo .arrow-row{
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin-top:10px;
+}
+.convo .arrow-row .arr{
+  border-top:1px dashed var(--kui-border-default);height:0;position:relative;
+}
+
+/* =========================================================
+   Decoding controls
+   ========================================================= */
+.dec-grid{display:grid;grid-template-columns:1.05fr 0.95fr;gap:16px}
+.dec-card{padding:0}
+.dec-card .pad{padding:20px}
+.dec-card .ctrl-list{border-top:1px solid var(--kui-border-default)}
+.dec-card .ctrl{
+  display:grid;grid-template-columns: 140px 1fr auto;gap:16px;align-items:center;
+  padding:12px 20px;border-bottom:1px solid var(--kui-border-subtle);
+}
+.dec-card .ctrl:last-child{border-bottom:none}
+.dec-card .ctrl .pname{font:500 13px/1.2 var(--kui-font-sans)}
+.dec-card .ctrl .pname .mono{display:block;color:var(--kui-fg-muted);font-size:11px;margin-top:2px}
+.dec-card .ctrl .pdesc{font-size:12px;color:var(--kui-fg-muted);line-height:1.5}
+.dec-card .ctrl .pval{font:500 13px/1 var(--kui-font-mono);color:var(--kui-fg-strong);
+  background:var(--kui-success-bg);padding:5px 8px;border-radius:2px;border:1px solid #bfd99a;
+  white-space:nowrap;
+}
+.dec-card .ctrl .pval.unset{background:var(--kui-bg-mid);color:var(--kui-fg-muted);border:1px solid var(--kui-border-default);font-style:italic;font-family:var(--kui-font-sans)}
+
+/* Denoising step visualization */
+.denoise-viz{padding:20px}
+.denoise-viz svg{display:block;width:100%;height:auto}
+.denoise-viz .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--kui-fg-muted);margin-top:14px}
+.denoise-viz .legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;border:1px solid var(--kui-border-default);margin-right:6px;vertical-align:-1px}
+
+/* =========================================================
+   Benchmark cards
+   ========================================================= */
+.bench{padding:0}
+.bench .row{
+  display:grid;grid-template-columns:1.4fr repeat(4,1fr);
+  gap:0;align-items:stretch;
+}
+.bench .row > div{
+  padding:10px 14px;border-bottom:1px solid var(--kui-border-subtle);border-right:1px solid var(--kui-border-subtle);
+  font-size:13px;
+}
+.bench .row > div:last-child{border-right:none}
+.bench .row.head > div{
+  background:var(--kui-n050);font:500 11px/1 var(--kui-font-mono);
+  letter-spacing:1.2px;color:var(--kui-fg-muted);text-transform:uppercase;
+  padding:10px 14px;
+}
+.bench .row.head > div.model{color:var(--kui-fg-default)}
+.bench .row.subhead > div{
+  background:var(--kui-n050);font:500 11px/1 var(--kui-font-sans);
+  letter-spacing:.4px;color:var(--kui-fg-muted);text-transform:uppercase;font-size:10px;
+  padding:6px 14px;
+}
+.bench .row .bench-name{font-weight:500}
+.bench .row .v{
+  font-family:var(--kui-font-mono);text-align:right;font-variant-numeric:tabular-nums;
+  color:var(--kui-fg-default);
+}
+.bench .row .v.target{color:var(--kui-fg-strong);font-weight:500;position:relative}
+.bench .row .v.win{
+  background:linear-gradient(to right,transparent 0,var(--kui-success-bg) 0%);
+  position:relative;color:var(--kui-fg-strong);font-weight:500;
+}
+.bench .row .v.win::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--kui-brand-green);
+}
+.bench .row.avg > div{background:#FAFAFA;font-weight:500;color:var(--kui-fg-strong)}
+.bench .row.avg .v{font-weight:600}
+.bench-footer{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--kui-border-default)}
+.bench-footer .note{font-size:11px;color:var(--kui-fg-muted);max-width:62ch;line-height:1.45}
+
+/* =========================================================
+   Caveats panel
+   ========================================================= */
+.caveats{
+  background:var(--kui-warning-bg);
+  border:1px solid #f3c7a4;
+  border-radius:var(--kui-radius-sm);padding:24px;
+  position:relative;
+}
+.caveats::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--kui-warning);
+}
+.caveats .head{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.caveats .head .icon{
+  width:20px;height:20px;border-radius:50%;background:var(--kui-warning);color:#fff;
+  display:flex;align-items:center;justify-content:center;font:700 13px/1 var(--kui-font-sans);
+}
+.caveats .head h3{font:500 16px/1.25 var(--kui-font-sans);color:var(--kui-warning)}
+.caveats .head .sub{font-size:12px;color:#7a3500;margin-left:auto}
+.caveats ul{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 28px}
+.caveats li{display:grid;grid-template-columns:140px 1fr;gap:10px;font-size:13px;color:#4a2400;align-items:baseline}
+.caveats li .k{font:500 11px/1.25 var(--kui-font-mono);letter-spacing:.4px;color:var(--kui-warning);text-transform:uppercase}
+.caveats li .v{color:#5e2e00;line-height:1.5}
+
+/* =========================================================
+   Footer
+   ========================================================= */
+.footer{
+  margin-top:48px;padding-top:20px;border-top:1px solid var(--kui-border-default);
+  display:flex;flex-wrap:wrap;gap:18px;justify-content:space-between;align-items:flex-start;
+  font-size:12px;color:var(--kui-fg-muted);
+}
+.footer .sources{display:flex;gap:16px;flex-wrap:wrap}
+.footer .sources a{color:var(--kui-info)}
+
+/* small responsive */
+@media (max-width:1080px){
+  .hero,.moe-grid,.dec-grid{grid-template-columns:1fr}
+  .grid-4{grid-template-columns:repeat(2,1fr)}
+  .pipe-row,.wsd-card .head,.convo .lane,.convo .arrow-row{grid-template-columns:repeat(2,1fr)}
+  .pipe-step,.wsd-card .phase,.convo .stage{border-right:none;border-bottom:1px solid var(--kui-border-default)}
+  .bench .row{grid-template-columns:1.4fr repeat(4,1fr);font-size:11px}
+}
+</style>
+</head>
+<body>
+<div class="page kui">
+
+  <!-- =================== TOP BAR =================== -->
+  <header class="topbar">
+    <a class="home-link" href="../../index.html">Atlas home</a>
+    <div class="nvlogo">
+      <svg width="22" height="16" viewBox="0 0 64 48" aria-hidden="true">
+        <path fill="#76B900" d="M27 8 C16 8 8 17 8 28 C8 38 16 44 27 44 L27 38 C19 38 15 33 15 26 C15 19 20 14 27 14 L27 8 Z M40 14 L40 24 L33 24 L33 30 L40 30 L40 40 L46 40 L46 30 L57 30 L57 24 L46 24 L46 14 L40 14 Z"/>
+      </svg>
+      <span style="font-family:var(--kui-font-display);font-weight:700;font-size:13px">NVIDIA</span>
+    </div>
+    <div class="crumb">
+      Research briefing <span class="sep">/</span> Open dLLM landscape <span class="sep">/</span> LLaDA 2.0
+    </div>
+    <div class="spacer"></div>
+    <div class="meta">
+      <span class="dot"></span>
+      <span>Source-grounded · Updated May 2026</span>
+    </div>
+  </header>
+
+  <!-- =================== HERO =================== -->
+  <section class="hero">
+    <div class="left">
+      <div class="eyebrow">
+        <span class="tag">arXiv 2512.15745</span>
+        <span>inclusionAI · Ant Group · Released Dec 10, 2025</span>
+      </div>
+      <h1>LLaDA<span class="accent">2.0</span>-flash<br/>
+      <span style="font:500 22px/1.1 var(--kui-font-sans);color:var(--kui-fg-muted);letter-spacing:-.3px">
+        a 100B-class MoE discrete diffusion language model
+      </span></h1>
+      <p class="lede">
+        LLaDA2.0 scales <strong>discrete diffusion LLMs</strong> to frontier MoE
+        sizes by <strong>converting a pretrained autoregressive checkpoint</strong>
+        rather than training from scratch. Conversion is driven by a 3-phase
+        block-level <strong>WSD (Warmup–Stable–Decay)</strong> schedule:
+        progressively grow the block size, run full-sequence diffusion at scale,
+        then anneal back to compact block diffusion. SFT and DPO follow.
+        <em>LLaDA2.0-flash</em> is the 100B-parameter, ~6.1B-active instruction-tuned
+        variant — built for parallel decoding at deployment.
+      </p>
+
+      <div class="keyfacts">
+        <div class="kf">
+          <div class="label">Total parameters</div>
+          <div class="value">100B<span style="font-size:14px;color:var(--kui-fg-muted)"> / 103B</span></div>
+          <div class="sub">Non-embedding 100B · safetensors size 103B</div>
+        </div>
+        <div class="kf">
+          <div class="label">Active parameters / token</div>
+          <div class="value">6.1B</div>
+          <div class="sub">MoE: ~6% activation ratio</div>
+        </div>
+        <div class="kf">
+          <div class="label">Layers · Heads</div>
+          <div class="value">32 <span style="color:var(--kui-fg-muted);font-weight:400">·</span> 32</div>
+          <div class="sub">Position: Rotary (RoPE)</div>
+        </div>
+        <div class="kf">
+          <div class="label">Context · Vocab</div>
+          <div class="value">32,768<span style="font-size:14px;color:var(--kui-fg-muted)"> · 157,184</span></div>
+          <div class="sub">BF16 weights · custom_code chat template</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WSD micro-diagram -->
+    <div class="right">
+      <div class="ribbon">3-Phase Block-WSD Schedule</div>
+      <h3>Block size grows, peaks at full sequence, then anneals back</h3>
+      <div class="sub">
+        Block-level WSD is the central training contribution: the diffusion
+        block length itself follows a Warmup–Stable–Decay curve, easing the
+        AR-pretrained model into full-sequence diffusion and then back to a
+        small, deployment-friendly block.
+      </div>
+      <div class="wsd-viz">
+        <svg viewBox="0 0 520 200" preserveAspectRatio="none" aria-label="Block-WSD schedule curve">
+          <!-- Grid -->
+          <defs>
+            <linearGradient id="warmGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#1FA18D" stop-opacity="0.35"/>
+              <stop offset="1" stop-color="#1FA18D" stop-opacity="0.05"/>
+            </linearGradient>
+            <linearGradient id="stableGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#76B900" stop-opacity="0.45"/>
+              <stop offset="1" stop-color="#76B900" stop-opacity="0.05"/>
+            </linearGradient>
+            <linearGradient id="decayGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#A05AB4" stop-opacity="0.35"/>
+              <stop offset="1" stop-color="#A05AB4" stop-opacity="0.05"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Axes -->
+          <line x1="40" y1="170" x2="500" y2="170" stroke="#343434" stroke-width="1"/>
+          <line x1="40" y1="20" x2="40" y2="170" stroke="#343434" stroke-width="1"/>
+
+          <!-- Phase backgrounds -->
+          <rect x="40" y="20" width="140" height="150" fill="url(#warmGrad)"/>
+          <rect x="180" y="20" width="200" height="150" fill="url(#stableGrad)"/>
+          <rect x="380" y="20" width="120" height="150" fill="url(#decayGrad)"/>
+
+          <!-- Curve -->
+          <path d="M 40 160 Q 80 150 110 130 Q 150 100 180 60 L 380 35 Q 400 35 420 70 Q 450 130 500 158"
+                stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <!-- Plateau dots -->
+          <circle cx="180" cy="60" r="3" fill="#fff"/>
+          <circle cx="380" cy="35" r="3" fill="#fff"/>
+
+          <!-- Phase boundaries -->
+          <line x1="180" y1="20" x2="180" y2="170" stroke="#5E5E5E" stroke-width="1" stroke-dasharray="3 3"/>
+          <line x1="380" y1="20" x2="380" y2="170" stroke="#5E5E5E" stroke-width="1" stroke-dasharray="3 3"/>
+
+          <!-- Phase labels -->
+          <text x="110" y="188" fill="#1FA18D" font-family="DM Sans,sans-serif" font-size="11" text-anchor="middle" font-weight="500">Warm-up</text>
+          <text x="280" y="188" fill="#76B900" font-family="DM Sans,sans-serif" font-size="11" text-anchor="middle" font-weight="500">Stable</text>
+          <text x="440" y="188" fill="#A05AB4" font-family="DM Sans,sans-serif" font-size="11" text-anchor="middle" font-weight="500">Decay</text>
+
+          <!-- Y axis label -->
+          <text x="14" y="95" fill="#8F8F8F" font-family="DM Sans,sans-serif" font-size="10" transform="rotate(-90 14 95)" text-anchor="middle">block size</text>
+          <text x="34" y="28" fill="#8F8F8F" font-family="DM Sans,sans-serif" font-size="9" text-anchor="end">full L</text>
+          <text x="34" y="170" fill="#8F8F8F" font-family="DM Sans,sans-serif" font-size="9" text-anchor="end" alignment-baseline="middle">small</text>
+          <text x="270" y="14" fill="#C6C6C6" font-family="DM Sans,sans-serif" font-size="10" text-anchor="middle">training steps →</text>
+        </svg>
+      </div>
+      <div class="wsd-legend">
+        <span class="item"><span class="sw" style="background:#1FA18D"></span>Block grows</span>
+        <span class="item"><span class="sw" style="background:#76B900"></span>Full-sequence diffusion</span>
+        <span class="item"><span class="sw" style="background:#A05AB4"></span>Anneal to compact</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== §01 PIPELINE =================== -->
+  <section class="section">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§ 01</span>
+        <h2>End-to-end inference pipeline</h2>
+      </div>
+      <div class="lede">Prompt → masked sequence → iterative denoising through MoE transformer blocks → final tokens. Unlike an AR decoder, all positions are updated in parallel each step.</div>
+    </div>
+
+    <div class="pipeline">
+      <div class="pipe-row">
+        <div class="pipe-step">
+          <div class="idx">A · TOKENIZE</div>
+          <div class="name">Prompt encoding</div>
+          <div class="desc">Chat-template the user turn and tokenize with the inherited tokenizer (vocab 157,184).</div>
+          <div class="vis">
+            <div class="tok-strip">
+              <span class="tok">&lt;|usr|&gt;</span><span class="tok">Why</span><span class="tok">does</span><span class="tok">Camus</span><span class="tok">…</span><span class="tok">&lt;|gen|&gt;</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="pipe-step">
+          <div class="idx">B · INIT</div>
+          <div class="name">Masked sequence</div>
+          <div class="desc">Reserve <code>gen_length</code> positions and initialize the response as all-<code>[MASK]</code>. Optionally split into blocks of <code>block_length</code>.</div>
+          <div class="vis">
+            <div class="tok-strip">
+              <span class="tok frozen">prompt</span>
+              <span class="tok mask">[M]</span><span class="tok mask">[M]</span><span class="tok mask">[M]</span><span class="tok mask">[M]</span>
+              <span class="tok mask">[M]</span><span class="tok mask">[M]</span><span class="tok mask">[M]</span><span class="tok mask">[M]</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="pipe-step">
+          <div class="idx">C · DENOISE</div>
+          <div class="name">Iterative denoising</div>
+          <div class="desc"><span class="mono">T = steps</span> rounds. Each round the MoE transformer predicts a clean token for every masked position in the current block in parallel.</div>
+          <div class="vis">
+            <div class="tok-strip">
+              <span class="tok frozen">prompt</span>
+              <span class="tok fresh">Sis-</span><span class="tok uncertain">yph-</span><span class="tok mask">[M]</span><span class="tok fresh">is</span>
+              <span class="tok mask">[M]</span><span class="tok uncertain">happy</span><span class="tok mask">[M]</span><span class="tok mask">[M]</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="pipe-step">
+          <div class="idx">D · REMASK</div>
+          <div class="name">Confidence remask</div>
+          <div class="desc">Low-confidence predictions are re-masked and resolved in the next round; high-confidence tokens are committed. Block advances when filled.</div>
+          <div class="vis">
+            <div class="tok-strip">
+              <span class="tok frozen">prompt</span>
+              <span class="tok fresh">Sis-</span><span class="tok fresh">yph-</span><span class="tok fresh">us</span><span class="tok fresh">is</span>
+              <span class="tok fresh">happy</span><span class="tok uncertain">because</span><span class="tok mask">[M]</span><span class="tok mask">[M]</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="pipe-step">
+          <div class="idx">E · EMIT</div>
+          <div class="name">Final sequence</div>
+          <div class="desc">Repeat across blocks until all positions are committed or <code>eos_early_stop</code> fires. Detokenize to the chat response.</div>
+          <div class="vis">
+            <div class="tok-strip">
+              <span class="tok frozen">prompt</span>
+              <span class="tok fresh">Sisyphus</span><span class="tok fresh">is</span><span class="tok fresh">happy</span>
+              <span class="tok fresh">because</span><span class="tok fresh">he</span><span class="tok fresh">owns</span><span class="tok fresh">his</span><span class="tok fresh">fate.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--kui-border-default);margin-top:18px;padding-top:14px;display:flex;gap:18px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--kui-fg-muted)">
+        <span class="chip code">x<sub>0</sub> ≔ [M,…,M]</span>
+        <span class="chip code">p<sub>θ</sub>(x<sub>0</sub> | x<sub>t</sub>, c)</span>
+        <span class="chip code">block ∈ [1 … L]</span>
+        <span class="chip code">T = steps</span>
+        <span style="color:var(--kui-fg-muted)">Parallel-decoded: every masked position in the active block is updated simultaneously each round.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== §02 BLOCK-DIFFUSION SCHEDULE =================== -->
+  <section class="section">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§ 02</span>
+        <h2>Block-level WSD training schedule</h2>
+      </div>
+      <div class="lede">The diffusion <em>block size</em> is itself scheduled. Three phases — warm-up, stable, decay — match the abstract's "progressive block-size growth → full-sequence diffusion → revert to compact-size block diffusion".</div>
+    </div>
+
+    <div class="card wsd-card">
+      <div class="head">
+        <div class="phase warmup">
+          <div class="ph-label">Phase 1 · Warm-up</div>
+          <div class="ph-name">Progressive block growth</div>
+          <div class="ph-desc">Start the AR-initialized network on small diffusion blocks, then progressively enlarge. The model "learns to diffuse" while preserving inherited autoregressive knowledge.</div>
+          <div class="ph-chip">
+            <span class="chip teal">block: small → large</span>
+            <span class="chip">inherits AR knowledge</span>
+          </div>
+        </div>
+        <div class="phase stable">
+          <div class="ph-label">Phase 2 · Stable</div>
+          <div class="ph-name">Full-sequence diffusion at scale</div>
+          <div class="ph-desc">Operate at full-sequence block size for the large-scale training stretch. This is where the bulk of token budget is spent at the dLLM frontier.</div>
+          <div class="ph-chip">
+            <span class="chip green">block = full L</span>
+            <span class="chip">≈ 20T tokens (cumulative)</span>
+          </div>
+        </div>
+        <div class="phase decay">
+          <div class="ph-label">Phase 3 · Decay</div>
+          <div class="ph-name">Anneal to compact block</div>
+          <div class="ph-desc">Decay back to a small, deployment-friendly block size. Compact blocks are what the released model uses at inference, and what the recommended <code>block_length = 32</code> setting reflects.</div>
+          <div class="ph-chip">
+            <span class="chip purple">block: large → small</span>
+            <span class="chip">deploy-shape match</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline strip -->
+      <div class="timeline">
+        <svg viewBox="0 0 1000 220" aria-label="WSD timeline">
+          <defs>
+            <pattern id="dotPat" x="0" y="0" width="6" height="6" patternUnits="userSpaceOnUse">
+              <circle cx="3" cy="3" r="0.8" fill="#D8D8D8"/>
+            </pattern>
+          </defs>
+
+          <!-- background lane -->
+          <rect x="40" y="80" width="920" height="80" fill="url(#dotPat)" stroke="#D8D8D8"/>
+
+          <!-- Phase block strips of varying height to indicate block size -->
+          <!-- Warm-up: growing rectangles -->
+          <g>
+            <rect x="50"  y="140" width="40" height="14" fill="#1FA18D" opacity="0.55"/>
+            <rect x="98"  y="128" width="40" height="26" fill="#1FA18D" opacity="0.6"/>
+            <rect x="146" y="114" width="40" height="40" fill="#1FA18D" opacity="0.7"/>
+            <rect x="194" y="100" width="40" height="54" fill="#1FA18D" opacity="0.8"/>
+            <rect x="242" y="86"  width="40" height="68" fill="#1FA18D" opacity="0.9"/>
+          </g>
+          <!-- Stable: full-height bars -->
+          <g>
+            <rect x="304" y="84" width="60" height="70" fill="#76B900" opacity="0.85"/>
+            <rect x="370" y="84" width="60" height="70" fill="#76B900" opacity="0.85"/>
+            <rect x="436" y="84" width="60" height="70" fill="#76B900" opacity="0.85"/>
+            <rect x="502" y="84" width="60" height="70" fill="#76B900" opacity="0.85"/>
+            <rect x="568" y="84" width="60" height="70" fill="#76B900" opacity="0.85"/>
+            <rect x="634" y="84" width="60" height="70" fill="#76B900" opacity="0.85"/>
+          </g>
+          <!-- Decay: shrinking rectangles -->
+          <g>
+            <rect x="710" y="90"  width="40" height="64" fill="#A05AB4" opacity="0.85"/>
+            <rect x="758" y="104" width="40" height="50" fill="#A05AB4" opacity="0.75"/>
+            <rect x="806" y="118" width="40" height="36" fill="#A05AB4" opacity="0.7"/>
+            <rect x="854" y="132" width="40" height="22" fill="#A05AB4" opacity="0.65"/>
+            <rect x="902" y="142" width="40" height="12" fill="#A05AB4" opacity="0.6"/>
+          </g>
+
+          <!-- Baseline -->
+          <line x1="40" y1="160" x2="960" y2="160" stroke="#5E5E5E"/>
+
+          <!-- Phase divider lines -->
+          <line x1="294" y1="40" x2="294" y2="180" stroke="#8F8F8F" stroke-dasharray="3 3"/>
+          <line x1="700" y1="40" x2="700" y2="180" stroke="#8F8F8F" stroke-dasharray="3 3"/>
+
+          <!-- Phase labels above -->
+          <g font-family="DM Sans,sans-serif" font-size="11" fill="#5E5E5E">
+            <text x="170" y="62" text-anchor="middle" font-weight="500" fill="#006B5E">Warm-up · progressive block growth</text>
+            <text x="497" y="62" text-anchor="middle" font-weight="500" fill="#5E9600">Stable · large-scale full-sequence diffusion</text>
+            <text x="828" y="62" text-anchor="middle" font-weight="500" fill="#A05AB4">Decay · anneal to compact block</text>
+          </g>
+
+          <!-- Annotations -->
+          <g font-family="DM Sans,sans-serif" font-size="10" fill="#8F8F8F">
+            <text x="50"  y="200">b=k</text>
+            <text x="242" y="200">b ≈ ½L</text>
+            <text x="436" y="200">b = L (full sequence)</text>
+            <text x="710" y="200">b ↓</text>
+            <text x="902" y="200">b ≈ deploy</text>
+          </g>
+
+          <!-- Axis label -->
+          <text x="14" y="116" fill="#5E5E5E" font-family="DM Sans,sans-serif" font-size="11" transform="rotate(-90 14 116)" text-anchor="middle">diffusion block size (b)</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== §03 MoE INTERNALS =================== -->
+  <section class="section">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§ 03</span>
+        <h2>MoE transformer internals</h2>
+      </div>
+      <div class="lede">A sparse Mixture-of-Experts transformer block routes tokens to a small subset of experts. The activation ratio is the headline number — ~6% of parameters fire per token.</div>
+    </div>
+
+    <div class="moe-grid">
+
+      <!-- Diagram -->
+      <div class="moe-diagram">
+        <div class="title">Single MoE transformer layer</div>
+        <div class="sub">Conceptual layout. Self-attention runs over every token; the FFN is replaced by a routed expert pool. <em>Top-k</em>, total experts, and shared-expert count are not specified in the listed sources.</div>
+        <svg viewBox="0 0 640 380" aria-label="MoE layer diagram">
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#C6C6C6"/>
+            </marker>
+          </defs>
+
+          <!-- Token sequence in -->
+          <g>
+            <text x="20" y="32" fill="#C6C6C6" font-family="Roboto Mono,monospace" font-size="11">x_in (B, L, d)</text>
+            <rect x="20" y="44" width="600" height="22" fill="#202020" stroke="#343434"/>
+            <g font-family="Roboto Mono,monospace" font-size="10" fill="#E3E3E3">
+              <text x="42" y="59" text-anchor="middle">t₀</text>
+              <text x="76" y="59" text-anchor="middle">t₁</text>
+              <text x="110" y="59" text-anchor="middle">t₂</text>
+              <text x="144" y="59" text-anchor="middle">…</text>
+              <text x="178" y="59" text-anchor="middle">t_L</text>
+            </g>
+          </g>
+
+          <!-- Self-attention block -->
+          <g>
+            <rect x="20" y="90" width="600" height="58" fill="#0D0D0D" stroke="#343434"/>
+            <text x="40" y="114" fill="#fff" font-family="DM Sans,sans-serif" font-size="13" font-weight="500">Self-attention (32 heads, RoPE)</text>
+            <text x="40" y="134" fill="#8F8F8F" font-family="DM Sans,sans-serif" font-size="11">Bidirectional over masked sequence · attention variant (MHA / GQA / MLA): not reported</text>
+            <line x1="320" y1="68" x2="320" y2="88" stroke="#C6C6C6" marker-end="url(#arr)"/>
+          </g>
+
+          <!-- Router -->
+          <g>
+            <line x1="320" y1="150" x2="320" y2="172" stroke="#C6C6C6" marker-end="url(#arr)"/>
+            <rect x="220" y="174" width="200" height="36" fill="#1FA18D" opacity="0.18" stroke="#1FA18D"/>
+            <text x="320" y="197" fill="#1FA18D" font-family="DM Sans,sans-serif" font-size="12" text-anchor="middle" font-weight="500">Router · gating(top-k)</text>
+            <text x="320" y="227" fill="#8F8F8F" font-family="Roboto Mono,monospace" font-size="10" text-anchor="middle">softmax( W_g · x ) → top-k experts</text>
+          </g>
+
+          <!-- Expert pool -->
+          <g>
+            <line x1="320" y1="236" x2="320" y2="252" stroke="#C6C6C6" marker-end="url(#arr)"/>
+            <g font-family="DM Sans,sans-serif" font-size="11" fill="#E3E3E3">
+              <!-- 12 experts (illustrative) -->
+              <g>
+                <rect x="40"  y="258" width="44" height="44" fill="#76B900" opacity="0.85"/>
+                <text x="62" y="285" text-anchor="middle" fill="#0D0D0D" font-weight="500">E₁</text>
+              </g>
+              <g>
+                <rect x="92" y="258" width="44" height="44" fill="#202020" stroke="#343434"/>
+                <text x="114" y="285" text-anchor="middle">E₂</text>
+              </g>
+              <g>
+                <rect x="144" y="258" width="44" height="44" fill="#76B900" opacity="0.85"/>
+                <text x="166" y="285" text-anchor="middle" fill="#0D0D0D" font-weight="500">E₃</text>
+              </g>
+              <g>
+                <rect x="196" y="258" width="44" height="44" fill="#202020" stroke="#343434"/>
+                <text x="218" y="285" text-anchor="middle">E₄</text>
+              </g>
+              <g>
+                <rect x="248" y="258" width="44" height="44" fill="#202020" stroke="#343434"/>
+                <text x="270" y="285" text-anchor="middle">E₅</text>
+              </g>
+              <g>
+                <rect x="300" y="258" width="44" height="44" fill="#202020" stroke="#343434"/>
+                <text x="322" y="285" text-anchor="middle">E₆</text>
+              </g>
+              <g>
+                <rect x="352" y="258" width="44" height="44" fill="#202020" stroke="#343434"/>
+                <text x="374" y="285" text-anchor="middle">E₇</text>
+              </g>
+              <g>
+                <rect x="404" y="258" width="44" height="44" fill="#202020" stroke="#343434"/>
+                <text x="426" y="285" text-anchor="middle">E₈</text>
+              </g>
+              <g>
+                <rect x="456" y="258" width="44" height="44" fill="#202020" stroke="#343434"/>
+                <text x="478" y="285" text-anchor="middle">E₉</text>
+              </g>
+              <g>
+                <rect x="508" y="258" width="44" height="44" fill="#202020" stroke="#343434"/>
+                <text x="530" y="285" text-anchor="middle">E…</text>
+              </g>
+              <g>
+                <rect x="560" y="258" width="60" height="44" fill="#A05AB4" opacity="0.4" stroke="#A05AB4" stroke-dasharray="2 2"/>
+                <text x="590" y="280" text-anchor="middle" fill="#E3E3E3" font-size="10">shared?</text>
+                <text x="590" y="294" text-anchor="middle" fill="#A05AB4" font-size="9">unreported</text>
+              </g>
+            </g>
+            <text x="40" y="320" fill="#8F8F8F" font-family="DM Sans,sans-serif" font-size="10">Routed experts (count, top-k, shared-expert ratio: not reported in listed sources)</text>
+            <text x="40" y="335" fill="#76B900" font-family="DM Sans,sans-serif" font-size="10" font-weight="500">Activated for this token · ~6.1B params</text>
+          </g>
+
+          <!-- Out -->
+          <g>
+            <line x1="320" y1="318" x2="320" y2="348" stroke="#C6C6C6" marker-end="url(#arr)"/>
+            <rect x="20" y="350" width="600" height="22" fill="#202020" stroke="#343434"/>
+            <text x="320" y="365" fill="#E3E3E3" font-family="Roboto Mono,monospace" font-size="11" text-anchor="middle">x_out → next of 32 layers → diffusion head</text>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Spec table -->
+      <div class="card" style="padding:0">
+        <div style="padding:20px 20px 0">
+          <div class="title">Reported architecture</div>
+          <div class="sub">From the LLaDA2.0-flash model card and the v2 paper abstract. Fields not present are explicitly labeled.</div>
+        </div>
+        <table class="spec-table" style="margin-top:14px">
+          <thead>
+            <tr><th>Field</th><th>Value</th><th>Source</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Type</td><td class="val">MoE Discrete Diffusion LM</td><td class="src">Model card</td></tr>
+            <tr><td>Total params (non-embedding)</td><td class="val">100B</td><td class="src">Model card</td></tr>
+            <tr><td>Total params (full safetensors)</td><td class="val">103B (BF16)</td><td class="src">HF safetensors</td></tr>
+            <tr><td>Active params / token</td><td class="val">6.1B</td><td class="src">Model card</td></tr>
+            <tr><td>Layers</td><td class="val">32</td><td class="src">Model card</td></tr>
+            <tr><td>Attention heads</td><td class="val">32</td><td class="src">Model card</td></tr>
+            <tr><td>Attention variant (MHA / GQA / MLA)</td><td class="val unknown">not reported</td><td class="src">—</td></tr>
+            <tr><td>Hidden / FFN dimension</td><td class="val unknown">not reported</td><td class="src">—</td></tr>
+            <tr><td>Total experts</td><td class="val unknown">not reported</td><td class="src">—</td></tr>
+            <tr><td>Top-k routed experts</td><td class="val unknown">not reported</td><td class="src">—</td></tr>
+            <tr><td>Shared experts</td><td class="val unknown">not reported</td><td class="src">—</td></tr>
+            <tr><td>Load balancing</td><td class="val unknown">not reported in listed sources</td><td class="src">—</td></tr>
+            <tr><td>Position embedding</td><td class="val">Rotary (RoPE)</td><td class="src">Model card</td></tr>
+            <tr><td>Context length</td><td class="val">32,768 tokens</td><td class="src">Model card</td></tr>
+            <tr><td>Vocabulary</td><td class="val">157,184</td><td class="src">Model card</td></tr>
+            <tr><td>Tokenizer family</td><td class="val unknown">not specified (inherited from AR base)</td><td class="src">—</td></tr>
+            <tr><td>Weight precision</td><td class="val">BF16</td><td class="src">HF safetensors</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- =================== §04 AR→dLLM CONVERSION =================== -->
+  <section class="section">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§ 04</span>
+        <h2>From AR checkpoint to instruction-tuned dLLM</h2>
+      </div>
+      <div class="lede">Conversion — not training-from-scratch — is the paper's headline efficiency claim. A pretrained autoregressive MoE is reshaped into a diffusion LM, then aligned.</div>
+    </div>
+
+    <div class="convo">
+      <div class="lane">
+
+        <div class="stage">
+          <div class="marker"><span class="dot"></span> AR origin</div>
+          <div class="name">Pretrained AR MoE</div>
+          <div class="desc">Inherit weights from a frontier autoregressive MoE in the <strong>Ling2.0 series</strong>. No costly from-scratch training.</div>
+          <div class="meta">~20T tokens (cumulative)<br/>seed: AR causal LM</div>
+        </div>
+
+        <div class="stage">
+          <div class="marker"><span class="dot"></span> Phase 1 · Warm-up</div>
+          <div class="name">Progressive block diffusion</div>
+          <div class="desc">Adapt AR weights to the diffusion objective starting with small blocks, then grow. Knowledge-inheritance principle: don't erase what the AR base already knows.</div>
+          <div class="meta">obj: <code>mask-then-predict</code><br/>block: grows</div>
+        </div>
+
+        <div class="stage">
+          <div class="marker"><span class="dot"></span> Phase 2 · Stable</div>
+          <div class="name">Full-sequence diffusion</div>
+          <div class="desc">Long stretch of large-scale full-sequence diffusion training. This is where the dLLM identity is fully established at frontier scale.</div>
+          <div class="meta">block = L<br/>main compute spend</div>
+        </div>
+
+        <div class="stage">
+          <div class="marker"><span class="dot"></span> Phase 3 · Decay</div>
+          <div class="name">Compact block diffusion</div>
+          <div class="desc">Anneal block size back down so the model is shaped to its deployment regime (small blocks, fast inference).</div>
+          <div class="meta">block ↓ to deploy size<br/>cooldown LR</div>
+        </div>
+
+        <div class="stage">
+          <div class="marker"><span class="dot"></span> Post-train</div>
+          <div class="name">SFT → DPO</div>
+          <div class="desc">Supervised fine-tuning on instruction data, then Direct Preference Optimization for alignment. Finetuned on the open <strong>dFactory</strong> framework (FSDP2).</div>
+          <div class="meta">→ LLaDA2.0-mini (16B)<br/>→ <strong>LLaDA2.0-flash (100B)</strong></div>
+        </div>
+
+      </div>
+
+      <!-- Arrow row -->
+      <div class="arrow-row" style="position:relative;height:28px;margin-top:0">
+        <svg viewBox="0 0 1000 28" preserveAspectRatio="none" style="width:100%;height:28px">
+          <line x1="20" y1="14" x2="980" y2="14" stroke="#D8D8D8" stroke-dasharray="4 4"/>
+          <g fill="#76B900">
+            <circle cx="100" cy="14" r="4"/>
+            <circle cx="300" cy="14" r="4"/>
+            <circle cx="500" cy="14" r="4"/>
+            <circle cx="700" cy="14" r="4"/>
+            <circle cx="900" cy="14" r="4"/>
+          </g>
+          <path d="M970 14 l-10 -5 v10 z" fill="#76B900"/>
+        </svg>
+      </div>
+
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding-top:6px;color:var(--kui-fg-muted);font-size:12px">
+        <span class="chip green">design principle: knowledge inheritance</span>
+        <span class="chip teal">progressive adaptation</span>
+        <span class="chip purple">efficiency-aware</span>
+        <span style="color:var(--kui-fg-muted)">— the three principles the paper places at the foundation of LLaDA2.0.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== §05 DECODING CONTROLS =================== -->
+  <section class="section">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§ 05</span>
+        <h2>Diffusion decoding controls</h2>
+      </div>
+      <div class="lede">Inference is exposed through a small set of knobs. Recommended defaults come from the model-card "Best Practices" block.</div>
+    </div>
+
+    <div class="dec-grid">
+
+      <!-- Param list -->
+      <div class="card dec-card">
+        <div class="pad">
+          <div class="title">Generation parameters</div>
+          <div class="sub">Settings the call signature exposes in the model card's <code>generate()</code> example.</div>
+        </div>
+        <div class="ctrl-list">
+          <div class="ctrl">
+            <div class="pname">Steps<span class="mono">steps</span></div>
+            <div class="pdesc">Number of denoising rounds across the response. More steps → quality up, latency up.</div>
+            <div class="pval">32</div>
+          </div>
+          <div class="ctrl">
+            <div class="pname">Block length<span class="mono">block_length</span></div>
+            <div class="pdesc">Number of tokens denoised together per block. The recommended deployment shape and what Phase 3 anneals toward.</div>
+            <div class="pval">32</div>
+          </div>
+          <div class="ctrl">
+            <div class="pname">Generation length<span class="mono">gen_length</span></div>
+            <div class="pdesc">Total response budget initialized as <code>[MASK]</code>. Sample call uses 512; model-card guidance: up to 32,768 for most queries.</div>
+            <div class="pval">512 — 32k</div>
+          </div>
+          <div class="ctrl">
+            <div class="pname">Temperature<span class="mono">temperature</span></div>
+            <div class="pdesc">Sampling temperature over the diffusion head's distribution. Higher values can cause language mixing and modest quality loss.</div>
+            <div class="pval">0.0</div>
+          </div>
+          <div class="ctrl">
+            <div class="pname">EOS early stop<span class="mono">eos_early_stop</span></div>
+            <div class="pdesc">Terminate once an EOS token is committed, even if <code>gen_length</code> isn't filled.</div>
+            <div class="pval">true</div>
+          </div>
+          <div class="ctrl">
+            <div class="pname">Remasking policy<span class="mono">remask</span></div>
+            <div class="pdesc">How low-confidence tokens are demoted back to <code>[MASK]</code> between rounds. Described conceptually in the paper as confidence-based remasking; exact threshold rule is not exposed in the listed sources.</div>
+            <div class="pval unset">policy not specified in sources</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Denoise step viz -->
+      <div class="card dec-card">
+        <div class="pad">
+          <div class="title">Denoising rounds across one block</div>
+          <div class="sub"><code>block_length = 32</code>, <code>steps = 32</code>. Each row is one denoising round; columns are positions within the active block. Masked positions resolve, low-confidence positions get re-masked next round.</div>
+        </div>
+        <div class="denoise-viz">
+          <svg viewBox="0 0 720 320" aria-label="Denoising progression matrix">
+            <!-- A 12 (rows) x 32 (cols) grid -->
+            <g font-family="DM Sans,sans-serif" font-size="10" fill="#5E5E5E">
+              <text x="0" y="22">t=1</text>
+              <text x="0" y="46">t=2</text>
+              <text x="0" y="70">t=3</text>
+              <text x="0" y="94">t=4</text>
+              <text x="0" y="118">t=5</text>
+              <text x="0" y="142">t=8</text>
+              <text x="0" y="166">t=12</text>
+              <text x="0" y="190">t=16</text>
+              <text x="0" y="214">t=22</text>
+              <text x="0" y="238">t=28</text>
+              <text x="0" y="262">t=31</text>
+              <text x="0" y="286">t=32</text>
+            </g>
+            <!-- column header -->
+            <text x="40" y="8" font-family="DM Sans,sans-serif" font-size="10" fill="#8F8F8F">position 0</text>
+            <text x="690" y="8" font-family="DM Sans,sans-serif" font-size="10" fill="#8F8F8F" text-anchor="end">position 31</text>
+
+            <!-- helper to render rows: each row is a JS-less hand-laid grid -->
+            <!-- Row layout: cells are 20wide x 18 tall, gap 2 -->
+
+            <script type="application/javascript">/* purely decorative; rendered via JS-free SVG below */</script>
+
+            <!-- We'll build each row manually using <use> with patterns. To avoid heavy markup, use rects with varying fill. -->
+
+            <!-- ROW t=1: all mask -->
+            <g transform="translate(40,12)">
+              <g id="rowMaskAll"></g>
+            </g>
+
+            <!-- We'll just manually emit groups. Each cell: -->
+            <!-- mask=#202020, uncertain=#FDEFE6 stroke#C54600, fresh=#E8F4D6 stroke#76B900 -->
+
+            <!-- Row t=1 (all mask) -->
+            <g transform="translate(40,12)">
+              <g>
+                <!-- 32 cells -->
+                <!-- generate 32 mask cells -->
+                <g fill="#202020">
+                  <rect x="0" y="0" width="20" height="18"/><rect x="21" y="0" width="20" height="18"/><rect x="42" y="0" width="20" height="18"/><rect x="63" y="0" width="20" height="18"/>
+                  <rect x="84" y="0" width="20" height="18"/><rect x="105" y="0" width="20" height="18"/><rect x="126" y="0" width="20" height="18"/><rect x="147" y="0" width="20" height="18"/>
+                  <rect x="168" y="0" width="20" height="18"/><rect x="189" y="0" width="20" height="18"/><rect x="210" y="0" width="20" height="18"/><rect x="231" y="0" width="20" height="18"/>
+                  <rect x="252" y="0" width="20" height="18"/><rect x="273" y="0" width="20" height="18"/><rect x="294" y="0" width="20" height="18"/><rect x="315" y="0" width="20" height="18"/>
+                  <rect x="336" y="0" width="20" height="18"/><rect x="357" y="0" width="20" height="18"/><rect x="378" y="0" width="20" height="18"/><rect x="399" y="0" width="20" height="18"/>
+                  <rect x="420" y="0" width="20" height="18"/><rect x="441" y="0" width="20" height="18"/><rect x="462" y="0" width="20" height="18"/><rect x="483" y="0" width="20" height="18"/>
+                  <rect x="504" y="0" width="20" height="18"/><rect x="525" y="0" width="20" height="18"/><rect x="546" y="0" width="20" height="18"/><rect x="567" y="0" width="20" height="18"/>
+                  <rect x="588" y="0" width="20" height="18"/><rect x="609" y="0" width="20" height="18"/><rect x="630" y="0" width="20" height="18"/><rect x="651" y="0" width="20" height="18"/>
+                </g>
+              </g>
+            </g>
+
+            <!-- Row t=2 (a few uncertain) -->
+            <g transform="translate(40,36)">
+              <g fill="#202020">
+                <rect x="0" y="0" width="20" height="18"/><rect x="21" y="0" width="20" height="18"/><rect x="42" y="0" width="20" height="18"/><rect x="63" y="0" width="20" height="18"/>
+                <rect x="84" y="0" width="20" height="18"/><rect x="105" y="0" width="20" height="18"/><rect x="147" y="0" width="20" height="18"/>
+                <rect x="168" y="0" width="20" height="18"/><rect x="189" y="0" width="20" height="18"/><rect x="210" y="0" width="20" height="18"/><rect x="231" y="0" width="20" height="18"/>
+                <rect x="273" y="0" width="20" height="18"/><rect x="294" y="0" width="20" height="18"/><rect x="315" y="0" width="20" height="18"/>
+                <rect x="336" y="0" width="20" height="18"/><rect x="357" y="0" width="20" height="18"/><rect x="399" y="0" width="20" height="18"/>
+                <rect x="420" y="0" width="20" height="18"/><rect x="441" y="0" width="20" height="18"/><rect x="462" y="0" width="20" height="18"/><rect x="483" y="0" width="20" height="18"/>
+                <rect x="504" y="0" width="20" height="18"/><rect x="525" y="0" width="20" height="18"/><rect x="567" y="0" width="20" height="18"/>
+                <rect x="588" y="0" width="20" height="18"/><rect x="609" y="0" width="20" height="18"/><rect x="630" y="0" width="20" height="18"/><rect x="651" y="0" width="20" height="18"/>
+              </g>
+              <g fill="#FDEFE6" stroke="#C54600" stroke-width="0.6">
+                <rect x="126" y="0" width="20" height="18"/>
+                <rect x="252" y="0" width="20" height="18"/>
+                <rect x="378" y="0" width="20" height="18"/>
+                <rect x="546" y="0" width="20" height="18"/>
+              </g>
+            </g>
+
+            <!-- Row t=3 -->
+            <g transform="translate(40,60)">
+              <g fill="#202020">
+                <rect x="0" y="0" width="20" height="18"/><rect x="21" y="0" width="20" height="18"/><rect x="42" y="0" width="20" height="18"/><rect x="84" y="0" width="20" height="18"/>
+                <rect x="105" y="0" width="20" height="18"/><rect x="168" y="0" width="20" height="18"/><rect x="189" y="0" width="20" height="18"/>
+                <rect x="210" y="0" width="20" height="18"/><rect x="231" y="0" width="20" height="18"/><rect x="273" y="0" width="20" height="18"/>
+                <rect x="315" y="0" width="20" height="18"/><rect x="336" y="0" width="20" height="18"/><rect x="357" y="0" width="20" height="18"/>
+                <rect x="420" y="0" width="20" height="18"/><rect x="441" y="0" width="20" height="18"/><rect x="462" y="0" width="20" height="18"/><rect x="483" y="0" width="20" height="18"/>
+                <rect x="504" y="0" width="20" height="18"/><rect x="525" y="0" width="20" height="18"/><rect x="588" y="0" width="20" height="18"/>
+                <rect x="609" y="0" width="20" height="18"/><rect x="630" y="0" width="20" height="18"/><rect x="651" y="0" width="20" height="18"/>
+              </g>
+              <g fill="#FDEFE6" stroke="#C54600" stroke-width="0.6">
+                <rect x="63" y="0" width="20" height="18"/>
+                <rect x="294" y="0" width="20" height="18"/>
+                <rect x="567" y="0" width="20" height="18"/>
+              </g>
+              <g fill="#E8F4D6" stroke="#76B900" stroke-width="0.6">
+                <rect x="126" y="0" width="20" height="18"/>
+                <rect x="147" y="0" width="20" height="18"/>
+                <rect x="252" y="0" width="20" height="18"/>
+                <rect x="378" y="0" width="20" height="18"/>
+                <rect x="399" y="0" width="20" height="18"/>
+                <rect x="546" y="0" width="20" height="18"/>
+              </g>
+            </g>
+
+            <!-- Row t=4 -->
+            <g transform="translate(40,84)">
+              <g fill="#202020">
+                <rect x="0" y="0" width="20" height="18"/><rect x="42" y="0" width="20" height="18"/><rect x="84" y="0" width="20" height="18"/>
+                <rect x="168" y="0" width="20" height="18"/><rect x="189" y="0" width="20" height="18"/><rect x="231" y="0" width="20" height="18"/>
+                <rect x="273" y="0" width="20" height="18"/><rect x="336" y="0" width="20" height="18"/><rect x="357" y="0" width="20" height="18"/>
+                <rect x="420" y="0" width="20" height="18"/><rect x="441" y="0" width="20" height="18"/><rect x="462" y="0" width="20" height="18"/>
+                <rect x="504" y="0" width="20" height="18"/><rect x="588" y="0" width="20" height="18"/>
+                <rect x="630" y="0" width="20" height="18"/><rect x="651" y="0" width="20" height="18"/>
+              </g>
+              <g fill="#FDEFE6" stroke="#C54600" stroke-width="0.6">
+                <rect x="21" y="0" width="20" height="18"/>
+                <rect x="105" y="0" width="20" height="18"/>
+                <rect x="210" y="0" width="20" height="18"/>
+                <rect x="315" y="0" width="20" height="18"/>
+                <rect x="483" y="0" width="20" height="18"/>
+                <rect x="609" y="0" width="20" height="18"/>
+              </g>
+              <g fill="#E8F4D6" stroke="#76B900" stroke-width="0.6">
+                <rect x="63" y="0" width="20" height="18"/>
+                <rect x="126" y="0" width="20" height="18"/>
+                <rect x="147" y="0" width="20" height="18"/>
+                <rect x="252" y="0" width="20" height="18"/>
+                <rect x="294" y="0" width="20" height="18"/>
+                <rect x="378" y="0" width="20" height="18"/>
+                <rect x="399" y="0" width="20" height="18"/>
+                <rect x="525" y="0" width="20" height="18"/>
+                <rect x="546" y="0" width="20" height="18"/>
+                <rect x="567" y="0" width="20" height="18"/>
+              </g>
+            </g>
+
+            <!-- Row t=5 -->
+            <g transform="translate(40,108)">
+              <g fill="#202020">
+                <rect x="42" y="0" width="20" height="18"/><rect x="84" y="0" width="20" height="18"/>
+                <rect x="189" y="0" width="20" height="18"/><rect x="231" y="0" width="20" height="18"/>
+                <rect x="357" y="0" width="20" height="18"/><rect x="441" y="0" width="20" height="18"/><rect x="462" y="0" width="20" height="18"/>
+                <rect x="504" y="0" width="20" height="18"/><rect x="588" y="0" width="20" height="18"/><rect x="651" y="0" width="20" height="18"/>
+              </g>
+              <g fill="#FDEFE6" stroke="#C54600" stroke-width="0.6">
+                <rect x="0" y="0" width="20" height="18"/>
+                <rect x="168" y="0" width="20" height="18"/>
+                <rect x="336" y="0" width="20" height="18"/>
+                <rect x="420" y="0" width="20" height="18"/>
+                <rect x="630" y="0" width="20" height="18"/>
+              </g>
+              <g fill="#E8F4D6" stroke="#76B900" stroke-width="0.6">
+                <rect x="21" y="0" width="20" height="18"/>
+                <rect x="63" y="0" width="20" height="18"/>
+                <rect x="105" y="0" width="20" height="18"/>
+                <rect x="126" y="0" width="20" height="18"/>
+                <rect x="147" y="0" width="20" height="18"/>
+                <rect x="210" y="0" width="20" height="18"/>
+                <rect x="252" y="0" width="20" height="18"/>
+                <rect x="273" y="0" width="20" height="18"/>
+                <rect x="294" y="0" width="20" height="18"/>
+                <rect x="315" y="0" width="20" height="18"/>
+                <rect x="378" y="0" width="20" height="18"/>
+                <rect x="399" y="0" width="20" height="18"/>
+                <rect x="483" y="0" width="20" height="18"/>
+                <rect x="525" y="0" width="20" height="18"/>
+                <rect x="546" y="0" width="20" height="18"/>
+                <rect x="567" y="0" width="20" height="18"/>
+                <rect x="609" y="0" width="20" height="18"/>
+              </g>
+            </g>
+
+            <!-- Row t=8 (mostly fresh) -->
+            <g transform="translate(40,132)">
+              <g fill="#202020">
+                <rect x="84" y="0" width="20" height="18"/>
+                <rect x="231" y="0" width="20" height="18"/>
+                <rect x="441" y="0" width="20" height="18"/>
+                <rect x="651" y="0" width="20" height="18"/>
+              </g>
+              <g fill="#FDEFE6" stroke="#C54600" stroke-width="0.6">
+                <rect x="189" y="0" width="20" height="18"/>
+                <rect x="357" y="0" width="20" height="18"/>
+                <rect x="588" y="0" width="20" height="18"/>
+              </g>
+              <g fill="#E8F4D6" stroke="#76B900" stroke-width="0.6">
+                <rect x="0" y="0" width="20" height="18"/><rect x="21" y="0" width="20" height="18"/><rect x="42" y="0" width="20" height="18"/><rect x="63" y="0" width="20" height="18"/>
+                <rect x="105" y="0" width="20" height="18"/><rect x="126" y="0" width="20" height="18"/><rect x="147" y="0" width="20" height="18"/>
+                <rect x="168" y="0" width="20" height="18"/><rect x="210" y="0" width="20" height="18"/>
+                <rect x="252" y="0" width="20" height="18"/><rect x="273" y="0" width="20" height="18"/><rect x="294" y="0" width="20" height="18"/>
+                <rect x="315" y="0" width="20" height="18"/><rect x="336" y="0" width="20" height="18"/>
+                <rect x="378" y="0" width="20" height="18"/><rect x="399" y="0" width="20" height="18"/><rect x="420" y="0" width="20" height="18"/>
+                <rect x="462" y="0" width="20" height="18"/><rect x="483" y="0" width="20" height="18"/>
+                <rect x="504" y="0" width="20" height="18"/><rect x="525" y="0" width="20" height="18"/><rect x="546" y="0" width="20" height="18"/>
+                <rect x="567" y="0" width="20" height="18"/><rect x="609" y="0" width="20" height="18"/><rect x="630" y="0" width="20" height="18"/>
+              </g>
+            </g>
+
+            <!-- Row t=12 -->
+            <g transform="translate(40,156)">
+              <g fill="#FDEFE6" stroke="#C54600" stroke-width="0.6">
+                <rect x="84" y="0" width="20" height="18"/>
+                <rect x="357" y="0" width="20" height="18"/>
+                <rect x="651" y="0" width="20" height="18"/>
+              </g>
+              <g fill="#E8F4D6" stroke="#76B900" stroke-width="0.6">
+                <rect x="0" y="0" width="20" height="18"/><rect x="21" y="0" width="20" height="18"/><rect x="42" y="0" width="20" height="18"/><rect x="63" y="0" width="20" height="18"/>
+                <rect x="105" y="0" width="20" height="18"/><rect x="126" y="0" width="20" height="18"/><rect x="147" y="0" width="20" height="18"/>
+                <rect x="168" y="0" width="20" height="18"/><rect x="189" y="0" width="20" height="18"/><rect x="210" y="0" width="20" height="18"/><rect x="231" y="0" width="20" height="18"/>
+                <rect x="252" y="0" width="20" height="18"/><rect x="273" y="0" width="20" height="18"/><rect x="294" y="0" width="20" height="18"/>
+                <rect x="315" y="0" width="20" height="18"/><rect x="336" y="0" width="20" height="18"/>
+                <rect x="378" y="0" width="20" height="18"/><rect x="399" y="0" width="20" height="18"/><rect x="420" y="0" width="20" height="18"/>
+                <rect x="441" y="0" width="20" height="18"/><rect x="462" y="0" width="20" height="18"/><rect x="483" y="0" width="20" height="18"/>
+                <rect x="504" y="0" width="20" height="18"/><rect x="525" y="0" width="20" height="18"/><rect x="546" y="0" width="20" height="18"/>
+                <rect x="567" y="0" width="20" height="18"/><rect x="588" y="0" width="20" height="18"/><rect x="609" y="0" width="20" height="18"/><rect x="630" y="0" width="20" height="18"/>
+              </g>
+            </g>
+
+            <!-- Row t=16 -->
+            <g transform="translate(40,180)">
+              <g fill="#FDEFE6" stroke="#C54600" stroke-width="0.6">
+                <rect x="357" y="0" width="20" height="18"/>
+              </g>
+              <g fill="#E8F4D6" stroke="#76B900" stroke-width="0.6">
+                <rect x="0" y="0" width="20" height="18"/><rect x="21" y="0" width="20" height="18"/><rect x="42" y="0" width="20" height="18"/><rect x="63" y="0" width="20" height="18"/>
+                <rect x="84" y="0" width="20" height="18"/><rect x="105" y="0" width="20" height="18"/><rect x="126" y="0" width="20" height="18"/><rect x="147" y="0" width="20" height="18"/>
+                <rect x="168" y="0" width="20" height="18"/><rect x="189" y="0" width="20" height="18"/><rect x="210" y="0" width="20" height="18"/><rect x="231" y="0" width="20" height="18"/>
+                <rect x="252" y="0" width="20" height="18"/><rect x="273" y="0" width="20" height="18"/><rect x="294" y="0" width="20" height="18"/>
+                <rect x="315" y="0" width="20" height="18"/><rect x="336" y="0" width="20" height="18"/>
+                <rect x="378" y="0" width="20" height="18"/><rect x="399" y="0" width="20" height="18"/><rect x="420" y="0" width="20" height="18"/>
+                <rect x="441" y="0" width="20" height="18"/><rect x="462" y="0" width="20" height="18"/><rect x="483" y="0" width="20" height="18"/>
+                <rect x="504" y="0" width="20" height="18"/><rect x="525" y="0" width="20" height="18"/><rect x="546" y="0" width="20" height="18"/>
+                <rect x="567" y="0" width="20" height="18"/><rect x="588" y="0" width="20" height="18"/><rect x="609" y="0" width="20" height="18"/><rect x="630" y="0" width="20" height="18"/>
+                <rect x="651" y="0" width="20" height="18"/>
+              </g>
+            </g>
+
+            <!-- Rows t=22, 28, 31, 32: all fresh -->
+            <g transform="translate(40,204)">
+              <g fill="#E8F4D6" stroke="#76B900" stroke-width="0.6">
+                <rect x="0" y="0" width="20" height="18"/><rect x="21" y="0" width="20" height="18"/><rect x="42" y="0" width="20" height="18"/><rect x="63" y="0" width="20" height="18"/>
+                <rect x="84" y="0" width="20" height="18"/><rect x="105" y="0" width="20" height="18"/><rect x="126" y="0" width="20" height="18"/><rect x="147" y="0" width="20" height="18"/>
+                <rect x="168" y="0" width="20" height="18"/><rect x="189" y="0" width="20" height="18"/><rect x="210" y="0" width="20" height="18"/><rect x="231" y="0" width="20" height="18"/>
+                <rect x="252" y="0" width="20" height="18"/><rect x="273" y="0" width="20" height="18"/><rect x="294" y="0" width="20" height="18"/>
+                <rect x="315" y="0" width="20" height="18"/><rect x="336" y="0" width="20" height="18"/><rect x="357" y="0" width="20" height="18"/>
+                <rect x="378" y="0" width="20" height="18"/><rect x="399" y="0" width="20" height="18"/><rect x="420" y="0" width="20" height="18"/>
+                <rect x="441" y="0" width="20" height="18"/><rect x="462" y="0" width="20" height="18"/><rect x="483" y="0" width="20" height="18"/>
+                <rect x="504" y="0" width="20" height="18"/><rect x="525" y="0" width="20" height="18"/><rect x="546" y="0" width="20" height="18"/>
+                <rect x="567" y="0" width="20" height="18"/><rect x="588" y="0" width="20" height="18"/><rect x="609" y="0" width="20" height="18"/><rect x="630" y="0" width="20" height="18"/>
+                <rect x="651" y="0" width="20" height="18"/>
+              </g>
+            </g>
+            <g transform="translate(40,228)">
+              <g fill="#76B900" opacity="0.5" stroke="#76B900" stroke-width="0.6">
+                <rect x="0" y="0" width="20" height="18"/><rect x="21" y="0" width="20" height="18"/><rect x="42" y="0" width="20" height="18"/><rect x="63" y="0" width="20" height="18"/>
+                <rect x="84" y="0" width="20" height="18"/><rect x="105" y="0" width="20" height="18"/><rect x="126" y="0" width="20" height="18"/><rect x="147" y="0" width="20" height="18"/>
+                <rect x="168" y="0" width="20" height="18"/><rect x="189" y="0" width="20" height="18"/><rect x="210" y="0" width="20" height="18"/><rect x="231" y="0" width="20" height="18"/>
+                <rect x="252" y="0" width="20" height="18"/><rect x="273" y="0" width="20" height="18"/><rect x="294" y="0" width="20" height="18"/>
+                <rect x="315" y="0" width="20" height="18"/><rect x="336" y="0" width="20" height="18"/><rect x="357" y="0" width="20" height="18"/>
+                <rect x="378" y="0" width="20" height="18"/><rect x="399" y="0" width="20" height="18"/><rect x="420" y="0" width="20" height="18"/>
+                <rect x="441" y="0" width="20" height="18"/><rect x="462" y="0" width="20" height="18"/><rect x="483" y="0" width="20" height="18"/>
+                <rect x="504" y="0" width="20" height="18"/><rect x="525" y="0" width="20" height="18"/><rect x="546" y="0" width="20" height="18"/>
+                <rect x="567" y="0" width="20" height="18"/><rect x="588" y="0" width="20" height="18"/><rect x="609" y="0" width="20" height="18"/><rect x="630" y="0" width="20" height="18"/>
+                <rect x="651" y="0" width="20" height="18"/>
+              </g>
+            </g>
+            <g transform="translate(40,252)">
+              <g fill="#76B900" opacity="0.65">
+                <rect x="0" y="0" width="20" height="18"/><rect x="21" y="0" width="20" height="18"/><rect x="42" y="0" width="20" height="18"/><rect x="63" y="0" width="20" height="18"/>
+                <rect x="84" y="0" width="20" height="18"/><rect x="105" y="0" width="20" height="18"/><rect x="126" y="0" width="20" height="18"/><rect x="147" y="0" width="20" height="18"/>
+                <rect x="168" y="0" width="20" height="18"/><rect x="189" y="0" width="20" height="18"/><rect x="210" y="0" width="20" height="18"/><rect x="231" y="0" width="20" height="18"/>
+                <rect x="252" y="0" width="20" height="18"/><rect x="273" y="0" width="20" height="18"/><rect x="294" y="0" width="20" height="18"/>
+                <rect x="315" y="0" width="20" height="18"/><rect x="336" y="0" width="20" height="18"/><rect x="357" y="0" width="20" height="18"/>
+                <rect x="378" y="0" width="20" height="18"/><rect x="399" y="0" width="20" height="18"/><rect x="420" y="0" width="20" height="18"/>
+                <rect x="441" y="0" width="20" height="18"/><rect x="462" y="0" width="20" height="18"/><rect x="483" y="0" width="20" height="18"/>
+                <rect x="504" y="0" width="20" height="18"/><rect x="525" y="0" width="20" height="18"/><rect x="546" y="0" width="20" height="18"/>
+                <rect x="567" y="0" width="20" height="18"/><rect x="588" y="0" width="20" height="18"/><rect x="609" y="0" width="20" height="18"/><rect x="630" y="0" width="20" height="18"/>
+                <rect x="651" y="0" width="20" height="18"/>
+              </g>
+            </g>
+            <g transform="translate(40,276)">
+              <g fill="#76B900">
+                <rect x="0" y="0" width="20" height="18"/><rect x="21" y="0" width="20" height="18"/><rect x="42" y="0" width="20" height="18"/><rect x="63" y="0" width="20" height="18"/>
+                <rect x="84" y="0" width="20" height="18"/><rect x="105" y="0" width="20" height="18"/><rect x="126" y="0" width="20" height="18"/><rect x="147" y="0" width="20" height="18"/>
+                <rect x="168" y="0" width="20" height="18"/><rect x="189" y="0" width="20" height="18"/><rect x="210" y="0" width="20" height="18"/><rect x="231" y="0" width="20" height="18"/>
+                <rect x="252" y="0" width="20" height="18"/><rect x="273" y="0" width="20" height="18"/><rect x="294" y="0" width="20" height="18"/>
+                <rect x="315" y="0" width="20" height="18"/><rect x="336" y="0" width="20" height="18"/><rect x="357" y="0" width="20" height="18"/>
+                <rect x="378" y="0" width="20" height="18"/><rect x="399" y="0" width="20" height="18"/><rect x="420" y="0" width="20" height="18"/>
+                <rect x="441" y="0" width="20" height="18"/><rect x="462" y="0" width="20" height="18"/><rect x="483" y="0" width="20" height="18"/>
+                <rect x="504" y="0" width="20" height="18"/><rect x="525" y="0" width="20" height="18"/><rect x="546" y="0" width="20" height="18"/>
+                <rect x="567" y="0" width="20" height="18"/><rect x="588" y="0" width="20" height="18"/><rect x="609" y="0" width="20" height="18"/><rect x="630" y="0" width="20" height="18"/>
+                <rect x="651" y="0" width="20" height="18"/>
+              </g>
+            </g>
+          </svg>
+
+          <div class="legend">
+            <span><span class="sw" style="background:#202020;border-color:#202020"></span>Masked</span>
+            <span><span class="sw" style="background:#FDEFE6;border-color:#C54600"></span>Low-confidence (will remask)</span>
+            <span><span class="sw" style="background:#E8F4D6;border-color:#76B900"></span>Committed</span>
+            <span><span class="sw" style="background:#76B900;border-color:#76B900"></span>Final block</span>
+          </div>
+
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--kui-border-subtle);font-size:12px;color:var(--kui-fg-muted);line-height:1.5">
+            <strong style="color:var(--kui-fg-strong)">Speed ↔ quality tradeoff.</strong>
+            Both <code>steps</code> and <code>block_length</code> set at 32 mean roughly one denoising pass per output token <em>on average</em>, but every step still updates the whole block in parallel — that's where the latency advantage over AR decoding comes from. Lowering <code>steps</code> shortens latency at the cost of more residual <code>[MASK]</code> / lower-confidence tokens; raising it converges further.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== §06 BENCHMARKS =================== -->
+  <section class="section">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§ 06</span>
+        <h2>Benchmarks</h2>
+      </div>
+      <div class="lede">All values copied from the model card. Treat as source-reported; no normalization. Green highlight marks where LLaDA2.0-flash leads the comparison set.</div>
+    </div>
+
+    <div class="card bench">
+      <div class="row head">
+        <div class="model">Benchmark</div>
+        <div class="v">Qwen3-30B-A3B-Inst</div>
+        <div class="v">Ling-flash-2.0</div>
+        <div class="v">LLaDA2.0-flash-prev</div>
+        <div class="v">LLaDA2.0-flash</div>
+      </div>
+
+      <!-- Average -->
+      <div class="row avg">
+        <div class="bench-name">Average (all reported)</div>
+        <div class="v">79.47</div>
+        <div class="v">78.03</div>
+        <div class="v">71.92</div>
+        <div class="v target">79.32</div>
+      </div>
+
+      <div class="row subhead"><div>Knowledge</div><div></div><div></div><div></div><div></div></div>
+      <div class="row">
+        <div class="bench-name">MMLU</div>
+        <div class="v">87.13</div><div class="v">87.98</div><div class="v">83.15</div><div class="v target">87.69</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">MMLU-Pro</div>
+        <div class="v">74.23</div><div class="v">76.84</div><div class="v">49.22</div><div class="v target">73.36</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">GPQA</div>
+        <div class="v">57.34</div><div class="v">67.12</div><div class="v">46.59</div><div class="v target">61.98</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">ARC-C</div>
+        <div class="v">95.81</div><div class="v">95.08</div><div class="v">93.90</div><div class="v win">95.93</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">CMMLU</div>
+        <div class="v">86.36</div><div class="v">86.59</div><div class="v">67.53</div><div class="v target">85.13</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">C-EVAL</div>
+        <div class="v">88.17</div><div class="v">88.03</div><div class="v">66.54</div><div class="v target">86.75</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">GAOKAO-Bench</div>
+        <div class="v">94.53</div><div class="v">93.24</div><div class="v">86.12</div><div class="v target">93.90</div>
+      </div>
+
+      <div class="row subhead"><div>Reasoning</div><div></div><div></div><div></div><div></div></div>
+      <div class="row">
+        <div class="bench-name">SQuAD 2.0</div>
+        <div class="v">89.51</div><div class="v">81.32</div><div class="v">85.61</div><div class="v win">90.00</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">DROP</div>
+        <div class="v">87.57</div><div class="v">88.32</div><div class="v">79.49</div><div class="v target">87.90</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">KOR-Bench</div>
+        <div class="v">68.00</div><div class="v">68.96</div><div class="v">37.26</div><div class="v target">64.24</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">HellaSwag</div>
+        <div class="v">86.31</div><div class="v">81.59</div><div class="v">86.00</div><div class="v target">84.97</div>
+      </div>
+
+      <div class="row subhead"><div>Coding</div><div></div><div></div><div></div><div></div></div>
+      <div class="row">
+        <div class="bench-name">CRUXEval-O</div>
+        <div class="v">86.75</div><div class="v">82.75</div><div class="v">61.88</div><div class="v target">85.12</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">MBPP</div>
+        <div class="v">86.65</div><div class="v">85.01</div><div class="v">77.75</div><div class="v win">88.29</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">MultiPL-E</div>
+        <div class="v">70.67</div><div class="v">65.76</div><div class="v">62.43</div><div class="v win">74.87</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">HumanEval</div>
+        <div class="v">93.29</div><div class="v">85.98</div><div class="v">80.49</div><div class="v win">94.51</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">BigCodeBench-Full</div>
+        <div class="v">41.49</div><div class="v">40.70</div><div class="v">30.44</div><div class="v win">41.58</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">LiveCodeBench</div>
+        <div class="v">41.63</div><div class="v">44.11</div><div class="v">28.58</div><div class="v target">42.29</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">Spider</div>
+        <div class="v">81.79</div><div class="v">80.58</div><div class="v">81.37</div><div class="v win">82.49</div>
+      </div>
+
+      <div class="row subhead"><div>Math</div><div></div><div></div><div></div><div></div></div>
+      <div class="row">
+        <div class="bench-name">GSM8K</div>
+        <div class="v">96.36</div><div class="v">95.45</div><div class="v">89.01</div><div class="v target">96.06</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">MATH</div>
+        <div class="v">96.70</div><div class="v">96.10</div><div class="v">73.50</div><div class="v target">95.44</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">OlympiadBench</div>
+        <div class="v">77.59</div><div class="v">76.19</div><div class="v">47.78</div><div class="v target">74.07</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">AIME 2025</div>
+        <div class="v">61.88</div><div class="v">55.89</div><div class="v">23.33</div><div class="v target">60.00</div>
+      </div>
+
+      <div class="row subhead"><div>Agent &amp; Alignment</div><div></div><div></div><div></div><div></div></div>
+      <div class="row">
+        <div class="bench-name">BFCL-Live</div>
+        <div class="v">73.19</div><div class="v">67.57</div><div class="v">74.11</div><div class="v win">75.43</div>
+      </div>
+      <div class="row">
+        <div class="bench-name">IFEval (strict-prompt)</div>
+        <div class="v">84.29</div><div class="v">81.52</div><div class="v">62.50</div><div class="v target">81.70</div>
+      </div>
+
+      <div class="bench-footer">
+        <div class="note">
+          Reproduced verbatim from the model card. Comparison set chosen by the authors. Green bars mark cells where LLaDA2.0-flash is highest among the four columns shown.
+        </div>
+        <div style="display:flex;gap:8px"><span class="chip">source-reported</span><span class="chip green">column leader</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== §07 CAVEATS =================== -->
+  <section class="section">
+    <div class="section-head">
+      <div class="label">
+        <span class="num">§ 07</span>
+        <h2>Caveats &amp; unknowns</h2>
+      </div>
+      <div class="lede">Facts the listed sources (arXiv 2512.15745 abstract + model card) do not state. Listed here verbatim instead of being guessed.</div>
+    </div>
+
+    <div class="caveats">
+      <div class="head">
+        <div class="icon">!</div>
+        <h3>Not specified in the listed sources</h3>
+        <div class="sub">Confirm against the v2 PDF or the released config.json before citing.</div>
+      </div>
+      <ul>
+        <li><span class="k">MoE topology</span><span class="v">Total expert count, top-k, shared-expert ratio, and load-balancing scheme.</span></li>
+        <li><span class="k">Hidden dim / FFN</span><span class="v">Per-layer hidden size and per-expert FFN dimension are not stated on the model card.</span></li>
+        <li><span class="k">Attention variant</span><span class="v">Whether attention is MHA, GQA, MLA, or something else — only head count (32) is given.</span></li>
+        <li><span class="k">Tokenizer</span><span class="v">Tokenizer family (and BPE / SentencePiece details) inherited from the AR base is not named in these sources.</span></li>
+        <li><span class="k">Remasking rule</span><span class="v">The exact confidence threshold / scoring function used to demote tokens back to <code>[MASK]</code> across denoising rounds.</span></li>
+        <li><span class="k">Schedule values</span><span class="v">Phase boundaries, peak block size, learning-rate decay shape, and token budget per phase of the WSD curve.</span></li>
+        <li><span class="k">AR base identity</span><span class="v">The exact Ling2.0 checkpoint the flash variant is converted from is not pinned in the abstract or model card.</span></li>
+        <li><span class="k">SFT &amp; DPO data</span><span class="v">Datasets, mix ratios, and preference-pair sources for the alignment stages.</span></li>
+        <li><span class="k">Deployment</span><span class="v">Throughput, KV / cache layout, recommended GPU configurations, and quantization recipes are out of scope for the listed sources.</span></li>
+        <li><span class="k">AR-compatible mode</span><span class="v">Whether the released checkpoint can also be sampled left-to-right as an AR model is not asserted in the listed sources.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- =================== FOOTER =================== -->
+  <footer class="footer">
+    <div>
+      <div style="font-weight:500;color:var(--kui-fg-strong);margin-bottom:4px">LLaDA2.0-flash · architecture briefing</div>
+      <div>Open-source: Apache 2.0 · License at inclusionAI/LLaDA2.0-flash · Style: NVIDIA Kaizen v11</div>
+    </div>
+    <div class="sources">
+      <a href="https://arxiv.org/abs/2512.15745">arXiv:2512.15745</a>
+      <a href="https://huggingface.co/inclusionAI/LLaDA2.0-flash">HF model card</a>
+      <a href="https://github.com/inclusionAI/dFactory">dFactory (post-training)</a>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

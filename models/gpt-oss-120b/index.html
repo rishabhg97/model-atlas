@@ -1,0 +1,1189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GPT-OSS 120B — Architecture</title>
+<link rel="stylesheet" href="kaizen/colors_and_type.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--kui-bg-canvas); color: var(--kui-fg-strong); font: var(--kui-body); }
+  body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  a { color: inherit; text-decoration: none; }
+
+  /* ── per-page tokens ── */
+  :root {
+    --c-sw:      #0D69D4;   /* sliding window attention */
+    --c-sw-bg:   #E9F4FB;
+    --c-full:    #C54600;   /* full attention */
+    --c-full-bg: #FDEFE6;
+    --c-moe:     #76B900;   /* NVIDIA green — MoE */
+    --c-moe-bg:  #E8F4D6;
+    --c-rt:      #1FA18D;   /* router teal */
+    --c-rt-bg:   #E2F2EE;
+    --c-mxfp4:   #851F41;   /* quant magenta */
+    --c-bf16:    #5E5E5E;
+    --c-embed:   #5E5E5E;
+    --c-embed-bg:#F2F2F2;
+  }
+
+  /* ── top bar ── */
+  .top-bar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 32px; background: #000; color: #fff;
+    border-bottom: 4px solid var(--kui-brand-green);
+    position: sticky; top: 0; z-index: 30;
+  }
+  .top-bar .wordmark { height: 22px; }
+  .top-bar .divider { width: 1px; height: 18px; background: rgba(255,255,255,0.25); }
+  .top-bar .home-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border: 1px solid rgba(255,255,255,0.25);
+    font: var(--kui-text-sm); color: rgba(255,255,255,0.85);
+    transition: border-color 120ms ease-out, background 120ms ease-out;
+  }
+  .top-bar .home-link:hover { border-color: var(--kui-brand-green); background: rgba(118,185,0,0.1); color: #fff; text-decoration: none; }
+  .top-bar .home-link::before { content: "←"; }
+  .top-bar h1 { font: 500 16px/1 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0; }
+  .top-bar h1 .tag { font: 500 10px/1 var(--kui-font-mono); padding: 3px 6px; background: var(--kui-brand-green); color: #000; margin-left: 8px; letter-spacing: 0; }
+  .top-bar .meta { margin-left: auto; display: flex; gap: 24px; font: var(--kui-text-sm); color: rgba(255,255,255,0.7); }
+  .top-bar .meta b { color: #fff; font-weight: 500; }
+
+  /* ── shell: rail + main ── */
+  .shell { display: grid; grid-template-columns: 232px 1fr; min-height: calc(100vh - 55px); }
+  @media (max-width: 980px) { .shell { grid-template-columns: 1fr; } .rail { display: none; } }
+
+  .rail {
+    position: sticky; top: 55px; align-self: start; height: calc(100vh - 55px);
+    border-right: 1px solid var(--kui-border-default); background: #fff;
+    padding: 32px 0 24px; overflow-y: auto;
+  }
+  .rail .lbl { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); padding: 0 24px 12px; }
+  .rail a {
+    display: grid; grid-template-columns: 28px 1fr; align-items: baseline; gap: 4px;
+    padding: 8px 24px; font: var(--kui-body);
+    color: var(--kui-fg-default);
+    border-left: 2px solid transparent;
+    transition: background 120ms ease-out, border-color 120ms ease-out;
+  }
+  .rail a .ix { font: 500 11px/1 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .rail a:hover { background: var(--kui-bg-canvas); }
+  .rail a.active { background: var(--kui-bg-canvas); border-left-color: var(--kui-brand-green); color: var(--kui-fg-strong); font-weight: 500; }
+
+  .main { padding: 0 0 96px; min-width: 0; }
+
+  /* ── section ── */
+  section { padding: 64px 56px; border-bottom: 1px solid var(--kui-border-default); max-width: 1280px; }
+  section:last-of-type { border-bottom: 0; }
+  .sec-head { display: grid; grid-template-columns: 180px 1fr; gap: 32px; margin-bottom: 32px; align-items: baseline; }
+  .sec-head .num { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); padding-top: 6px; }
+  .sec-head h3 { font: 500 28px/1.2 var(--kui-font-sans); letter-spacing: -0.5px; margin: 0 0 8px; }
+  .sec-head p { font: var(--kui-body-md); color: var(--kui-fg-default); max-width: 70ch; margin: 0; }
+
+  /* ── hero ── */
+  .hero {
+    padding: 56px 56px 40px;
+    display: grid; grid-template-columns: 1.3fr 1fr; gap: 48px; align-items: end;
+    border-bottom: 1px solid var(--kui-border-default);
+    max-width: 1280px;
+  }
+  .hero .eyebrow { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 16px; display: inline-flex; gap: 10px; align-items: center; }
+  .hero .eyebrow .chip { background: var(--kui-brand-green); color: #000; padding: 3px 8px; font: 500 10px/1 var(--kui-font-mono); }
+  .hero h2 { font: 500 48px/1.05 var(--kui-font-sans); letter-spacing: -0.75px; margin: 0 0 16px; }
+  .hero h2 .accent { color: var(--kui-brand-green); }
+  .hero p { font: var(--kui-body-md); color: var(--kui-fg-default); max-width: 56ch; margin: 0 0 12px; }
+  .hero .src { font: var(--kui-caption); color: var(--kui-fg-muted); margin-top: 16px; font-family: var(--kui-font-mono); }
+  .hero .src a { color: var(--kui-info); text-decoration: underline; text-underline-offset: 2px; }
+
+  .hero-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); }
+  .hero-stats .stat { background: #fff; padding: 18px 22px; }
+  .hero-stats .label { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 6px; }
+  .hero-stats .value { font: 500 28px/1 var(--kui-font-sans); letter-spacing: -0.5px; }
+  .hero-stats .value small { font: 400 13px/1 var(--kui-font-sans); color: var(--kui-fg-muted); margin-left: 6px; }
+  .hero-stats .sub { font: var(--kui-caption); color: var(--kui-fg-muted); margin-top: 4px; font-family: var(--kui-font-mono); }
+
+  /* ── forward pass ── */
+  .pass {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 0;
+    border: 1px solid var(--kui-border-default); background: #fff;
+  }
+  .pass .step {
+    padding: 20px 18px; border-right: 1px solid var(--kui-border-default);
+    display: flex; flex-direction: column; gap: 6px; position: relative;
+  }
+  .pass .step:last-child { border-right: 0; }
+  .pass .step .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); }
+  .pass .step .t { font: 500 15px/1.25 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .pass .step .d { font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .pass .step.stack { background: #FAFAFA; }
+  .pass .step .badge { display: inline-block; align-self: flex-start; font: var(--kui-text-sm); padding: 2px 8px; background: var(--kui-bg-canvas); border: 1px solid var(--kui-border-default); margin-top: 4px; }
+  @media (max-width: 1100px) { .pass { grid-template-columns: repeat(4, 1fr); } .pass .step { border-bottom: 1px solid var(--kui-border-default); } }
+
+  /* ── ribbon: 36 layers ── */
+  .ribbon-wrap { border: 1px solid var(--kui-border-default); background: #fff; padding: 28px; margin-top: 8px; }
+  .ribbon-head { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; margin-bottom: 20px; flex-wrap: wrap; }
+  .ribbon-head h4 { font: 500 16px/1.2 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0; }
+  .ribbon-head .key { display: flex; gap: 18px; font: var(--kui-text-sm); color: var(--kui-fg-default); }
+  .ribbon-head .key span { display: inline-flex; align-items: center; gap: 6px; }
+  .ribbon-head .key i { width: 12px; height: 12px; display: inline-block; }
+
+  .ribbon { display: grid; grid-template-columns: repeat(36, 1fr); gap: 3px; height: 100px; align-items: stretch; }
+  .ribbon .cell { position: relative; display: flex; flex-direction: column; }
+  .ribbon .cell .att { flex: 0 0 32px; }
+  .ribbon .cell .moe { flex: 1; background: var(--c-moe); margin-top: 3px; }
+  .ribbon .cell .att.sw   { background: var(--c-sw); }
+  .ribbon .cell .att.full { background: var(--c-full); }
+  .ribbon .cell .ix { position: absolute; bottom: -18px; left: 0; right: 0; text-align: center; font: 400 9px/1 var(--kui-font-mono); color: var(--kui-fg-muted); }
+
+  .ribbon-axis {
+    margin-top: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    border-top: 1px solid var(--kui-border-default); padding-top: 18px;
+  }
+  .ribbon-axis .box { padding: 14px 16px; border: 1px solid var(--kui-border-default); }
+  .ribbon-axis .box .h { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 6px; }
+  .ribbon-axis .box.sw   { border-left: 3px solid var(--c-sw);   background: var(--c-sw-bg); }
+  .ribbon-axis .box.full { border-left: 3px solid var(--c-full); background: var(--c-full-bg); }
+  .ribbon-axis .box .v { font: 500 18px/1.1 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .ribbon-axis .box .l { font: var(--kui-caption); color: var(--kui-fg-default); margin-top: 4px; }
+
+  /* ── block schematic ── */
+  .block-row { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 32px; align-items: stretch; }
+  .block-card {
+    background: #fff; border: 1px solid var(--kui-border-default); padding: 28px;
+    display: flex; flex-direction: column;
+  }
+  .block-card h4 { font: 500 18px/1.2 var(--kui-font-sans); margin: 0 0 4px; letter-spacing: -0.25px; }
+  .block-card .sub { font: var(--kui-caption); color: var(--kui-fg-muted); margin-bottom: 20px; font-family: var(--kui-font-mono); }
+  .block-card .ops { display: flex; flex-direction: column; gap: 0; }
+  .block-card .op {
+    display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: center;
+    padding: 10px 0; border-top: 1px dashed var(--kui-border-default); font: var(--kui-body);
+  }
+  .block-card .op:first-child { border-top: 0; }
+  .block-card .op .marker { font: 500 10px/1 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .block-card .op .what { color: var(--kui-fg-strong); }
+  .block-card .op .what b { font-weight: 500; }
+  .block-card .op .what em { font-style: normal; color: var(--kui-fg-muted); font: 12px/1 var(--kui-font-mono); margin-left: 6px; }
+  .block-card .op .dim { font: 11px/1 var(--kui-font-mono); color: var(--kui-fg-muted); white-space: nowrap; }
+  .block-card .op.attn .marker { color: var(--c-sw); }
+  .block-card .op.moe  .marker { color: var(--c-moe); }
+  .block-card .op.norm .marker { color: var(--kui-fg-default); }
+  .block-card .op.res  .marker { color: var(--kui-accent-magenta); }
+
+  /* ── attention card ── */
+  .attn-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px;
+  }
+  .attn-card { padding: 20px; border: 1px solid var(--kui-border-default); background: #fff; }
+  .attn-card.sw   { border-left: 3px solid var(--c-sw);   }
+  .attn-card.full { border-left: 3px solid var(--c-full); }
+  .attn-card h5 { margin: 0 0 8px; font: 500 16px/1.2 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .attn-card .pill { display: inline-block; font: 500 10px/1 var(--kui-font-mono); padding: 3px 6px; margin-right: 6px; }
+  .attn-card.sw .pill   { background: var(--c-sw-bg); color: var(--c-sw); }
+  .attn-card.full .pill { background: var(--c-full-bg); color: var(--c-full); }
+  .attn-card p { margin: 8px 0 12px; font: var(--kui-body); color: var(--kui-fg-default); }
+  .attn-card dl { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0; font: var(--kui-body); }
+  .attn-card dt { color: var(--kui-fg-muted); }
+  .attn-card dd { margin: 0; font-family: var(--kui-font-mono); font-size: 12px; text-align: right; color: var(--kui-fg-strong); }
+
+  /* ── MoE ── */
+  .moe-wrap { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 32px; align-items: stretch; }
+  .moe-grid-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .moe-grid-card h4 { font: 500 18px/1.2 var(--kui-font-sans); margin: 0 0 4px; letter-spacing: -0.25px; }
+  .moe-grid-card .sub { font: var(--kui-caption); color: var(--kui-fg-muted); margin-bottom: 20px; font-family: var(--kui-font-mono); }
+  .moe-grid {
+    display: grid; grid-template-columns: repeat(16, 1fr); gap: 3px;
+  }
+  .moe-grid .e {
+    aspect-ratio: 1/1; background: var(--kui-n100); position: relative;
+  }
+  .moe-grid .e.active { background: var(--c-moe); }
+  .moe-grid .e.active::after {
+    content: attr(data-r); position: absolute; inset: 0; display: grid; place-items: center;
+    font: 500 9px/1 var(--kui-font-mono); color: #fff;
+  }
+  .moe-grid-card .legend { display: flex; gap: 16px; margin-top: 16px; font: var(--kui-text-sm); color: var(--kui-fg-default); }
+  .moe-grid-card .legend i { width: 14px; height: 10px; display: inline-block; vertical-align: middle; margin-right: 5px; }
+
+  .moe-numbers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); margin-top: 20px; }
+  .moe-numbers .n { background: #fff; padding: 14px 16px; }
+  .moe-numbers .n .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-muted); margin-bottom: 4px; }
+  .moe-numbers .n .v { font: 500 20px/1 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .moe-numbers .n .v small { font: 400 12px/1 var(--kui-font-sans); color: var(--kui-fg-muted); margin-left: 4px; }
+
+  .router-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .router-card h4 { font: 500 18px/1.2 var(--kui-font-sans); margin: 0 0 4px; letter-spacing: -0.25px; }
+  .router-card .sub { font: var(--kui-caption); color: var(--kui-fg-muted); margin-bottom: 20px; font-family: var(--kui-font-mono); }
+  .router-step {
+    display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 12px 0;
+    border-top: 1px dashed var(--kui-border-default);
+  }
+  .router-step:first-of-type { border-top: 0; }
+  .router-step .ix { font: 500 11px/1.5 var(--kui-font-mono); color: var(--c-rt); }
+  .router-step .h { font: 500 14px/1.3 var(--kui-font-sans); margin-bottom: 4px; }
+  .router-step .d { font: 12px/1.5 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .router-step code { font: 12px/1.4 var(--kui-font-mono); background: var(--kui-bg-canvas); padding: 1px 5px; border: 1px solid var(--kui-border-default); }
+
+  /* ── specs table ── */
+  .specs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); }
+  .specs .group {
+    background: #F8F8F8; padding: 18px 22px 14px; grid-column: 1 / -1;
+    border-top: 1px solid var(--kui-border-default);
+  }
+  .specs .group:first-child { border-top: 0; }
+  .specs .group h5 { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 1.5px; color: var(--kui-fg-default); margin: 0; }
+  .specs .cell { background: #fff; padding: 16px 22px; }
+  .specs .cell .k { font: var(--kui-text-sm); color: var(--kui-fg-muted); margin-bottom: 6px; }
+  .specs .cell .v { font: 500 18px/1.1 var(--kui-font-sans); letter-spacing: -0.25px; font-family: var(--kui-font-mono); }
+  .specs .cell .v.unk { color: var(--kui-fg-muted); font-style: italic; font-size: 14px; font-family: var(--kui-font-sans); font-weight: 400; }
+  .specs .cell .n { font: var(--kui-caption); color: var(--kui-fg-default); margin-top: 6px; }
+
+  /* ── rope card ── */
+  .rope-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .rope-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .rope-card h4 { font: 500 18px/1.2 var(--kui-font-sans); margin: 0 0 4px; letter-spacing: -0.25px; }
+  .rope-card .eq { font-family: var(--kui-font-mono); font-size: 12px; padding: 12px 14px; background: var(--kui-bg-canvas); border: 1px solid var(--kui-border-default); margin: 16px 0; line-height: 1.6; white-space: pre; overflow-x: auto; }
+  .rope-card .row { display: grid; grid-template-columns: 1fr auto; gap: 4px; padding: 6px 0; border-top: 1px dashed var(--kui-border-default); font: var(--kui-body); }
+  .rope-card .row:first-of-type { border-top: 0; }
+  .rope-card .row .k { color: var(--kui-fg-muted); }
+  .rope-card .row .v { font-family: var(--kui-font-mono); font-size: 12px; }
+
+  /* ── quant ── */
+  .quant {
+    background: #fff; border: 1px solid var(--kui-border-default); padding: 28px;
+  }
+  .quant h4 { font: 500 18px/1.2 var(--kui-font-sans); margin: 0 0 16px; letter-spacing: -0.25px; }
+  .quant-rows { display: grid; gap: 0; }
+  .quant-row {
+    display: grid; grid-template-columns: 180px 1fr 100px 110px; gap: 14px; align-items: center;
+    padding: 12px 0; border-top: 1px solid var(--kui-border-subtle);
+  }
+  .quant-row:first-of-type { border-top: 0; }
+  .quant-row .name { font: 500 14px/1.2 var(--kui-font-sans); }
+  .quant-row .name small { display: block; font: 11px/1.3 var(--kui-font-mono); color: var(--kui-fg-muted); font-weight: 400; margin-top: 2px; }
+  .quant-row .track { height: 10px; background: var(--kui-n100); position: relative; }
+  .quant-row .fill { height: 100%; }
+  .quant-row .fill.mxfp4 { background: var(--c-mxfp4); }
+  .quant-row .fill.bf16  { background: var(--c-bf16); }
+  .quant-row .size { font: 12px/1 var(--kui-font-mono); color: var(--kui-fg-default); text-align: right; }
+  .quant-row .pill { font: 500 10px/1 var(--kui-font-mono); padding: 4px 8px; text-align: center; }
+  .quant-row .pill.mxfp4 { background: rgba(133, 31, 65, 0.08); color: var(--c-mxfp4); border: 1px solid var(--c-mxfp4); }
+  .quant-row .pill.bf16  { background: var(--kui-bg-canvas); color: var(--c-bf16); border: 1px solid var(--kui-border-default); }
+
+  /* ── pipeline ── */
+  .pipeline-wrap { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .pipeline-wrap h4 { font: 500 18px/1.2 var(--kui-font-sans); margin: 0 0 20px; letter-spacing: -0.25px; }
+  .pipeline {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
+  }
+  .pipe-step {
+    border: 1px solid var(--kui-border-default); padding: 16px;
+    background: #fff; position: relative;
+  }
+  .pipe-step::after {
+    content: "→"; position: absolute; right: -10px; top: 50%; transform: translateY(-50%);
+    color: var(--kui-fg-muted); font-size: 16px; z-index: 2; background: var(--kui-bg-canvas); padding: 0 2px;
+  }
+  .pipe-step:last-child::after { display: none; }
+  .pipe-step .ix { font: 500 10px/1 var(--kui-font-mono); color: var(--c-moe); letter-spacing: 1px; }
+  .pipe-step h6 { font: 500 14px/1.3 var(--kui-font-sans); margin: 6px 0 6px; }
+  .pipe-step p { font: 12px/1.5 var(--kui-font-sans); color: var(--kui-fg-default); margin: 0; }
+  .pipe-step .note { font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 8px; }
+
+  /* ── reasoning ── */
+  .reasoning {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); margin-top: 24px;
+  }
+  .reasoning .r { background: #fff; padding: 24px; }
+  .reasoning .lvl { font: 500 11px/1 var(--kui-font-mono); padding: 3px 8px; background: var(--c-moe-bg); color: var(--kui-brand-green-darker); display: inline-block; }
+  .reasoning .r h5 { font: 500 18px/1.2 var(--kui-font-sans); margin: 10px 0 8px; letter-spacing: -0.25px; }
+  .reasoning .r p { font: var(--kui-body); color: var(--kui-fg-default); margin: 0; }
+  .reasoning .r .tail { font: 11px/1.5 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--kui-border-default); }
+
+  /* ── tokenizer ── */
+  .tk { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 24px; }
+  .tk-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .tk-card h4 { font: 500 18px/1.2 var(--kui-font-sans); margin: 0 0 4px; }
+  .tk-card .sub { font: var(--kui-caption); color: var(--kui-fg-muted); margin-bottom: 20px; font-family: var(--kui-font-mono); }
+  .tk-card .roles { display: grid; gap: 6px; }
+  .tk-card .role { display: grid; grid-template-columns: 140px 1fr; padding: 8px 0; border-top: 1px dashed var(--kui-border-default); font: var(--kui-body); }
+  .tk-card .role:first-of-type { border-top: 0; }
+  .tk-card .role b { font-family: var(--kui-font-mono); font-size: 12px; font-weight: 500; }
+  .tk-card .role span { color: var(--kui-fg-default); font-size: 13px; }
+
+  .tk-vis {
+    background: var(--kui-bg-canvas); border: 1px solid var(--kui-border-default); padding: 16px;
+    font: 12px/1.7 var(--kui-font-mono); white-space: pre; overflow-x: auto;
+  }
+  .tk-vis .sp { background: rgba(13, 105, 212, 0.12); color: var(--c-sw); padding: 1px 3px; border-radius: 2px; }
+  .tk-vis .role-tag { background: rgba(118, 185, 0, 0.18); color: var(--kui-brand-green-darker); padding: 1px 3px; border-radius: 2px; }
+  .tk-vis .ch { background: rgba(197, 70, 0, 0.12); color: var(--c-full); padding: 1px 3px; border-radius: 2px; }
+  .tk-vis .text { color: var(--kui-fg-strong); }
+
+  /* ── benchmarks ── */
+  .bench-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .bench-card h4 { font: 500 18px/1.2 var(--kui-font-sans); margin: 0 0 4px; letter-spacing: -0.25px; }
+  .bench-card .sub { font: var(--kui-caption); color: var(--kui-fg-muted); margin-bottom: 20px; font-family: var(--kui-font-mono); }
+  .bench-row {
+    display: grid; grid-template-columns: 180px 1fr 60px; gap: 16px; align-items: center;
+    padding: 10px 0; border-top: 1px dashed var(--kui-border-default);
+  }
+  .bench-row:first-of-type { border-top: 0; }
+  .bench-row .name { font: var(--kui-body); }
+  .bench-row .name small { display: block; font: 11px/1.3 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 2px; }
+  .bench-row .bar { height: 8px; background: var(--kui-n100); position: relative; }
+  .bench-row .bar > div { height: 100%; background: var(--kui-brand-green); }
+  .bench-row .v { font: 500 14px/1 var(--kui-font-mono); text-align: right; }
+
+  /* ── caveats ── */
+  .caveats {
+    background: #fff; border: 1px solid var(--kui-border-default);
+    border-left: 4px solid var(--kui-warning);
+    padding: 28px; margin-top: 8px;
+  }
+  .caveats h4 { font: 500 18px/1.2 var(--kui-font-sans); margin: 0 0 6px; letter-spacing: -0.25px; }
+  .caveats p { font: var(--kui-body); color: var(--kui-fg-default); margin: 0 0 18px; max-width: 70ch; }
+  .caveats ul { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+  .caveats li {
+    padding: 10px 0; border-top: 1px dashed var(--kui-border-default);
+    display: grid; grid-template-columns: 160px 1fr; gap: 12px; font: var(--kui-body);
+  }
+  .caveats li b { color: var(--kui-fg-muted); font-weight: 400; font-family: var(--kui-font-mono); font-size: 12px; }
+  .caveats li span { color: var(--kui-fg-default); }
+
+  /* ── footer ── */
+  footer { padding: 24px 56px 40px; background: #fff; border-top: 1px solid var(--kui-border-default); }
+  footer .row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; font: var(--kui-caption); color: var(--kui-fg-muted); }
+  footer a { color: var(--kui-info); text-decoration: underline; text-underline-offset: 2px; }
+  footer .sources { display: flex; flex-direction: column; gap: 4px; font-family: var(--kui-font-mono); font-size: 11px; }
+
+  /* ── SVG resets ── */
+  svg text { font-family: var(--kui-font-sans); }
+  svg .mono { font-family: var(--kui-font-mono); }
+
+  /* GQA diagram styles */
+  .gqa-wrap { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; margin-top: 8px; }
+  .gqa-wrap h4 { font: 500 18px/1.2 var(--kui-font-sans); margin: 0 0 4px; letter-spacing: -0.25px; }
+  .gqa-wrap .sub { font: var(--kui-caption); color: var(--kui-fg-muted); margin-bottom: 20px; font-family: var(--kui-font-mono); }
+
+  @media (max-width: 1100px) {
+    .moe-wrap, .block-row, .tk, .rope-wrap, .attn-grid, .reasoning, .hero { grid-template-columns: 1fr; }
+    .specs { grid-template-columns: repeat(2, 1fr); }
+    .caveats ul { grid-template-columns: 1fr; }
+    .pipeline { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body class="kui" data-screen-label="GPT-OSS 120B Architecture">
+
+<header class="top-bar">
+  <img src="kaizen/NVIDIA-wordmark.svg" class="wordmark" alt="NVIDIA">
+  <div class="divider"></div>
+  <a class="home-link" href="../../index.html">Atlas home</a>
+  <h1>GPT-OSS 120B<span class="tag">OpenAI · 2025-08-04</span></h1>
+  <div class="meta">
+    <span><b>Architecture brief</b></span>
+    <span>Source: <b>HF config + arXiv:2508.10925</b></span>
+    <span>Apache-2.0</span>
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- ─────────── NAV RAIL ─────────── -->
+  <aside class="rail">
+    <div class="lbl">Sections</div>
+    <nav>
+      <a href="#overview"     class="active"><span class="ix">00</span><span>Overview</span></a>
+      <a href="#forward"><span class="ix">01</span><span>Forward pass</span></a>
+      <a href="#layers"><span class="ix">02</span><span>Layer stack · 36</span></a>
+      <a href="#block"><span class="ix">03</span><span>Block internals</span></a>
+      <a href="#attention"><span class="ix">04</span><span>Attention · GQA</span></a>
+      <a href="#position"><span class="ix">05</span><span>RoPE + YaRN</span></a>
+      <a href="#moe"><span class="ix">06</span><span>Mixture-of-Experts</span></a>
+      <a href="#tokenizer"><span class="ix">07</span><span>Tokenizer · Harmony</span></a>
+      <a href="#quant"><span class="ix">08</span><span>MXFP4 quantization</span></a>
+      <a href="#training"><span class="ix">09</span><span>Post-training</span></a>
+      <a href="#reasoning"><span class="ix">10</span><span>Reasoning effort</span></a>
+      <a href="#specs"><span class="ix">11</span><span>Spec sheet</span></a>
+      <a href="#bench"><span class="ix">12</span><span>Reported benchmarks</span></a>
+      <a href="#caveats"><span class="ix">13</span><span>Caveats</span></a>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+    <!-- ─────────── HERO ─────────── -->
+    <section class="hero" id="overview" data-screen-label="Overview">
+      <div>
+        <div class="eyebrow"><span class="chip">OPEN-WEIGHT</span><span>Sparse MoE Transformer · Reasoning</span></div>
+        <h2><span class="accent">Sparse MoE</span> Transformer with alternating <span class="accent">sliding/full</span> attention</h2>
+        <p>OpenAI&rsquo;s first open-weight release since GPT-2. A 36-layer decoder-only Transformer where every dense FFN slot is replaced with a 128-expert MoE, and attention layers alternate between a tight 128-token sliding window and full causal attention. Trained for chain-of-thought reasoning and ships with the &ldquo;Harmony&rdquo; chat format.</p>
+        <p class="src">primary sources&nbsp;·&nbsp;<a href="https://huggingface.co/openai/gpt-oss-120b">huggingface.co/openai/gpt-oss-120b</a>&nbsp;·&nbsp;<a href="https://arxiv.org/abs/2508.10925">arXiv:2508.10925</a>&nbsp;·&nbsp;<a href="https://github.com/openai/gpt-oss">github.com/openai/gpt-oss</a></p>
+      </div>
+      <div class="hero-stats">
+        <div class="stat"><div class="label">Total params</div><div class="value">116.8 B</div><div class="sub">model_card</div></div>
+        <div class="stat"><div class="label">Active / token</div><div class="value">5.1 B</div><div class="sub">top-4 of 128 experts</div></div>
+        <div class="stat"><div class="label">Layers</div><div class="value">36</div><div class="sub">num_hidden_layers</div></div>
+        <div class="stat"><div class="label">Context</div><div class="value">131 072 <small>tok</small></div><div class="sub">YaRN ×32 from 4096</div></div>
+        <div class="stat"><div class="label">Model dim</div><div class="value">2 880</div><div class="sub">hidden_size</div></div>
+        <div class="stat"><div class="label">Vocab</div><div class="value">201 088</div><div class="sub">o200k_harmony</div></div>
+      </div>
+    </section>
+
+    <!-- ─────────── FORWARD PASS ─────────── -->
+    <section id="forward" data-screen-label="Forward pass">
+      <div class="sec-head">
+        <div class="num">01 · Forward pass</div>
+        <div>
+          <h3>End-to-end signal flow</h3>
+          <p>Token ids enter on the left, logits exit on the right. The 36-layer trunk in the middle is where almost all parameters live — but only ~4.4% of MoE weights fire per token.</p>
+        </div>
+      </div>
+
+      <div class="pass">
+        <div class="step"><div class="k">Input</div><div class="t">Token ids</div><div class="d">[B, T]</div><span class="badge">int</span></div>
+        <div class="step"><div class="k">Pre</div><div class="t">Token embedding</div><div class="d">201 088 → 2 880</div><span class="badge">untied</span></div>
+        <div class="step"><div class="k">Pos</div><div class="t">RoPE + YaRN</div><div class="d">θ=150 000, ×32</div><span class="badge">per layer</span></div>
+        <div class="step stack"><div class="k">Backbone · 36 layers</div><div class="t">SW-attn · MoE × 18<br>Full-attn · MoE × 18</div><div class="d">d=2880 · 128 experts</div><span class="badge">interleaved</span></div>
+        <div class="step"><div class="k">Post</div><div class="t">Final RMSNorm</div><div class="d">ε=1e-5</div><span class="badge">no bias</span></div>
+        <div class="step"><div class="k">Post</div><div class="t">LM head</div><div class="d">2 880 → 201 088</div><span class="badge">untied</span></div>
+        <div class="step"><div class="k">Output</div><div class="t">Logits</div><div class="d">[B, T, V]</div><span class="badge">harmony</span></div>
+      </div>
+    </section>
+
+    <!-- ─────────── LAYER RIBBON ─────────── -->
+    <section id="layers" data-screen-label="Layer stack">
+      <div class="sec-head">
+        <div class="num">02 · Layer stack</div>
+        <div>
+          <h3>36 blocks, two alternating attention modes</h3>
+          <p>The <code>config.json</code> <code>layer_types</code> array enumerates an exact <em>sliding, full, sliding, full…</em> sequence across all 36 layers. Every layer has the same MoE FFN beneath it; only the attention head varies.</p>
+        </div>
+      </div>
+
+      <div class="ribbon-wrap">
+        <div class="ribbon-head">
+          <h4>Layer index → (attention kind, MoE FFN)</h4>
+          <div class="key">
+            <span><i style="background:var(--c-sw)"></i>Sliding-window attn · w=128</span>
+            <span><i style="background:var(--c-full)"></i>Full causal attn</span>
+            <span><i style="background:var(--c-moe)"></i>MoE FFN · 128 experts, top-4</span>
+          </div>
+        </div>
+        <div class="ribbon" id="ribbon"></div>
+        <div class="ribbon-axis">
+          <div class="box sw">
+            <div class="h">Sliding-window attention</div>
+            <div class="v">18 layers <span style="font:11px/1 var(--kui-font-mono); color: var(--kui-fg-muted); margin-left: 8px;">odd indices 1, 3, 5, … 35</span></div>
+            <div class="l">Each query attends only to the most recent <b>128 keys</b>. Tiny KV-cache footprint dominates the backbone.</div>
+          </div>
+          <div class="box full">
+            <div class="h">Full causal attention</div>
+            <div class="v">18 layers <span style="font:11px/1 var(--kui-font-mono); color: var(--kui-fg-muted); margin-left: 8px;">even indices 2, 4, 6, … 36</span></div>
+            <div class="l">Global, causal attention over the entire 128K context. Provides the cross-context lookup the sliding layers can't.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── BLOCK SCHEMATIC ─────────── -->
+    <section id="block" data-screen-label="Block internals">
+      <div class="sec-head">
+        <div class="num">03 · Block internals</div>
+        <div>
+          <h3>Pre-norm decoder block with residual fan-out</h3>
+          <p>Each of the 36 blocks is two pre-norm residual sub-layers: an attention sub-layer (sliding or full, depending on parity) and an MoE feed-forward sub-layer. RMSNorm is applied <em>before</em> each sub-layer; linear biases <em>are</em> retained on attention projections (<code>attention_bias=true</code> — uncommon for modern LLMs).</p>
+        </div>
+      </div>
+
+      <div class="block-row">
+        <div class="block-card">
+          <h4>Block forward</h4>
+          <div class="sub">x ∈ ℝ^[B, T, 2880] &nbsp;→&nbsp; x' ∈ ℝ^[B, T, 2880]</div>
+          <div class="ops">
+            <div class="op norm">
+              <span class="marker">01</span>
+              <span class="what"><b>RMSNorm</b><em>ε = 1e-5</em></span>
+              <span class="dim">[B,T,2880]</span>
+            </div>
+            <div class="op attn">
+              <span class="marker">02</span>
+              <span class="what"><b>Attention</b> (sliding-window or full, per layer parity)<em>GQA · 64 q · 8 kv · d_h = 64 · bias=true</em></span>
+              <span class="dim">[B,T,2880]</span>
+            </div>
+            <div class="op res">
+              <span class="marker">+</span>
+              <span class="what"><b>Residual add</b> &nbsp;→&nbsp; h = x + attn(norm(x))</span>
+              <span class="dim">[B,T,2880]</span>
+            </div>
+            <div class="op norm">
+              <span class="marker">03</span>
+              <span class="what"><b>RMSNorm</b><em>second pre-norm</em></span>
+              <span class="dim">[B,T,2880]</span>
+            </div>
+            <div class="op moe">
+              <span class="marker">04</span>
+              <span class="what"><b>Router</b> (linear, 2880 → 128) &nbsp; top-k=4 softmax<em>aux-loss coef = 0.9</em></span>
+              <span class="dim">[B,T,128]</span>
+            </div>
+            <div class="op moe">
+              <span class="marker">05</span>
+              <span class="what"><b>Expert MLPs</b> &nbsp; selected 4 of 128<em>SwiGLU(W_gate · W_up · W_down), clamped at ±7</em></span>
+              <span class="dim">[B,T,2880]</span>
+            </div>
+            <div class="op res">
+              <span class="marker">+</span>
+              <span class="what"><b>Residual add</b> &nbsp;→&nbsp; x' = h + Σ_e r_e · MoE_e(norm(h))</span>
+              <span class="dim">[B,T,2880]</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="block-card" style="background: var(--kui-bg-canvas); padding: 24px;">
+          <h4>Block as SVG</h4>
+          <div class="sub">all dims source-confirmed from config.json</div>
+          <svg viewBox="0 0 460 540" style="width: 100%; height: auto; margin-top: 8px;">
+            <defs>
+              <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="#5E5E5E"/>
+              </marker>
+            </defs>
+
+            <!-- input -->
+            <rect x="170" y="10" width="120" height="36" fill="#F2F2F2" stroke="#D8D8D8"/>
+            <text x="230" y="33" text-anchor="middle" font-size="12">x · [B,T,2880]</text>
+
+            <!-- attention branch -->
+            <line x1="230" y1="46" x2="230" y2="68" stroke="#5E5E5E" stroke-width="1" marker-end="url(#arr)"/>
+            <rect x="80" y="68" width="300" height="34" fill="#fff" stroke="#D8D8D8"/>
+            <text x="230" y="90" text-anchor="middle" font-size="12">RMSNorm &nbsp;(ε = 1e-5)</text>
+            <line x1="230" y1="102" x2="230" y2="124" stroke="#5E5E5E" stroke-width="1" marker-end="url(#arr)"/>
+            <rect x="40" y="124" width="380" height="84" fill="#E9F4FB" stroke="#0D69D4"/>
+            <text x="230" y="146" text-anchor="middle" font-size="13" font-weight="500" fill="#0D69D4">GQA attention &nbsp;·&nbsp; sliding(128) or full</text>
+            <text x="230" y="166" text-anchor="middle" font-size="11" class="mono" fill="#0D69D4">Q: 2880→4096 (64h·64d) &nbsp;·&nbsp; K,V: 2880→512 (8h·64d)</text>
+            <text x="230" y="184" text-anchor="middle" font-size="11" class="mono" fill="#0D69D4">RoPE θ=150 000 · attn_bias=true</text>
+            <text x="230" y="200" text-anchor="middle" font-size="11" class="mono" fill="#0D69D4">O: 4096→2880</text>
+            <line x1="230" y1="208" x2="230" y2="232" stroke="#5E5E5E" stroke-width="1" marker-end="url(#arr)"/>
+
+            <!-- residual 1 -->
+            <circle cx="230" cy="246" r="14" fill="#fff" stroke="#851F41" stroke-width="1.5"/>
+            <text x="230" y="251" text-anchor="middle" font-size="14" fill="#851F41" font-weight="500">+</text>
+            <!-- skip arc 1 -->
+            <path d="M 290 28 Q 410 28 410 246 Q 410 246 247 246" stroke="#851F41" stroke-width="1" fill="none" marker-end="url(#arr)" stroke-dasharray="3 3"/>
+            <text x="395" y="140" text-anchor="middle" font-size="10" class="mono" fill="#851F41">skip</text>
+
+            <line x1="230" y1="260" x2="230" y2="280" stroke="#5E5E5E" stroke-width="1" marker-end="url(#arr)"/>
+            <rect x="80" y="280" width="300" height="34" fill="#fff" stroke="#D8D8D8"/>
+            <text x="230" y="302" text-anchor="middle" font-size="12">RMSNorm</text>
+
+            <!-- moe block -->
+            <line x1="230" y1="314" x2="230" y2="336" stroke="#5E5E5E" stroke-width="1" marker-end="url(#arr)"/>
+            <rect x="40" y="336" width="380" height="138" fill="#E8F4D6" stroke="#76B900"/>
+            <text x="230" y="358" text-anchor="middle" font-size="13" font-weight="500" fill="#5E9600">MoE feed-forward · 128 experts · top-4</text>
+            <rect x="60" y="372" width="160" height="36" fill="#fff" stroke="#76B900"/>
+            <text x="140" y="394" text-anchor="middle" font-size="12">Router (linear 2880→128)</text>
+            <rect x="240" y="372" width="160" height="36" fill="#fff" stroke="#76B900"/>
+            <text x="320" y="389" text-anchor="middle" font-size="11" class="mono">top-4 softmax</text>
+            <text x="320" y="402" text-anchor="middle" font-size="11" class="mono">aux-loss 0.9</text>
+
+            <rect x="60" y="420" width="340" height="42" fill="#fff" stroke="#76B900"/>
+            <text x="230" y="438" text-anchor="middle" font-size="12" font-weight="500">SwiGLU expert MLP (clamp ±7)</text>
+            <text x="230" y="454" text-anchor="middle" font-size="11" class="mono" fill="#5E9600">2880 → 2880 → 2880 &nbsp;(W_gate · W_up · W_down)</text>
+
+            <line x1="230" y1="474" x2="230" y2="496" stroke="#5E5E5E" stroke-width="1" marker-end="url(#arr)"/>
+            <circle cx="230" cy="510" r="14" fill="#fff" stroke="#851F41" stroke-width="1.5"/>
+            <text x="230" y="515" text-anchor="middle" font-size="14" fill="#851F41" font-weight="500">+</text>
+
+            <!-- skip 2 -->
+            <path d="M 290 246 Q 410 246 410 510 Q 410 510 247 510" stroke="#851F41" stroke-width="1" fill="none" marker-end="url(#arr)" stroke-dasharray="3 3"/>
+            <text x="395" y="380" text-anchor="middle" font-size="10" class="mono" fill="#851F41">skip</text>
+
+            <line x1="230" y1="524" x2="230" y2="540" stroke="#5E5E5E" stroke-width="1.5"/>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── ATTENTION ─────────── -->
+    <section id="attention" data-screen-label="Attention">
+      <div class="sec-head">
+        <div class="num">04 · Attention</div>
+        <div>
+          <h3>Grouped-Query Attention, two ranges</h3>
+          <p>All 36 layers use the same projection topology: <b>64 query heads → 8 key/value heads</b> (a GQA group size of 8) with <b>head_dim = 64</b>. What varies layer-to-layer is the mask: half the layers are limited to a <b>128-token sliding window</b>; the other half are full causal.</p>
+        </div>
+      </div>
+
+      <div class="gqa-wrap">
+        <h4>One attention call · projection shapes</h4>
+        <div class="sub">B = batch · T = sequence · all numbers from config.json</div>
+        <svg viewBox="0 0 1080 280" style="width: 100%; height: auto; margin-top: 8px;">
+          <defs>
+            <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#5E5E5E"/>
+            </marker>
+          </defs>
+
+          <!-- input -->
+          <rect x="20" y="118" width="120" height="44" fill="#F2F2F2" stroke="#D8D8D8"/>
+          <text x="80" y="138" text-anchor="middle" font-size="12" font-weight="500">x · 2880</text>
+          <text x="80" y="154" text-anchor="middle" font-size="11" class="mono" fill="#5E5E5E">[B,T,2880]</text>
+
+          <!-- 3 projections -->
+          <line x1="140" y1="140" x2="220" y2="60" stroke="#5E5E5E" stroke-width="1" marker-end="url(#arr2)"/>
+          <line x1="140" y1="140" x2="220" y2="140" stroke="#5E5E5E" stroke-width="1" marker-end="url(#arr2)"/>
+          <line x1="140" y1="140" x2="220" y2="220" stroke="#5E5E5E" stroke-width="1" marker-end="url(#arr2)"/>
+
+          <rect x="220" y="36" width="180" height="50" fill="#E9F4FB" stroke="#0D69D4"/>
+          <text x="310" y="56" text-anchor="middle" font-size="13" font-weight="500" fill="#0D69D4">W_q · 2880 → 4096</text>
+          <text x="310" y="76" text-anchor="middle" font-size="11" class="mono" fill="#0D69D4">64 heads × 64 d_h</text>
+
+          <rect x="220" y="118" width="180" height="50" fill="#E9F4FB" stroke="#0D69D4"/>
+          <text x="310" y="138" text-anchor="middle" font-size="13" font-weight="500" fill="#0D69D4">W_k · 2880 → 512</text>
+          <text x="310" y="158" text-anchor="middle" font-size="11" class="mono" fill="#0D69D4">8 heads × 64 d_h</text>
+
+          <rect x="220" y="200" width="180" height="50" fill="#E9F4FB" stroke="#0D69D4"/>
+          <text x="310" y="220" text-anchor="middle" font-size="13" font-weight="500" fill="#0D69D4">W_v · 2880 → 512</text>
+          <text x="310" y="240" text-anchor="middle" font-size="11" class="mono" fill="#0D69D4">8 heads × 64 d_h</text>
+
+          <text x="220" y="22" text-anchor="start" font-size="10" class="mono" fill="#5E5E5E">attention_bias = true → +b_q, +b_k, +b_v</text>
+
+          <!-- RoPE -->
+          <line x1="400" y1="60" x2="450" y2="60" stroke="#5E5E5E" stroke-width="1" marker-end="url(#arr2)"/>
+          <line x1="400" y1="140" x2="450" y2="140" stroke="#5E5E5E" stroke-width="1" marker-end="url(#arr2)"/>
+          <rect x="450" y="36" width="110" height="50" fill="#fff" stroke="#D8D8D8"/>
+          <text x="505" y="56" text-anchor="middle" font-size="12">RoPE</text>
+          <text x="505" y="74" text-anchor="middle" font-size="10" class="mono" fill="#5E5E5E">on Q</text>
+          <rect x="450" y="118" width="110" height="50" fill="#fff" stroke="#D8D8D8"/>
+          <text x="505" y="138" text-anchor="middle" font-size="12">RoPE</text>
+          <text x="505" y="156" text-anchor="middle" font-size="10" class="mono" fill="#5E5E5E">on K</text>
+
+          <!-- broadcast K/V -->
+          <text x="630" y="22" text-anchor="middle" font-size="10" class="mono" fill="#5E5E5E">each of 8 K/V heads is shared across 8 query heads</text>
+
+          <!-- attention compute -->
+          <line x1="560" y1="60" x2="640" y2="135" stroke="#5E5E5E" stroke-width="1" marker-end="url(#arr2)"/>
+          <line x1="560" y1="143" x2="640" y2="143" stroke="#5E5E5E" stroke-width="1" marker-end="url(#arr2)"/>
+          <line x1="400" y1="225" x2="640" y2="155" stroke="#5E5E5E" stroke-width="1" marker-end="url(#arr2)"/>
+
+          <rect x="640" y="80" width="220" height="118" fill="#FDEFE6" stroke="#C54600"/>
+          <text x="750" y="104" text-anchor="middle" font-size="13" font-weight="500" fill="#C54600">softmax( QKᵀ / √64 ) · V</text>
+          <text x="750" y="130" text-anchor="middle" font-size="11" class="mono" fill="#C54600">mask = sliding(128)</text>
+          <text x="750" y="148" text-anchor="middle" font-size="11" class="mono" fill="#C54600">or  full causal</text>
+          <text x="750" y="174" text-anchor="middle" font-size="10" class="mono" fill="#5E5E5E">per-layer parity</text>
+
+          <!-- output -->
+          <line x1="860" y1="139" x2="930" y2="139" stroke="#5E5E5E" stroke-width="1" marker-end="url(#arr2)"/>
+          <rect x="930" y="115" width="130" height="50" fill="#E9F4FB" stroke="#0D69D4"/>
+          <text x="995" y="135" text-anchor="middle" font-size="13" font-weight="500" fill="#0D69D4">W_o · 4096 → 2880</text>
+          <text x="995" y="155" text-anchor="middle" font-size="11" class="mono" fill="#0D69D4">+ b_o</text>
+        </svg>
+      </div>
+
+      <div class="attn-grid">
+        <div class="attn-card sw">
+          <span class="pill">SLIDING</span>
+          <h5>Sliding-window attention</h5>
+          <p>Each query token attends only to itself and the previous 127 keys. With <code>w = 128</code>, KV-cache for these 18 layers is bounded — total KV state across the sliding stack is O(T·8·64·18) for a window of size T, but only 128 entries are <em>looked at</em> per query.</p>
+          <dl>
+            <dt>Mask</dt><dd>causal ∩ band(128)</dd>
+            <dt>Layer count</dt><dd>18 of 36</dd>
+            <dt>Indices</dt><dd>1, 3, … 35</dd>
+            <dt>KV scope</dt><dd>last 128 tokens</dd>
+          </dl>
+        </div>
+        <div class="attn-card full">
+          <span class="pill">FULL</span>
+          <h5>Full causal attention</h5>
+          <p>Standard left-triangular causal mask. Each query token may attend to every prior key in the full <code>max_position_embeddings = 131 072</code> window. These layers anchor long-range retrieval; KV-cache cost grows linearly with context.</p>
+          <dl>
+            <dt>Mask</dt><dd>causal (lower triangular)</dd>
+            <dt>Layer count</dt><dd>18 of 36</dd>
+            <dt>Indices</dt><dd>2, 4, … 36</dd>
+            <dt>KV scope</dt><dd>up to 131 072 tokens</dd>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── ROPE + YARN ─────────── -->
+    <section id="position" data-screen-label="Positional encoding">
+      <div class="sec-head">
+        <div class="num">05 · Positional encoding</div>
+        <div>
+          <h3>RoPE with YaRN scaling from 4K → 128K</h3>
+          <p>Positions enter through Rotary Position Embeddings on Q and K with base <code>θ = 150 000</code>. The original training window of 4 096 tokens is stretched to 131 072 via <b>YaRN</b> with <code>factor = 32</code> — applied per-frequency band, not as a global rescale.</p>
+        </div>
+      </div>
+
+      <div class="rope-wrap">
+        <div class="rope-card">
+          <h4>RoPE base</h4>
+          <div class="eq">θ_i = 150 000^(−2i/d_h),  i ∈ [0, 32)
+[q_2i, q_2i+1] · R(θ_i · m)
+[k_2i, k_2i+1] · R(θ_i · m)</div>
+          <div class="row"><span class="k">Base θ</span><span class="v">150 000</span></div>
+          <div class="row"><span class="k">head_dim</span><span class="v">64</span></div>
+          <div class="row"><span class="k">applied to</span><span class="v">Q, K only</span></div>
+          <div class="row"><span class="k">original ctx</span><span class="v">4 096</span></div>
+        </div>
+        <div class="rope-card">
+          <h4>YaRN extension</h4>
+          <div class="eq">rope_type        = "yarn"
+factor           = 32.0
+beta_fast        = 32.0     # high-freq cutoff
+beta_slow        = 1.0      # low-freq cutoff
+original_max_pos = 4 096
+→ effective ctx  = 131 072</div>
+          <div class="row"><span class="k">low-freq bands</span><span class="v">stretched ×32</span></div>
+          <div class="row"><span class="k">high-freq bands</span><span class="v">preserved</span></div>
+          <div class="row"><span class="k">interp window</span><span class="v">[β_slow, β_fast]</span></div>
+          <div class="row"><span class="k">max_position</span><span class="v">131 072</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── MOE ─────────── -->
+    <section id="moe" data-screen-label="Mixture of Experts">
+      <div class="sec-head">
+        <div class="num">06 · Mixture-of-Experts</div>
+        <div>
+          <h3>128 experts per layer · top-4 routing</h3>
+          <p>Every block&rsquo;s feed-forward sub-layer is a sparse MoE. For each token a linear router scores all 128 experts; the top-4 are softmax-normalized and their SwiGLU MLP outputs are linearly combined. There is no shared expert and no expert-bias term in the released config — pure top-k softmax routing.</p>
+        </div>
+      </div>
+
+      <div class="moe-wrap">
+        <div class="moe-grid-card">
+          <h4>One token, one layer — 4 of 128 experts fire</h4>
+          <div class="sub">grid below is illustrative; routing is data-dependent, not fixed</div>
+          <div class="moe-grid" id="moeGrid"></div>
+          <div class="legend">
+            <span><i style="background:var(--c-moe)"></i>activated &nbsp;(top-4)</span>
+            <span><i style="background:var(--kui-n100)"></i>silent &nbsp;(124)</span>
+          </div>
+          <div class="moe-numbers">
+            <div class="n"><div class="k">Experts / layer</div><div class="v">128</div></div>
+            <div class="n"><div class="k">Top-k</div><div class="v">4</div></div>
+            <div class="n"><div class="k">Sparsity</div><div class="v">96.9 <small>%</small></div></div>
+            <div class="n"><div class="k">Expert MLP dim</div><div class="v">2 880</div></div>
+            <div class="n"><div class="k">Activation</div><div class="v">SwiGLU</div></div>
+            <div class="n"><div class="k">Clamp limit</div><div class="v">±7.0</div></div>
+          </div>
+        </div>
+
+        <div class="router-card">
+          <h4>Router · per token</h4>
+          <div class="sub">linear-softmax · auxiliary load-balancing loss</div>
+          <div class="router-step">
+            <div class="ix">01</div>
+            <div>
+              <div class="h">Score all experts</div>
+              <div class="d">logits = x · W_router&nbsp;&nbsp; <code>W_router ∈ ℝ^[2880 × 128]</code></div>
+            </div>
+          </div>
+          <div class="router-step">
+            <div class="ix">02</div>
+            <div>
+              <div class="h">Pick top-4</div>
+              <div class="d">k = 4 indices with highest score</div>
+            </div>
+          </div>
+          <div class="router-step">
+            <div class="ix">03</div>
+            <div>
+              <div class="h">Softmax over the top-4</div>
+              <div class="d">r_e = softmax(logits[top-4])</div>
+            </div>
+          </div>
+          <div class="router-step">
+            <div class="ix">04</div>
+            <div>
+              <div class="h">Run those 4 experts</div>
+              <div class="d">y_e = W_down · SwiGLU_clamp7( W_gate·x ⊙ W_up·x )</div>
+            </div>
+          </div>
+          <div class="router-step">
+            <div class="ix">05</div>
+            <div>
+              <div class="h">Combine</div>
+              <div class="d">y = Σ_{e ∈ top4} r_e · y_e</div>
+            </div>
+          </div>
+          <div class="router-step">
+            <div class="ix">L</div>
+            <div>
+              <div class="h">Aux loss</div>
+              <div class="d"><code>router_aux_loss_coef = 0.9</code> · load-balancing term added during training only</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── TOKENIZER ─────────── -->
+    <section id="tokenizer" data-screen-label="Tokenizer">
+      <div class="sec-head">
+        <div class="num">07 · Tokenizer · Harmony</div>
+        <div>
+          <h3>o200k_harmony — 201 088 BPE tokens, role-aware</h3>
+          <p>GPT-OSS ships its own BPE tokenizer derived from o200k. The <b>Harmony</b> chat format wraps system / developer / user / assistant turns with explicit role tokens and supports multi-channel assistant outputs (analysis vs. final).</p>
+        </div>
+      </div>
+
+      <div class="tk">
+        <div class="tk-card">
+          <h4>Special tokens (selected)</h4>
+          <div class="sub">role + control tokens delimit channels of the Harmony format</div>
+          <div class="roles">
+            <div class="role"><b>&lt;|start|&gt;</b><span>opens a message turn</span></div>
+            <div class="role"><b>&lt;|end|&gt;</b><span>closes a turn (token id 200 002, eos_token_id)</span></div>
+            <div class="role"><b>&lt;|message|&gt;</b><span>begins message body</span></div>
+            <div class="role"><b>&lt;|channel|&gt;</b><span>selects channel: <code>analysis</code>, <code>commentary</code>, <code>final</code></span></div>
+            <div class="role"><b>&lt;|constrain|&gt;</b><span>structured-output constraint</span></div>
+            <div class="role"><b>&lt;|return|&gt;</b><span>tool-call return boundary</span></div>
+            <div class="role"><b>system / developer / user / assistant</b><span>role identifiers</span></div>
+          </div>
+        </div>
+
+        <div class="tk-card">
+          <h4>Harmony turn — encoded shape</h4>
+          <div class="sub">analysis channel carries chain-of-thought; final is the user-visible answer</div>
+<pre class="tk-vis"><span class="sp">&lt;|start|&gt;</span><span class="role-tag">system</span><span class="sp">&lt;|message|&gt;</span><span class="text">You are ChatGPT.</span><span class="sp">&lt;|end|&gt;</span>
+<span class="sp">&lt;|start|&gt;</span><span class="role-tag">user</span><span class="sp">&lt;|message|&gt;</span><span class="text">Add 17 + 4.</span><span class="sp">&lt;|end|&gt;</span>
+<span class="sp">&lt;|start|&gt;</span><span class="role-tag">assistant</span><span class="sp">&lt;|channel|&gt;</span><span class="ch">analysis</span><span class="sp">&lt;|message|&gt;</span><span class="text">17+4 = 21.</span><span class="sp">&lt;|end|&gt;</span>
+<span class="sp">&lt;|start|&gt;</span><span class="role-tag">assistant</span><span class="sp">&lt;|channel|&gt;</span><span class="ch">final</span><span class="sp">&lt;|message|&gt;</span><span class="text">21</span><span class="sp">&lt;|return|&gt;</span></pre>
+          <div style="font: 11px/1.5 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 10px;">vocab_size = 201 088 · pad = 199 999 · eos = 200 002</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── QUANTIZATION ─────────── -->
+    <section id="quant" data-screen-label="Quantization">
+      <div class="sec-head">
+        <div class="num">08 · Quantization</div>
+        <div>
+          <h3>MoE weights in MXFP4 · attention &amp; embeddings in BF16</h3>
+          <p>The released checkpoint quantizes <em>only</em> the expert MLP weights to <b>MXFP4</b> (microscaled FP4 with shared exponents per 32-element block). Attention projections, the router, embedding table, and LM head stay in BF16 / FP16. This is what makes the 116.8 B-param model fit in roughly 80 GB of VRAM.</p>
+        </div>
+      </div>
+
+      <div class="quant">
+        <h4>Per-component precision &amp; weight footprint</h4>
+        <div class="quant-rows">
+          <div class="quant-row">
+            <div class="name">Expert MLPs<small>128 × 36 experts · W_gate · W_up · W_down</small></div>
+            <div class="track"><div class="fill mxfp4" style="width: 95%;"></div></div>
+            <div class="size">≈ 95 % of params</div>
+            <div class="pill mxfp4">MXFP4</div>
+          </div>
+          <div class="quant-row">
+            <div class="name">Attention projections<small>W_q · W_k · W_v · W_o (incl. biases)</small></div>
+            <div class="track"><div class="fill bf16" style="width: 3%;"></div></div>
+            <div class="size">~ 3 %</div>
+            <div class="pill bf16">BF16</div>
+          </div>
+          <div class="quant-row">
+            <div class="name">Router<small>linear 2880 → 128 per layer</small></div>
+            <div class="track"><div class="fill bf16" style="width: 0.4%;"></div></div>
+            <div class="size">&lt; 1 %</div>
+            <div class="pill bf16">BF16</div>
+          </div>
+          <div class="quant-row">
+            <div class="name">Token embedding<small>201 088 × 2 880</small></div>
+            <div class="track"><div class="fill bf16" style="width: 1.5%;"></div></div>
+            <div class="size">~ 1 %</div>
+            <div class="pill bf16">BF16</div>
+          </div>
+          <div class="quant-row">
+            <div class="name">LM head<small>2 880 → 201 088 · untied</small></div>
+            <div class="track"><div class="fill bf16" style="width: 1.5%;"></div></div>
+            <div class="size">~ 1 %</div>
+            <div class="pill bf16">BF16</div>
+          </div>
+        </div>
+
+        <div style="margin-top: 24px; padding: 16px; background: var(--kui-bg-canvas); border-left: 3px solid var(--c-mxfp4); font: var(--kui-body); color: var(--kui-fg-default);">
+          From <code>config.json.quantization_config</code>: <code>quant_method = "mxfp4"</code>; modules <em>excluded</em> from conversion are <code>model.layers.*.self_attn</code>, <code>model.layers.*.mlp.router</code>, <code>model.embed_tokens</code>, and <code>lm_head</code>. Everything else (the experts) is MXFP4.
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── TRAINING / POST ─────────── -->
+    <section id="training" data-screen-label="Training pipeline">
+      <div class="sec-head">
+        <div class="num">09 · Training &amp; post-training</div>
+        <div>
+          <h3>Pretrain → SFT → RL with deliberative reasoning</h3>
+          <p>The arXiv report (2508.10925) describes a multi-stage pipeline. Specific dataset mixes, token counts, and RL recipes are not enumerated in the inventory leads — bracketed cells below are paraphrased from the public release and labeled as such.</p>
+        </div>
+      </div>
+
+      <div class="pipeline-wrap">
+        <h4>Training pipeline</h4>
+        <div class="pipeline">
+          <div class="pipe-step">
+            <div class="ix">01 · PRETRAIN</div>
+            <h6>Text pretraining</h6>
+            <p>Decoder-only language modeling over a large English-heavy text corpus.</p>
+            <div class="note">tokens · not reported</div>
+          </div>
+          <div class="pipe-step">
+            <div class="ix">02 · CTX EXT</div>
+            <h6>Context extension</h6>
+            <p>YaRN-based long-context phase stretching the 4 096 training window to 131 072.</p>
+            <div class="note">YaRN factor 32</div>
+          </div>
+          <div class="pipe-step">
+            <div class="ix">03 · SFT</div>
+            <h6>Supervised fine-tuning</h6>
+            <p>Harmony-formatted instruction &amp; chain-of-thought data; teaches role/channel structure.</p>
+            <div class="note">analysis + final channels</div>
+          </div>
+          <div class="pipe-step">
+            <div class="ix">04 · RL</div>
+            <h6>Reinforcement learning</h6>
+            <p>Reasoning-focused RL for math / code / agentic tool-use. Exact algorithm not reported in source inventory.</p>
+            <div class="note">recipe · not reported</div>
+          </div>
+          <div class="pipe-step">
+            <div class="ix">05 · QUANT</div>
+            <h6>MXFP4 release</h6>
+            <p>Expert MLPs quantized to MXFP4 for the shipped open-weight checkpoint.</p>
+            <div class="note">attn / embed stay BF16</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── REASONING EFFORT ─────────── -->
+    <section id="reasoning" data-screen-label="Reasoning levels">
+      <div class="sec-head">
+        <div class="num">10 · Reasoning effort</div>
+        <div>
+          <h3>Three configurable thinking budgets</h3>
+          <p>A controllable property of the released model is its reasoning budget, surfaced as a system-prompt setting. Higher levels produce longer chain-of-thought traces in the <code>analysis</code> channel before the <code>final</code> answer.</p>
+        </div>
+      </div>
+
+      <div class="reasoning">
+        <div class="r">
+          <span class="lvl">REASONING: LOW</span>
+          <h5>Short answers, minimal CoT</h5>
+          <p>Used for quick replies, formatting tasks, and high-throughput agentic loops where latency dominates.</p>
+          <div class="tail">analysis channel ≈ terse</div>
+        </div>
+        <div class="r">
+          <span class="lvl">REASONING: MEDIUM</span>
+          <h5>Balanced</h5>
+          <p>Default for chat-style use. Reasoning traces are present but not exhaustive.</p>
+          <div class="tail">analysis channel ≈ moderate</div>
+        </div>
+        <div class="r">
+          <span class="lvl">REASONING: HIGH</span>
+          <h5>Deliberative</h5>
+          <p>Long, exhaustive chains for math, code, and multi-step agentic tool-use. Token usage is the trade-off.</p>
+          <div class="tail">analysis channel ≈ long</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── SPECS ─────────── -->
+    <section id="specs" data-screen-label="Spec sheet">
+      <div class="sec-head">
+        <div class="num">11 · Spec sheet</div>
+        <div>
+          <h3>All numbers, in one place</h3>
+          <p>Every value below is taken verbatim from <code>config.json</code> on the official Hugging Face repository unless noted otherwise.</p>
+        </div>
+      </div>
+
+      <div class="specs">
+        <div class="group"><h5>Scale</h5></div>
+        <div class="cell"><div class="k">Total parameters</div><div class="v">116.8 B</div><div class="n">model card</div></div>
+        <div class="cell"><div class="k">Active per token</div><div class="v">5.1 B</div><div class="n">top-4 of 128 × 36 experts</div></div>
+        <div class="cell"><div class="k">Layers</div><div class="v">36</div><div class="n">num_hidden_layers</div></div>
+        <div class="cell"><div class="k">Hidden size</div><div class="v">2 880</div><div class="n">hidden_size</div></div>
+
+        <div class="group"><h5>Attention</h5></div>
+        <div class="cell"><div class="k">Query heads</div><div class="v">64</div><div class="n">num_attention_heads</div></div>
+        <div class="cell"><div class="k">KV heads</div><div class="v">8</div><div class="n">num_key_value_heads · GQA group = 8</div></div>
+        <div class="cell"><div class="k">Head dim</div><div class="v">64</div><div class="n">head_dim</div></div>
+        <div class="cell"><div class="k">Attention bias</div><div class="v">true</div><div class="n">attention_bias</div></div>
+        <div class="cell"><div class="k">Sliding window</div><div class="v">128</div><div class="n">sliding_window · 18 layers</div></div>
+        <div class="cell"><div class="k">Full-attn layers</div><div class="v">18</div><div class="n">layer_types parity</div></div>
+        <div class="cell"><div class="k">Dropout</div><div class="v">0.0</div><div class="n">attention_dropout</div></div>
+        <div class="cell"><div class="k">Max position</div><div class="v">131 072</div><div class="n">max_position_embeddings</div></div>
+
+        <div class="group"><h5>Position</h5></div>
+        <div class="cell"><div class="k">RoPE base θ</div><div class="v">150 000</div><div class="n">rope_theta</div></div>
+        <div class="cell"><div class="k">RoPE scaling</div><div class="v">YaRN ×32</div><div class="n">rope_scaling.factor</div></div>
+        <div class="cell"><div class="k">YaRN β_fast</div><div class="v">32.0</div><div class="n">rope_scaling.beta_fast</div></div>
+        <div class="cell"><div class="k">YaRN β_slow</div><div class="v">1.0</div><div class="n">rope_scaling.beta_slow</div></div>
+
+        <div class="group"><h5>Feed-forward · MoE</h5></div>
+        <div class="cell"><div class="k">Experts / layer</div><div class="v">128</div><div class="n">num_local_experts</div></div>
+        <div class="cell"><div class="k">Top-k</div><div class="v">4</div><div class="n">num_experts_per_tok</div></div>
+        <div class="cell"><div class="k">Activation</div><div class="v">SwiGLU</div><div class="n">hidden_act=silu + gated</div></div>
+        <div class="cell"><div class="k">Clamp limit</div><div class="v">7.0</div><div class="n">swiglu_limit</div></div>
+        <div class="cell"><div class="k">Expert MLP dim</div><div class="v">2 880</div><div class="n">intermediate_size</div></div>
+        <div class="cell"><div class="k">Aux-loss coef</div><div class="v">0.9</div><div class="n">router_aux_loss_coef</div></div>
+        <div class="cell"><div class="k">Shared experts</div><div class="v">0</div><div class="n">none in config</div></div>
+        <div class="cell"><div class="k">Norm</div><div class="v">RMSNorm</div><div class="n">rms_norm_eps = 1e-5</div></div>
+
+        <div class="group"><h5>Tokenizer · Output</h5></div>
+        <div class="cell"><div class="k">Vocab size</div><div class="v">201 088</div><div class="n">vocab_size · o200k_harmony</div></div>
+        <div class="cell"><div class="k">Tie embeddings</div><div class="v">false</div><div class="n">tie_word_embeddings</div></div>
+        <div class="cell"><div class="k">PAD token</div><div class="v">199 999</div><div class="n">pad_token_id</div></div>
+        <div class="cell"><div class="k">EOS token</div><div class="v">200 002</div><div class="n">eos_token_id (&lt;|end|&gt;)</div></div>
+
+        <div class="group"><h5>Quantization · Release</h5></div>
+        <div class="cell"><div class="k">Quant method</div><div class="v">MXFP4</div><div class="n">quantization_config</div></div>
+        <div class="cell"><div class="k">MXFP4 scope</div><div class="v">experts only</div><div class="n">attn / router / embed excluded</div></div>
+        <div class="cell"><div class="k">License</div><div class="v">Apache-2.0</div><div class="n">model card</div></div>
+        <div class="cell"><div class="k">Release</div><div class="v">2025-08-04</div><div class="n">HF + arXiv</div></div>
+      </div>
+    </section>
+
+    <!-- ─────────── BENCHMARKS ─────────── -->
+    <section id="bench" data-screen-label="Benchmarks">
+      <div class="sec-head">
+        <div class="num">12 · Reported benchmarks</div>
+        <div>
+          <h3>Source-reported numbers only</h3>
+          <p>Concrete benchmark figures are <b>not present</b> in the local source inventory passed to this brief. The OpenAI release post and arXiv report do publish a benchmark table; numerical values are intentionally not reproduced here without primary-source verification. Treat the row labels below as the categories OpenAI evaluates against, not as scores.</p>
+        </div>
+      </div>
+
+      <div class="bench-card">
+        <h4>Categories reported by the release</h4>
+        <div class="sub">value column intentionally blank — see model card for current numbers</div>
+        <div class="bench-row"><div class="name">AIME 2024 / 2025<small>competition math</small></div><div class="bar"><div style="width: 0%;"></div></div><div class="v">—</div></div>
+        <div class="bench-row"><div class="name">GPQA Diamond<small>graduate-level science</small></div><div class="bar"><div style="width: 0%;"></div></div><div class="v">—</div></div>
+        <div class="bench-row"><div class="name">MMLU<small>knowledge</small></div><div class="bar"><div style="width: 0%;"></div></div><div class="v">—</div></div>
+        <div class="bench-row"><div class="name">Humanity's Last Exam<small>reasoning under uncertainty</small></div><div class="bar"><div style="width: 0%;"></div></div><div class="v">—</div></div>
+        <div class="bench-row"><div class="name">SWE-Bench Verified<small>agentic coding</small></div><div class="bar"><div style="width: 0%;"></div></div><div class="v">—</div></div>
+        <div class="bench-row"><div class="name">Tau-Bench Retail<small>tool-use</small></div><div class="bar"><div style="width: 0%;"></div></div><div class="v">—</div></div>
+        <div class="bench-row"><div class="name">HealthBench<small>clinical reasoning</small></div><div class="bar"><div style="width: 0%;"></div></div><div class="v">—</div></div>
+
+        <div style="margin-top: 18px; padding: 14px 16px; background: var(--kui-bg-canvas); border-left: 3px solid var(--kui-warning); font: var(--kui-body); color: var(--kui-fg-default);">
+          <b>Benchmark numbers not reported in source inventory.</b> The release publishes scores under multiple reasoning-effort settings (low / medium / high); fill these in from the official model card for verified values.
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── CAVEATS ─────────── -->
+    <section id="caveats" data-screen-label="Caveats">
+      <div class="sec-head">
+        <div class="num">13 · Caveats &amp; unknowns</div>
+        <div>
+          <h3>What is, and isn't, in the source inventory</h3>
+          <p>Architecture numbers above are taken from the published <code>config.json</code> and are first-class primary sources. The items below are either reported elsewhere but not in the inventory passed to this brief, or are not publicly disclosed.</p>
+        </div>
+      </div>
+
+      <div class="caveats">
+        <h4>Items not present in source inventory</h4>
+        <p>Each row is labeled <em>not reported</em> rather than guessed. Filling these requires going to the official OpenAI release post or arXiv:2508.10925.</p>
+        <ul>
+          <li><b>Pretraining corpus</b><span>composition, size, and token count — not in inventory</span></li>
+          <li><b>Pretraining tokens</b><span>not reported in inventory</span></li>
+          <li><b>Compute / FLOPs</b><span>not reported in inventory</span></li>
+          <li><b>SFT data mix</b><span>not reported in inventory</span></li>
+          <li><b>RL algorithm</b><span>not reported in inventory (mentioned qualitatively)</span></li>
+          <li><b>RL reward signals</b><span>not reported in inventory</span></li>
+          <li><b>Hardware / parallelism</b><span>not reported in inventory</span></li>
+          <li><b>Cutoff date</b><span>not reported in inventory</span></li>
+          <li><b>Benchmark scores</b><span>not reproduced — see model card</span></li>
+          <li><b>Multilingual coverage</b><span>not enumerated in inventory</span></li>
+          <li><b>Tool-use protocol details</b><span>see openai-harmony specification</span></li>
+          <li><b>Safety / red-team results</b><span>not in inventory; see release post</span></li>
+        </ul>
+        <p style="margin-top: 18px;"><em>Source verification level for this brief:</em> Raschka table (inventory) <strong style="font-weight:500;">+ direct fetch of config.json on huggingface.co/openai/gpt-oss-120b @ main</strong>.</p>
+      </div>
+    </section>
+
+    <footer>
+      <div class="row">
+        <div>
+          <div style="font: 500 12px/1 var(--kui-font-sans); color: var(--kui-fg-strong); margin-bottom: 6px;">GPT-OSS 120B · Architecture brief</div>
+          <div>Model atlas · Last refreshed Nov 2025</div>
+        </div>
+        <div class="sources">
+          <span>config.json: <a href="https://huggingface.co/openai/gpt-oss-120b/blob/main/config.json">huggingface.co/openai/gpt-oss-120b/blob/main/config.json</a></span>
+          <span>technical report: <a href="https://arxiv.org/abs/2508.10925">arXiv:2508.10925</a></span>
+          <span>reference impl: <a href="https://github.com/openai/gpt-oss">github.com/openai/gpt-oss</a></span>
+          <span>license: Apache-2.0</span>
+        </div>
+      </div>
+    </footer>
+
+  </main>
+</div>
+
+<script>
+  /* ── build 36-layer ribbon from the exact layer_types array in config.json ── */
+  // Pattern from config: sliding, full, sliding, full, ... × 18 pairs = 36 layers.
+  const layerTypes = [];
+  for (let i = 0; i < 18; i++) {
+    layerTypes.push('sw');   // sliding_attention
+    layerTypes.push('full'); // full_attention
+  }
+  const ribbon = document.getElementById('ribbon');
+  layerTypes.forEach((t, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.innerHTML =
+      '<div class="att ' + t + '" title="layer ' + (i+1) + ' · ' + (t === 'sw' ? 'sliding-window' : 'full causal') + '"></div>' +
+      '<div class="moe" title="MoE FFN"></div>' +
+      '<div class="ix">' + (i+1) + '</div>';
+    ribbon.appendChild(cell);
+  });
+
+  /* ── MoE grid: 128 squares, mark 4 as active ── */
+  const grid = document.getElementById('moeGrid');
+  // pick 4 deterministic-but-scattered indices for the illustrative top-4
+  const activeIdx = new Set([7, 41, 73, 112]);
+  const rankByIdx = { 7: 1, 41: 2, 73: 3, 112: 4 };
+  for (let i = 0; i < 128; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'e' + (activeIdx.has(i) ? ' active' : '');
+    if (activeIdx.has(i)) cell.dataset.r = rankByIdx[i];
+    cell.title = 'expert ' + i + (activeIdx.has(i) ? ' (top-' + rankByIdx[i] + ')' : '');
+    grid.appendChild(cell);
+  }
+
+  /* ── nav rail active state on scroll ── */
+  const links = document.querySelectorAll('.rail a');
+  const idToLink = {};
+  links.forEach(a => { idToLink[a.getAttribute('href').slice(1)] = a; });
+  const sections = Array.from(document.querySelectorAll('section[id]'));
+  function onScroll() {
+    let active = sections[0].id;
+    const y = window.scrollY + 120;
+    for (const s of sections) {
+      if (s.offsetTop <= y) active = s.id;
+    }
+    links.forEach(a => a.classList.remove('active'));
+    if (idToLink[active]) idToLink[active].classList.add('active');
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  /* ── smooth scroll for in-page links ── */
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const id = a.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) {
+        e.preventDefault();
+        window.scrollTo({ top: el.offsetTop - 64, behavior: 'smooth' });
+        history.replaceState(null, '', '#' + id);
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1790 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qwen3.6 35B-A3B Architecture</title>
+<link rel="stylesheet" href="kaizen/colors_and_type.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--kui-bg-canvas); color: var(--kui-fg-strong); font-family: var(--kui-font-sans); }
+  body { font: var(--kui-body); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-decoration: none; }
+  code { font-family: var(--kui-font-mono); font-size: 12px; background: var(--kui-n050); padding: 1px 5px; }
+
+  /* ─── per-mechanism palette ─── */
+  :root {
+    --c-delta:    #7C3AED;   /* Gated DeltaNet · linear attention */
+    --c-delta-bg: #F1ECFB;
+    --c-delta-dk: #5B21B6;
+    --c-attn:     #0D69D4;   /* Gated softmax attention */
+    --c-attn-bg:  #E9F4FB;
+    --c-moe:      #76B900;   /* MoE / experts */
+    --c-moe-bg:   #E8F4D6;
+    --c-moe-dk:   #5E9600;
+    --c-rope:     #851F41;   /* M-RoPE */
+    --c-rope-bg:  #FBEEFE;
+    --c-norm:     #1FA18D;   /* RMSNorm / Zero-Centered */
+    --c-norm-bg:  #E6F5F2;
+    --c-vision:   #C54600;   /* Vision encoder */
+    --c-vision-bg:#FDEFE6;
+    --c-think:    #B58A00;   /* Thinking channel */
+    --c-think-bg: #FAF4DD;
+    --c-mtp:      #1F8A5B;   /* Multi-Token Prediction */
+    --c-mtp-bg:   #E1F2EA;
+    --c-embed:    #5E5E5E;
+  }
+
+  /* ─── top bar ─── */
+  .top-bar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 32px;
+    background: #000; color: #fff;
+    border-bottom: 4px solid var(--kui-brand-green);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .top-bar .wordmark { height: 22px; }
+  .top-bar .divider { width: 1px; height: 18px; background: rgba(255,255,255,0.25); }
+  .top-bar h1 { font: 500 15px/1 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0; }
+  .top-bar .home-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border: 1px solid rgba(255,255,255,0.25);
+    font: var(--kui-text-sm); color: rgba(255,255,255,0.85);
+    transition: border-color 120ms ease-out, background 120ms ease-out;
+  }
+  .top-bar .home-link:hover { border-color: var(--kui-brand-green); background: rgba(118,185,0,0.1); color: #fff; }
+  .top-bar .home-link::before { content: "←"; }
+  .top-bar .meta { margin-left: auto; display: flex; gap: 24px; font: var(--kui-text-sm); color: rgba(255,255,255,0.7); }
+  .top-bar .meta b { color: #fff; font-weight: 500; }
+
+  /* ─── shell ─── */
+  .shell { display: grid; grid-template-columns: 240px 1fr; min-height: calc(100vh - 56px); }
+  @media (max-width: 1100px) { .shell { grid-template-columns: 1fr; } .sidebar { display: none; } }
+
+  .sidebar {
+    position: sticky; top: 56px; align-self: start; height: calc(100vh - 56px);
+    background: #fff; border-right: 1px solid var(--kui-border-default);
+    padding: 24px 0; overflow-y: auto;
+  }
+  .sidebar .nav-label {
+    padding: 0 24px 8px; font-size: 10px; color: var(--kui-fg-muted);
+    letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500;
+  }
+  .sidebar .nav-label + .nav-label { margin-top: 24px; }
+  .sidebar nav a {
+    display: flex; align-items: baseline; gap: 12px;
+    padding: 7px 24px; font-size: 13px; color: var(--kui-fg-default);
+    border-left: 2px solid transparent;
+    transition: background 120ms ease-out, border-color 120ms ease-out;
+  }
+  .sidebar nav a:hover { background: var(--kui-n050); }
+  .sidebar nav a.active { border-left-color: var(--kui-brand-green); background: var(--kui-n050); color: var(--kui-fg-strong); font-weight: 500; }
+  .sidebar nav a .idx { font-family: var(--kui-font-mono); color: var(--kui-fg-muted); font-size: 10px; width: 18px; }
+  .sidebar .source-box { padding: 16px 24px 0; font-size: 11px; color: var(--kui-fg-muted); line-height: 1.55; border-top: 1px solid var(--kui-border-default); margin-top: 24px; }
+  .sidebar .source-box a { color: var(--c-attn); }
+
+  /* ─── main ─── */
+  .main { min-width: 0; }
+  section { padding: 64px 56px; border-bottom: 1px solid var(--kui-border-default); }
+  @media (max-width: 700px) { section { padding: 48px 24px; } }
+  section:last-of-type { border-bottom: 0; }
+
+  .sec-head { max-width: 920px; margin-bottom: 32px; }
+  .sec-head .num {
+    font: var(--kui-overline); letter-spacing: 0.15em; color: var(--kui-fg-muted);
+    text-transform: uppercase; margin-bottom: 10px;
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .sec-head .num::before { content: ""; width: 24px; height: 1px; background: var(--kui-brand-green); display: inline-block; }
+  .sec-head h2 { font: 500 32px/1.15 var(--kui-font-sans); letter-spacing: -0.5px; margin: 0 0 12px; }
+  .sec-head p.lede { font-size: 16px; line-height: 1.55; color: var(--kui-fg-default); margin: 0; max-width: 72ch; }
+  .sec-head p.lede b { font-weight: 500; color: var(--kui-fg-strong); }
+
+  /* ─── hero ─── */
+  .hero { background: #fff; padding: 56px 56px 48px; border-bottom: 1px solid var(--kui-border-default); position: relative; }
+  .hero::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 6px; background: var(--kui-brand-green); }
+  .hero .eyebrow { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.15em; color: var(--kui-fg-muted); margin-bottom: 16px; }
+  .hero h2 { font: 500 44px/1.05 var(--kui-font-sans); letter-spacing: -0.75px; margin: 0 0 20px; max-width: 18ch; }
+  .hero h2 .accent { color: var(--kui-brand-green); }
+  .hero .lede { font-size: 17px; line-height: 1.55; color: var(--kui-fg-default); max-width: 78ch; margin: 0 0 32px; }
+
+  .badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 32px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; font: 12px/1 var(--kui-font-mono);
+    border: 1px solid var(--kui-border-default); background: #fff; color: var(--kui-fg-default);
+  }
+  .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--kui-fg-default); }
+  .badge.brand { border-color: var(--kui-brand-green); background: var(--c-moe-bg); color: var(--c-moe-dk); }
+  .badge.brand .dot { background: var(--c-moe-dk); }
+  .badge.delta { border-color: var(--c-delta); color: var(--c-delta-dk); background: var(--c-delta-bg); } .badge.delta .dot { background: var(--c-delta); }
+  .badge.attn { border-color: var(--c-attn); color: var(--c-attn); background: var(--c-attn-bg); } .badge.attn .dot { background: var(--c-attn); }
+  .badge.rope { border-color: var(--c-rope); color: var(--c-rope); background: var(--c-rope-bg); } .badge.rope .dot { background: var(--c-rope); }
+  .badge.vision { border-color: var(--c-vision); color: var(--c-vision); background: var(--c-vision-bg); } .badge.vision .dot { background: var(--c-vision); }
+  .badge.think { border-color: var(--c-think); color: var(--c-think); background: var(--c-think-bg); } .badge.think .dot { background: var(--c-think); }
+  .badge.mtp { border-color: var(--c-mtp); color: var(--c-mtp); background: var(--c-mtp-bg); } .badge.mtp .dot { background: var(--c-mtp); }
+
+  .hero-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--kui-border-default); border: 1px solid var(--kui-border-default); }
+  @media (max-width: 1100px) { .hero-stats { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 700px) { .hero-stats { grid-template-columns: repeat(2, 1fr); } }
+  .hero-stats .stat { background: #fff; padding: 18px 18px 16px; }
+  .hero-stats .stat.unk { background: #FAFAFA; }
+  .hero-stats .label { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.1em; color: var(--kui-fg-muted); margin-bottom: 8px; font-size: 10px; }
+  .hero-stats .value { font: 500 22px/1 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .hero-stats .value small { font: 400 13px/1 var(--kui-font-sans); color: var(--kui-fg-muted); margin-left: 4px; letter-spacing: 0; }
+  .hero-stats .value.unk { color: var(--kui-fg-muted); font-style: italic; font-size: 13px; font-weight: 400; }
+  .hero-stats .sub { font-size: 11px; color: var(--kui-fg-muted); margin-top: 6px; font-family: var(--kui-font-mono); }
+
+  .hero-extras { margin-top: 32px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 1100px) { .hero-extras { grid-template-columns: 1fr; } }
+  .extra-card { border: 1px solid var(--kui-border-default); padding: 18px; background: #fff; }
+  .extra-card h5 { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.1em; color: var(--kui-fg-muted); margin: 0 0 10px; font-size: 10px; }
+  .extra-card .row { display: flex; flex-wrap: wrap; gap: 4px; }
+  .extra-card .chip {
+    display: inline-flex; align-items: center; padding: 2px 8px;
+    font: 12px/1.4 var(--kui-font-mono); background: var(--kui-n050); border: 1px solid var(--kui-border-default);
+  }
+  .extra-card .chip.brand { background: var(--c-moe-bg); border-color: var(--kui-brand-green); color: var(--c-moe-dk); }
+
+  /* ─── forward pass band ─── */
+  .pass {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    background: #fff; border: 1px solid var(--kui-border-default);
+  }
+  @media (max-width: 1100px) { .pass { grid-template-columns: repeat(2, 1fr); } }
+  .pass .step { padding: 20px 18px; border-right: 1px solid var(--kui-border-default); border-bottom: 1px solid transparent; position: relative; }
+  .pass .step:last-child { border-right: 0; }
+  @media (max-width: 1100px) { .pass .step:nth-child(2n) { border-right: 0; } .pass .step { border-bottom: 1px solid var(--kui-border-default); } }
+  .pass .step.stack { background: #FAFAFA; }
+  .pass .step .k { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; color: var(--kui-fg-muted); font-size: 10px; margin-bottom: 6px; }
+  .pass .step .t { font: 500 15px/1.25 var(--kui-font-sans); letter-spacing: -0.25px; margin-bottom: 6px; }
+  .pass .step .d { font: 11px/1.45 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .pass .step .badge-mini { display: inline-block; margin-top: 8px; font: 10px/1 var(--kui-font-mono); padding: 3px 6px; background: var(--kui-n050); border: 1px solid var(--kui-border-default); color: var(--kui-fg-default); }
+
+  /* ─── 40-layer ribbon ─── */
+  .ribbon-wrap { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .ribbon-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; margin-bottom: 16px; gap: 12px; }
+  .ribbon-head h4 { font: 500 18px/1.2 var(--kui-font-sans); margin: 0; letter-spacing: -0.25px; }
+  .ribbon-head .key { display: flex; flex-wrap: wrap; gap: 14px; font: var(--kui-text-sm); color: var(--kui-fg-default); }
+  .ribbon-head .key span { display: inline-flex; align-items: center; gap: 6px; }
+  .ribbon-head .key i { width: 12px; height: 12px; display: inline-block; }
+  .ribbon { display: grid; grid-template-columns: repeat(40, 1fr); gap: 3px; height: 96px; align-items: stretch; }
+  .ribbon .cell { position: relative; cursor: default; }
+  .ribbon .cell .bar { width: 100%; height: 100%; }
+  .ribbon .cell.D .bar  { background: var(--c-delta); }
+  .ribbon .cell.A .bar  { background: var(--c-attn); }
+  .ribbon .cell .moe { position: absolute; left: 0; right: 0; bottom: 0; height: 18px; background: var(--c-moe); }
+  .ribbon .cell .num { position: absolute; bottom: -18px; left: 0; right: 0; text-align: center; font: 9px/1 var(--kui-font-mono); color: var(--kui-fg-muted); }
+  .ribbon-caveat { margin-top: 36px; padding: 12px 14px; background: #F0FBF5; border-left: 3px solid var(--c-mtp); font: 12px/1.55 var(--kui-font-sans); color: var(--kui-fg-default); }
+  .ribbon-caveat b { color: var(--kui-fg-strong); font-weight: 500; }
+  .ribbon-notes { margin-top: 20px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 1100px) { .ribbon-notes { grid-template-columns: repeat(2, 1fr); } }
+  .ribbon-notes .note { padding: 14px 16px; border: 1px solid var(--kui-border-default); }
+  .ribbon-notes .note .h { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; color: var(--kui-fg-muted); margin-bottom: 6px; font-size: 10px; }
+  .ribbon-notes .note .v { font: 500 22px/1 var(--kui-font-sans); margin-bottom: 4px; letter-spacing: -0.25px; }
+  .ribbon-notes .note .l { font: 12px/1.45 var(--kui-font-sans); color: var(--kui-fg-default); }
+  .ribbon-notes .note.D .v  { color: var(--c-delta); }
+  .ribbon-notes .note.A .v  { color: var(--c-attn); }
+  .ribbon-notes .note.M .v  { color: var(--c-moe-dk); }
+  .ribbon-notes .note.C .v  { color: var(--c-mtp); }
+
+  /* mini repeat-cycle diagram */
+  .cycle { margin-top: 24px; background: var(--kui-n050); border: 1px solid var(--kui-border-default); padding: 18px; }
+  .cycle .ttl { font: 500 13px/1.2 var(--kui-font-sans); margin-bottom: 12px; }
+  .cycle .ttl small { color: var(--kui-fg-muted); font-weight: 400; font-family: var(--kui-font-mono); font-size: 11px; margin-left: 8px; }
+  .cycle .blks { display: flex; gap: 8px; align-items: stretch; }
+  .cycle .blk {
+    flex: 1; padding: 12px 10px; border: 1px solid var(--kui-border-default);
+    font: 11px/1.3 var(--kui-font-mono); background: #fff;
+    text-align: center; position: relative;
+  }
+  .cycle .blk.d { border-color: var(--c-delta); background: var(--c-delta-bg); color: var(--c-delta-dk); }
+  .cycle .blk.a { border-color: var(--c-attn); background: var(--c-attn-bg); color: var(--c-attn); }
+  .cycle .blk b { display: block; font-family: var(--kui-font-sans); font-weight: 500; font-size: 13px; margin-bottom: 4px; }
+  .cycle .blk i { display: block; font-style: normal; color: var(--c-moe-dk); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--c-moe); }
+  .cycle .arrow { align-self: center; color: var(--kui-fg-muted); font-family: var(--kui-font-mono); font-size: 16px; }
+
+  /* ─── block diagram ─── */
+  .block-wrap { display: grid; grid-template-columns: 1.05fr 1fr; gap: 24px; }
+  @media (max-width: 1100px) { .block-wrap { grid-template-columns: 1fr; } }
+  .block-svg { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .block-svg svg { display: block; width: 100%; height: auto; }
+  .block-side { display: flex; flex-direction: column; gap: 14px; }
+  .block-step { background: #fff; border: 1px solid var(--kui-border-default); padding: 16px 18px; position: relative; }
+  .block-step::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+  .block-step.norm::before { background: var(--c-norm); }
+  .block-step.delta::before { background: var(--c-delta); }
+  .block-step.attn::before { background: var(--c-attn); }
+  .block-step.moe::before  { background: var(--c-moe); }
+  .block-step.rope::before { background: var(--c-rope); }
+  .block-step.add::before  { background: var(--kui-fg-muted); }
+  .block-step .h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .block-step .h .t { font: 500 15px/1.25 var(--kui-font-sans); letter-spacing: -0.25px; }
+  .block-step .h .tag { font: 11px/1 var(--kui-font-mono); color: var(--kui-fg-muted); white-space: nowrap; }
+  .block-step p { font: 13px/1.5 var(--kui-font-sans); color: var(--kui-fg-default); margin: 6px 0 0; }
+  .block-step p code { font-size: 11px; }
+
+  /* ─── deep dives ─── */
+  .deep { background: #fff; border: 1px solid var(--kui-border-default); }
+  .deep-head { padding: 22px 26px; display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid var(--kui-border-default); }
+  .deep-head .e { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; color: var(--kui-fg-muted); font-size: 10px; margin-bottom: 4px; }
+  .deep-head h3 { font: 500 22px/1.15 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0; }
+  .deep-head .strip { width: 36px; height: 4px; }
+  .deep-body { display: grid; grid-template-columns: 1.4fr 1fr; gap: 0; }
+  @media (max-width: 1100px) { .deep-body { grid-template-columns: 1fr; } }
+  .deep-body .diagram { padding: 28px; border-right: 1px solid var(--kui-border-default); background: var(--kui-bg-canvas); }
+  @media (max-width: 1100px) { .deep-body .diagram { border-right: 0; border-bottom: 1px solid var(--kui-border-default); } }
+  .deep-body .side { padding: 28px; }
+  .deep-body .side p { font-size: 14px; line-height: 1.55; color: var(--kui-fg-default); margin: 0 0 14px; }
+  .spec-grid { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; padding-top: 14px; border-top: 1px solid var(--kui-border-default); font: 13px/1.4 var(--kui-font-sans); }
+  .spec-grid .k { color: var(--kui-fg-muted); }
+  .spec-grid .v { font: 500 13px/1.4 var(--kui-font-mono); color: var(--kui-fg-strong); text-align: right; }
+  .spec-grid .v.unk { color: var(--kui-fg-muted); font-style: italic; font-weight: 400; }
+
+  /* ─── attention head-geometry side-by-side ─── */
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .compare-grid { grid-template-columns: 1fr; } }
+  .cmp-card { background: #fff; border: 1px solid var(--kui-border-default); }
+  .cmp-card .strip { height: 6px; }
+  .cmp-card.delta .strip { background: var(--c-delta); }
+  .cmp-card.attn .strip { background: var(--c-attn); }
+  .cmp-card .body { padding: 24px; }
+  .cmp-card .body > .eyebrow { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; color: var(--kui-fg-muted); font-size: 10px; margin-bottom: 6px; }
+  .cmp-card .body > h4 { font: 500 20px/1.2 var(--kui-font-sans); letter-spacing: -0.25px; margin: 0 0 8px; }
+  .cmp-card .body > p { font: 14px/1.55 var(--kui-font-sans); color: var(--kui-fg-default); margin: 0 0 16px; }
+  .cmp-card .body > p b { font-weight: 500; color: var(--kui-fg-strong); }
+  .cmp-card .diagram { background: var(--kui-bg-canvas); border: 1px solid var(--kui-border-default); padding: 12px; }
+  .cmp-card .diagram svg { display: block; width: 100%; height: auto; }
+  .cmp-card .spec { margin-top: 16px; }
+
+  /* ─── math panel ─── */
+  .math-panel { background: var(--kui-n050); border: 1px solid var(--kui-border-default); padding: 16px; margin-top: 16px; font: 13px/1.65 var(--kui-font-mono); color: var(--kui-fg-strong); }
+  .math-panel .lbl { color: var(--kui-fg-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; font-family: var(--kui-font-sans); }
+  .math-panel .eq { padding: 4px 0; }
+  .math-panel .eq b { color: var(--c-rope); font-weight: 700; }
+  .math-panel .eq .d { color: var(--c-delta-dk); font-weight: 700; }
+  .math-panel .eq .a { color: var(--c-attn); font-weight: 700; }
+  .math-panel .eq .m { color: var(--c-moe-dk); font-weight: 700; }
+  .math-panel .comment { color: var(--kui-fg-muted); font-size: 11px; }
+
+  /* ─── MoE router viz ─── */
+  .moe-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .moe-grid { grid-template-columns: 1fr; } }
+  .moe-svg { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .moe-stats { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+  .moe-stats .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 10px 0; border-top: 1px solid var(--kui-border-subtle); }
+  .moe-stats .row:first-child { border-top: 0; }
+  .moe-stats .row .k { font: 13px/1.3 var(--kui-font-sans); color: var(--kui-fg-default); }
+  .moe-stats .row .k small { display: block; color: var(--kui-fg-muted); font-family: var(--kui-font-mono); font-size: 11px; margin-top: 2px; }
+  .moe-stats .row .v { font: 500 20px/1 var(--kui-font-sans); letter-spacing: -0.25px; color: var(--c-moe-dk); text-align: right; }
+  .moe-stats .row .v small { display: block; color: var(--kui-fg-muted); font-family: var(--kui-font-mono); font-size: 10px; margin-top: 4px; font-weight: 400; }
+
+  /* expert grid */
+  .experts-grid { display: grid; grid-template-columns: repeat(32, 1fr); gap: 3px; margin-top: 16px; }
+  .experts-grid .ex { aspect-ratio: 1 / 1; background: var(--kui-n100); border-radius: 1px; }
+  .experts-grid .ex.r { background: var(--c-moe); }
+  .experts-grid .ex.s { background: var(--c-delta); }
+  .experts-legend { font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-muted); margin-top: 10px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .experts-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .experts-legend i { width: 10px; height: 10px; display: inline-block; }
+
+  /* ─── M-RoPE viz ─── */
+  .mrope { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .mrope-axes { display: grid; grid-template-columns: 90px 1fr; gap: 2px; }
+  .mrope-axes .a-label { font: 500 12px/1 var(--kui-font-sans); padding: 12px 14px; background: var(--c-rope); color: #fff; display: flex; align-items: center; }
+  .mrope-axes .a-label.t { background: var(--c-rope); }
+  .mrope-axes .a-label.h { background: var(--c-vision); }
+  .mrope-axes .a-label.w { background: var(--c-mtp); }
+  .mrope-axes .a-track {
+    background: linear-gradient(to right, var(--kui-n100) 0%, var(--kui-n100) 100%);
+    display: flex; align-items: center; padding: 0 12px;
+    font: 11px/1 var(--kui-font-mono); color: var(--kui-fg-muted);
+  }
+  .mrope-axes .a-bar { height: 8px; background: var(--kui-n200); margin-right: 8px; }
+  .mrope-axes .a-bar.t { background: var(--c-rope); }
+  .mrope-axes .a-bar.h { background: var(--c-vision); }
+  .mrope-axes .a-bar.w { background: var(--c-mtp); }
+
+  /* ─── MTP timeline ─── */
+  .mtp { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .mtp svg { display: block; width: 100%; height: auto; }
+  .mtp-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .mtp-grid { grid-template-columns: 1fr; } }
+  .mtp-side { display: flex; flex-direction: column; gap: 14px; }
+
+  /* ─── Vision tower ─── */
+  .vision { display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px; }
+  @media (max-width: 1100px) { .vision { grid-template-columns: 1fr; } }
+  .vision-svg { background: #fff; border: 1px solid var(--kui-border-default); padding: 28px; }
+  .budget-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .budget-card h4 { font: 500 16px/1.25 var(--kui-font-sans); margin: 0 0 4px; letter-spacing: -0.25px; }
+  .budget-card .sub { font: 12px/1.4 var(--kui-font-sans); color: var(--kui-fg-muted); margin-bottom: 16px; }
+
+  /* ─── thinking mode timeline ─── */
+  .think-track { display: grid; grid-template-columns: 1fr 2.5fr 1.5fr; gap: 2px; height: 96px; }
+  .think-seg { padding: 12px 16px; position: relative; }
+  .think-seg .ph { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; }
+  .think-seg .nm { font: 500 13px/1.25 var(--kui-font-sans); margin-top: 4px; }
+  .think-seg .ex { font: 10px/1.35 var(--kui-font-mono); margin-top: 6px; }
+  .think-seg.a { background: var(--c-think-bg); color: var(--kui-fg-strong); }
+  .think-seg.a .ph { color: var(--c-think); }
+  .think-seg.b { background: var(--c-think); color: #fff; }
+  .think-seg.b .ph { color: rgba(255,255,255,0.85); }
+  .think-seg.c { background: var(--c-moe); color: #fff; }
+  .think-seg.c .ph { color: rgba(255,255,255,0.85); }
+  .think-tokens { margin-top: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 1100px) { .think-tokens { grid-template-columns: 1fr; } }
+  .think-tokens .t { padding: 14px 16px; border: 1px solid var(--kui-border-default); background: #fff; }
+  .think-tokens .t .h { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; color: var(--kui-fg-muted); font-size: 10px; margin-bottom: 6px; }
+  .think-tokens .t .code { font: 13px/1.4 var(--kui-font-mono); color: var(--c-think); background: var(--c-think-bg); padding: 6px 8px; display: inline-block; margin-bottom: 6px; }
+  .think-tokens .t p { font: 12px/1.5 var(--kui-font-sans); color: var(--kui-fg-default); margin: 0; }
+
+  /* ─── training pipeline ─── */
+  .pipe { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; background: #fff; border: 1px solid var(--kui-border-default); }
+  @media (max-width: 1100px) { .pipe { grid-template-columns: repeat(2, 1fr); } }
+  .pipe .step { padding: 18px 16px; border-right: 1px solid var(--kui-border-default); position: relative; }
+  .pipe .step:last-child { border-right: 0; }
+  @media (max-width: 1100px) { .pipe .step:nth-child(2n) { border-right: 0; } .pipe .step { border-bottom: 1px solid var(--kui-border-default); } }
+  .pipe .step .num { font: 11px/1 var(--kui-font-mono); color: var(--kui-brand-green); font-weight: 700; }
+  .pipe .step h6 { font: 500 14px/1.2 var(--kui-font-sans); margin: 6px 0 6px; letter-spacing: -0.25px; }
+  .pipe .step p { font: 12px/1.45 var(--kui-font-sans); color: var(--kui-fg-default); margin: 0; }
+  .pipe .step .vol { font: 10px/1 var(--kui-font-mono); color: var(--kui-fg-muted); display: inline-block; margin-top: 8px; padding: 3px 6px; background: var(--kui-n050); border: 1px solid var(--kui-border-default); }
+  .pipe .step .vol.unk { color: var(--kui-fg-muted); font-style: italic; }
+
+  /* ─── benchmarks ─── */
+  .bench-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 1100px) { .bench-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 700px) { .bench-grid { grid-template-columns: 1fr; } }
+  .bench-card { background: #fff; border: 1px solid var(--kui-border-default); padding: 18px; }
+  .bench-card h5 { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em; color: var(--kui-fg-muted); font-size: 10px; margin: 0 0 12px; }
+  .bench-row { display: grid; grid-template-columns: 1fr 72px 56px; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--kui-border-subtle); font-size: 13px; }
+  .bench-row:first-of-type { border-top: 0; }
+  .bench-row .lbl { color: var(--kui-fg-default); }
+  .bench-row .bar { height: 6px; background: var(--kui-n100); position: relative; }
+  .bench-row .bar > div { height: 100%; background: var(--c-moe); }
+  .bench-row .bar > div.alt { background: var(--c-vision); }
+  .bench-row .bar > div.alt2 { background: var(--c-attn); }
+  .bench-row .val { font: 500 13px/1 var(--kui-font-mono); color: var(--kui-fg-strong); text-align: right; }
+
+  /* head-to-head bars */
+  .vs-row { display: grid; grid-template-columns: 200px 1fr 80px; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--kui-border-subtle); }
+  .vs-row:first-of-type { border-top: 0; }
+  .vs-row .lbl { font: 13px/1.3 var(--kui-font-sans); }
+  .vs-row .lbl small { display: block; color: var(--kui-fg-muted); font-family: var(--kui-font-mono); font-size: 11px; margin-top: 2px; }
+  .vs-row .bars { display: flex; flex-direction: column; gap: 5px; }
+  .vs-row .bars .b { height: 14px; background: var(--kui-n100); position: relative; }
+  .vs-row .bars .b > div { height: 100%; }
+  .vs-row .bars .b > div.p { background: var(--kui-fg-muted); }
+  .vs-row .bars .b > div.n { background: var(--c-moe); }
+  .vs-row .val { text-align: right; font: 500 14px/1 var(--kui-font-mono); color: var(--c-moe-dk); }
+  .vs-row .val small { display: block; color: var(--kui-fg-muted); font-size: 11px; margin-top: 2px; font-weight: 400; }
+  .vs-row .val.neg { color: var(--kui-fg-muted); }
+  .vs-wrap { background: #fff; border: 1px solid var(--kui-border-default); padding: 24px; }
+  .vs-wrap h4 { font: 500 16px/1.25 var(--kui-font-sans); margin: 0 0 6px; letter-spacing: -0.25px; }
+  .vs-wrap .sub { font: 12px/1.4 var(--kui-font-sans); color: var(--kui-fg-muted); margin-bottom: 16px; }
+  .vs-key { display: flex; gap: 16px; font: 11px/1 var(--kui-font-mono); color: var(--kui-fg-muted); margin-bottom: 8px; }
+  .vs-key span { display: inline-flex; align-items: center; gap: 6px; }
+  .vs-key i { width: 10px; height: 10px; display: inline-block; }
+
+  /* ─── caveats ─── */
+  .caveats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  @media (max-width: 1100px) { .caveats { grid-template-columns: 1fr; } }
+  .caveat {
+    background: #FFFBF0; border-left: 3px solid var(--kui-warning); padding: 16px 20px;
+    border-top: 1px solid var(--kui-border-default); border-right: 1px solid var(--kui-border-default); border-bottom: 1px solid var(--kui-border-default);
+  }
+  .caveat h6 { font: 500 13px/1.25 var(--kui-font-sans); margin: 0 0 6px; color: var(--kui-fg-strong); }
+  .caveat p { font: 13px/1.5 var(--kui-font-sans); color: var(--kui-fg-default); margin: 0; }
+  .caveat code { background: #fff; }
+
+  /* ─── footer ─── */
+  footer { padding: 24px 56px; background: #fff; border-top: 1px solid var(--kui-border-default); font: 12px/1.5 var(--kui-font-sans); color: var(--kui-fg-muted); }
+  footer .row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  footer a { color: var(--c-attn); }
+
+  /* ─── SVG defaults ─── */
+  svg text { font-family: var(--kui-font-sans); fill: var(--kui-fg-strong); }
+  svg .mono { font-family: var(--kui-font-mono); }
+  svg .muted { fill: var(--kui-fg-muted); }
+  svg .white { fill: #fff; }
+</style>
+</head>
+<body class="kui">
+
+<header class="top-bar">
+  <a class="home-link" href="../../index.html">Atlas home</a>
+  <div class="divider"></div>
+  <img src="kaizen/NVIDIA-wordmark.svg" class="wordmark" alt="NVIDIA">
+  <div class="divider"></div>
+  <h1>Qwen3.6 35B-A3B Architecture</h1>
+  <div class="meta">
+    <span><b>Architecture atlas</b></span>
+    <span>Released: <b>April 15, 2026</b></span>
+    <span>License: <b>Apache 2.0</b></span>
+  </div>
+</header>
+
+<div class="shell">
+
+  <aside class="sidebar">
+    <div class="nav-label">Sections</div>
+    <nav id="nav">
+      <a href="#overview"><span class="idx">01</span><span>Overview</span></a>
+      <a href="#forward"><span class="idx">02</span><span>End-to-end map</span></a>
+      <a href="#stack"><span class="idx">03</span><span>40-layer hybrid stack</span></a>
+      <a href="#delta"><span class="idx">04</span><span>Gated DeltaNet block</span></a>
+      <a href="#attn"><span class="idx">05</span><span>Gated Attention block</span></a>
+      <a href="#heads"><span class="idx">06</span><span>Head geometry</span></a>
+      <a href="#moe"><span class="idx">07</span><span>MoE module</span></a>
+      <a href="#mrope"><span class="idx">08</span><span>M-RoPE &amp; long context</span></a>
+      <a href="#mtp"><span class="idx">09</span><span>Multi-Token Prediction</span></a>
+      <a href="#vision"><span class="idx">10</span><span>Vision encoder</span></a>
+      <a href="#thinking"><span class="idx">11</span><span>Thinking mode</span></a>
+      <a href="#training"><span class="idx">12</span><span>Training pipeline</span></a>
+      <a href="#bench"><span class="idx">13</span><span>Benchmarks</span></a>
+      <a href="#caveats"><span class="idx">14</span><span>Caveats &amp; unknowns</span></a>
+    </nav>
+    <div class="source-box">
+      <b style="color:var(--kui-fg-strong); font-weight:500;">Sources</b><br>
+      Qwen3.6-35B-A3B model card (Alibaba Qwen on Hugging Face, 2026-04-15); release blog <a href="https://qwen.ai/blog?id=qwen3.6-35b-a3b">qwen.ai/blog?id=qwen3.6-35b-a3b</a>; local Raschka-table inventory.<br><br>
+      Values are <i>source-reported</i> and not independently verified. Specifics not appearing in the model-card text are labeled <code>not reported</code>.
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- ─────── HERO ─────── -->
+    <section class="hero" id="overview">
+      <div class="eyebrow">Alibaba Qwen · sparse hybrid MoE · multimodal (text + image + video)</div>
+      <h2><span class="accent">Qwen3.6</span> 35B-A3B</h2>
+      <p class="lede">A <b>35 B-parameter, 3 B-active</b> sparse Mixture-of-Experts model with a <b>hybrid sequence mixer</b> that interleaves <b>Gated DeltaNet</b> (linear attention with a learned forget gate) and <b>Gated Attention</b> (softmax attention with QK-Norm and partial RoPE) in a strict 3 : 1 ratio across 40 layers. Released April 15, 2026 under Apache 2.0 as Alibaba Qwen's first open-weight Qwen3.6 variant, the model is image-text-to-text by default — a causal LM with a vision encoder — operates in <b>thinking mode by default</b>, supports a <b>262 K native context</b> extensible to <b>~1 M tokens</b> with YaRN, and is trained with <b>multi-step Multi-Token Prediction</b> for speculative decoding.</p>
+
+      <div class="badge-row">
+        <span class="badge brand"><span class="dot"></span>35 B total · 3 B active</span>
+        <span class="badge"><span class="dot"></span>40 layers</span>
+        <span class="badge delta"><span class="dot"></span>30 × Gated DeltaNet</span>
+        <span class="badge attn"><span class="dot"></span>10 × Gated Attention</span>
+        <span class="badge brand"><span class="dot"></span>256 experts · 8 + 1 active</span>
+        <span class="badge rope"><span class="dot"></span>M-RoPE · partial</span>
+        <span class="badge vision"><span class="dot"></span>vision encoder</span>
+        <span class="badge think"><span class="dot"></span>thinking by default</span>
+        <span class="badge mtp"><span class="dot"></span>MTP · multi-step</span>
+        <span class="badge"><span class="dot"></span>262 K → 1 010 K ctx</span>
+      </div>
+
+      <div class="hero-stats">
+        <div class="stat">
+          <div class="label">Total params</div>
+          <div class="value">35<small>B</small></div>
+          <div class="sub">BF16 · 36 B safetensors</div>
+        </div>
+        <div class="stat">
+          <div class="label">Active per token</div>
+          <div class="value">3<small>B</small></div>
+          <div class="sub">8 routed + 1 shared expert</div>
+        </div>
+        <div class="stat">
+          <div class="label">Hidden dim</div>
+          <div class="value">2 048</div>
+          <div class="sub">d_model</div>
+        </div>
+        <div class="stat">
+          <div class="label">Layers</div>
+          <div class="value">40</div>
+          <div class="sub">10 × (3 D → 1 A)</div>
+        </div>
+        <div class="stat">
+          <div class="label">Vocab size</div>
+          <div class="value">248<small>K</small></div>
+          <div class="sub">248 320 padded</div>
+        </div>
+        <div class="stat">
+          <div class="label">Context length</div>
+          <div class="value">262<small>K</small></div>
+          <div class="sub">→ 1 010 K with YaRN</div>
+        </div>
+      </div>
+
+      <div class="hero-extras">
+        <div class="extra-card">
+          <h5>Model class</h5>
+          <div class="row">
+            <span class="chip brand">qwen3_5_moe</span>
+            <span class="chip">image-text-to-text</span>
+            <span class="chip">conversational</span>
+            <span class="chip">causal LM + vision</span>
+          </div>
+        </div>
+        <div class="extra-card">
+          <h5>Supported modalities</h5>
+          <div class="row">
+            <span class="chip">Text in</span>
+            <span class="chip">Image in</span>
+            <span class="chip">Video in</span>
+            <span class="chip">Text out</span>
+          </div>
+        </div>
+        <div class="extra-card">
+          <h5>Inference features</h5>
+          <div class="row">
+            <span class="chip">Thinking mode</span>
+            <span class="chip">Preserve thinking</span>
+            <span class="chip">Tool calling</span>
+            <span class="chip">MTP speculative</span>
+            <span class="chip">YaRN long-ctx</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────── 02 · FORWARD PASS ─────── -->
+    <section id="forward">
+      <div class="sec-head">
+        <div class="num">02 · End-to-end map</div>
+        <h2>From multimodal input to text logits and N-step predictions.</h2>
+        <p class="lede">A prompt arrives as an interleaved sequence of text tokens, image patches, and video frames. Visual content is encoded by a dedicated vision tower into the language-model token stream; the joint sequence flows through <b>40 hybrid layers</b> — each layer is either a <b>Gated DeltaNet → MoE</b> or a <b>Gated Attention → MoE</b> block — and exits as logits over the <b>248 320</b>-entry vocabulary, plus an MTP head that emits <b>N future tokens</b> for speculative decoding.</p>
+      </div>
+
+      <div class="pass">
+        <div class="step">
+          <div class="k">Input</div>
+          <div class="t">Tokens + media</div>
+          <div class="d">text · image · video frames</div>
+          <span class="badge-mini">interleaved sequence</span>
+        </div>
+        <div class="step">
+          <div class="k">Vision</div>
+          <div class="t">Vision encoder</div>
+          <div class="d">image &amp; video patches → tokens</div>
+          <span class="badge-mini">M-RoPE (t · h · w)</span>
+        </div>
+        <div class="step">
+          <div class="k">Embed</div>
+          <div class="t">Token embedding</div>
+          <div class="d">|V| = 248 320 → d = 2 048</div>
+          <span class="badge-mini">LM input · joint stream</span>
+        </div>
+        <div class="step stack">
+          <div class="k">Backbone · 40 layers</div>
+          <div class="t">Hybrid stack<br>3 DeltaNet : 1 Attention</div>
+          <div class="d">every block ends in 256-expert MoE</div>
+          <span class="badge-mini">10 repeats × 4 blocks</span>
+        </div>
+        <div class="step">
+          <div class="k">Post</div>
+          <div class="t">Final RMSNorm</div>
+          <div class="d">γ ∈ ℝ^2048</div>
+          <span class="badge-mini">pre-norm stack</span>
+        </div>
+        <div class="step">
+          <div class="k">Head</div>
+          <div class="t">LM head + MTP</div>
+          <div class="d">2 048 → 248 320 (× N future)</div>
+          <span class="badge-mini">multi-step prediction</span>
+        </div>
+        <div class="step">
+          <div class="k">Output</div>
+          <div class="t">Text logits</div>
+          <div class="d">[B, T, 248 320]</div>
+          <span class="badge-mini">+ thinking channel</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────── 03 · 40-LAYER STACK ─────── -->
+    <section id="stack">
+      <div class="sec-head">
+        <div class="num">03 · The 40-layer hybrid stack</div>
+        <h2>Three linear-attention layers, then one softmax-attention layer — repeated ten times.</h2>
+        <p class="lede">The model card specifies the layout in a single line: <code>10 × (3 × (Gated DeltaNet → MoE) → 1 × (Gated Attention → MoE))</code>. Every layer pairs one of two sequence mixers with the same 256-expert MoE channel mixer. <b>30 of 40 layers</b> use Gated DeltaNet — a linear-attention recurrence that scales as O(T) and carries a compressed state — while every fourth layer is a full softmax-attention layer with M-RoPE and a KV cache. The pattern is <i>fixed</i>, not learned, and identical across all ten repeats.</p>
+      </div>
+
+      <div class="ribbon-wrap">
+        <div class="ribbon-head">
+          <h4>Layer 1 → 40 — mixer type by index · MoE bar on every layer</h4>
+          <div class="key">
+            <span><i style="background:var(--c-delta)"></i> D · Gated DeltaNet</span>
+            <span><i style="background:var(--c-attn)"></i> A · Gated Attention</span>
+            <span><i style="background:var(--c-moe)"></i> MoE channel mixer · all layers</span>
+          </div>
+        </div>
+
+        <div class="ribbon" id="ribbon"><!-- filled by script --></div>
+
+        <div class="cycle">
+          <div class="ttl">One repeat <small>· 4 layers · ×10 = 40</small></div>
+          <div class="blks">
+            <div class="blk d"><b>Layer k</b>Gated DeltaNet<i>→ MoE</i></div>
+            <div class="arrow">→</div>
+            <div class="blk d"><b>Layer k+1</b>Gated DeltaNet<i>→ MoE</i></div>
+            <div class="arrow">→</div>
+            <div class="blk d"><b>Layer k+2</b>Gated DeltaNet<i>→ MoE</i></div>
+            <div class="arrow">→</div>
+            <div class="blk a"><b>Layer k+3</b>Gated Attention<i>→ MoE</i></div>
+          </div>
+        </div>
+
+        <div class="ribbon-notes">
+          <div class="note D"><div class="h">DeltaNet layers</div><div class="v">30</div><div class="l">Linear-attention with gating. Constant per-token cost in the sequence length; state size independent of T.</div></div>
+          <div class="note A"><div class="h">Gated Attention layers</div><div class="v">10</div><div class="l">Full softmax causal attention with M-RoPE and a KV cache. 16 query heads, 2 KV heads (8 : 1 GQA).</div></div>
+          <div class="note M"><div class="h">MoE channel mixers</div><div class="v">40</div><div class="l">Every layer ends in the same 256-expert MoE: 8 routed + 1 shared expert active per token.</div></div>
+          <div class="note C"><div class="h">Repeat ratio</div><div class="v">3 : 1</div><div class="l">Three linear-attention layers absorb most sequence work; one softmax layer per cycle re-injects exact long-range routing.</div></div>
+        </div>
+
+        <div class="ribbon-caveat">
+          <b>Confirmed.</b> The interleave pattern, layer count, and per-layer MoE coupling are stated verbatim in the Qwen3.6-35B-A3B model card under "Hidden Layout". The 3 : 1 ratio is therefore source-backed — not inferred from a related model.
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────── 04 · GATED DELTANET BLOCK ─────── -->
+    <section id="delta">
+      <div class="sec-head">
+        <div class="num">04 · Gated DeltaNet block</div>
+        <h2>Linear attention with a learned forget gate — three out of every four layers.</h2>
+        <p class="lede">Gated DeltaNet replaces softmax attention with a recurrent state that is updated by a delta rule and modulated by an input-dependent gate. The mechanism is <b>linear in sequence length</b>, requires no KV cache, and is the workhorse mixer of Qwen3.6: <b>30 of 40 layers</b>. The model card pins the head geometry — 32 value heads, 16 QK heads, head dimension 128 — but does not publish the exact update equation; this page reproduces the delta-rule + gate sketch that the Gated DeltaNet name implies and labels the closed-form recipe as <code>not reported</code>.</p>
+      </div>
+
+      <div class="block-wrap">
+        <div class="block-svg">
+          <svg viewBox="0 0 560 660" width="100%" height="660" aria-label="Gated DeltaNet block">
+            <defs>
+              <marker id="d-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="#5E5E5E"/>
+              </marker>
+              <marker id="d-ar-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="#7C3AED"/>
+              </marker>
+            </defs>
+
+            <line x1="60" y1="40" x2="60" y2="620" stroke="#5E5E5E" stroke-dasharray="4 4"/>
+            <text x="40" y="44" font-size="10" class="muted" text-anchor="middle">residual</text>
+
+            <!-- input -->
+            <rect x="200" y="20" width="220" height="32" fill="#fff" stroke="#5E5E5E"/>
+            <text x="310" y="40" font-size="12" text-anchor="middle">h_t ∈ ℝ^(B, T, 2 048)</text>
+            <line x1="310" y1="52" x2="310" y2="80" stroke="#5E5E5E" marker-end="url(#d-ar)"/>
+
+            <!-- pre-norm 1 -->
+            <rect x="230" y="84" width="160" height="30" fill="var(--c-norm-bg)" stroke="var(--c-norm)"/>
+            <text x="310" y="103" font-size="12" text-anchor="middle">RMSNorm</text>
+            <line x1="310" y1="114" x2="310" y2="138" stroke="#5E5E5E" marker-end="url(#d-ar)"/>
+
+            <!-- Gated DeltaNet module -->
+            <rect x="120" y="142" width="380" height="260" fill="#fff" stroke="var(--c-delta)" stroke-width="1.5"/>
+            <text x="310" y="162" font-size="12" font-weight="500" text-anchor="middle" fill="var(--c-delta-dk)">Gated DeltaNet · linear attention</text>
+
+            <!-- Q K V projections -->
+            <rect x="140" y="178" width="100" height="26" fill="var(--c-delta-bg)" stroke="var(--c-delta)"/>
+            <text x="190" y="195" font-size="11" text-anchor="middle">W_Q · h</text>
+            <rect x="260" y="178" width="100" height="26" fill="var(--c-delta-bg)" stroke="var(--c-delta)"/>
+            <text x="310" y="195" font-size="11" text-anchor="middle">W_K · h</text>
+            <rect x="380" y="178" width="100" height="26" fill="var(--c-delta-bg)" stroke="var(--c-delta)"/>
+            <text x="430" y="195" font-size="11" text-anchor="middle">W_V · h</text>
+            <text x="190" y="220" font-size="9" class="muted" text-anchor="middle">16 heads · d_h = 128</text>
+            <text x="310" y="220" font-size="9" class="muted" text-anchor="middle">16 heads · d_h = 128</text>
+            <text x="430" y="220" font-size="9" class="muted" text-anchor="middle">32 heads · d_h = 128</text>
+
+            <!-- gate projection -->
+            <rect x="140" y="232" width="220" height="26" fill="var(--c-norm-bg)" stroke="var(--c-norm)"/>
+            <text x="250" y="249" font-size="11" text-anchor="middle">α_t = σ( W_α · h )   ← forget gate</text>
+            <rect x="380" y="232" width="100" height="26" fill="var(--c-norm-bg)" stroke="var(--c-norm)"/>
+            <text x="430" y="249" font-size="11" text-anchor="middle">g_t = sigmoid(·)</text>
+
+            <!-- recurrent state cell -->
+            <rect x="170" y="276" width="280" height="60" fill="var(--c-delta-bg)" stroke="var(--c-delta)" stroke-width="1.5"/>
+            <text x="310" y="294" font-size="11" font-weight="500" text-anchor="middle" fill="var(--c-delta-dk)">recurrent state · S_t ∈ ℝ^(H, d_k, d_v)</text>
+            <text x="310" y="312" font-size="10" class="muted" text-anchor="middle">S_t = α_t ⊙ S_{t-1}  +  (V_t − S_{t-1} K_t) K_tᵀ</text>
+            <text x="310" y="326" font-size="9" class="muted" text-anchor="middle" style="font-style:italic;">delta rule + forget gate · sketch · not the literal equation in source</text>
+
+            <!-- readout -->
+            <rect x="190" y="346" width="240" height="28" fill="var(--c-delta-bg)" stroke="var(--c-delta)"/>
+            <text x="310" y="364" font-size="11" text-anchor="middle">o_t  =  g_t  ⊙  ( S_t · Q_t )</text>
+
+            <!-- out proj -->
+            <rect x="230" y="378" width="160" height="22" fill="var(--c-delta-bg)" stroke="var(--c-delta)"/>
+            <text x="310" y="394" font-size="11" text-anchor="middle">W_O  ·  4 096 → 2 048</text>
+
+            <line x1="310" y1="402" x2="310" y2="430" stroke="#5E5E5E" marker-end="url(#d-ar)"/>
+
+            <!-- add 1 -->
+            <circle cx="310" cy="440" r="14" fill="#fff" stroke="#5E5E5E"/>
+            <text x="310" y="445" font-size="14" text-anchor="middle" font-weight="500">+</text>
+            <line x1="60" y1="440" x2="294" y2="440" stroke="#5E5E5E" stroke-dasharray="4 4"/>
+            <line x1="310" y1="454" x2="310" y2="476" stroke="#5E5E5E" marker-end="url(#d-ar)"/>
+
+            <!-- pre-norm 2 -->
+            <rect x="230" y="478" width="160" height="30" fill="var(--c-norm-bg)" stroke="var(--c-norm)"/>
+            <text x="310" y="497" font-size="12" text-anchor="middle">RMSNorm</text>
+            <line x1="310" y1="508" x2="310" y2="530" stroke="#5E5E5E" marker-end="url(#d-ar)"/>
+
+            <!-- MoE -->
+            <rect x="160" y="534" width="300" height="68" fill="#fff" stroke="var(--c-moe)" stroke-width="1.5"/>
+            <text x="310" y="552" font-size="12" font-weight="500" text-anchor="middle" fill="var(--c-moe-dk)">MoE · 256 experts · 8 routed + 1 shared</text>
+            <text x="310" y="572" font-size="11" text-anchor="middle">router → top-8 routed · 1 shared always on</text>
+            <text x="310" y="590" font-size="9" class="muted" text-anchor="middle">expert intermediate dim = 512</text>
+
+            <!-- add 2 -->
+            <line x1="310" y1="602" x2="310" y2="618" stroke="#5E5E5E" marker-end="url(#d-ar)"/>
+            <circle cx="310" cy="628" r="14" fill="#fff" stroke="#5E5E5E"/>
+            <text x="310" y="633" font-size="14" text-anchor="middle" font-weight="500">+</text>
+            <line x1="60" y1="628" x2="294" y2="628" stroke="#5E5E5E" stroke-dasharray="4 4"/>
+
+            <text x="400" y="652" font-size="11" class="muted">→ next layer</text>
+          </svg>
+        </div>
+
+        <div class="block-side">
+          <div class="block-step norm">
+            <div class="h"><div class="t">1 · Pre-mixer RMSNorm</div><div class="tag">RMSNorm</div></div>
+            <p>Pre-norm transformer arrangement: normalize the residual stream before the sequence-mixer sub-block. Standard Qwen-family RMSNorm with a learned scale γ; no bias.</p>
+          </div>
+          <div class="block-step delta">
+            <div class="h"><div class="t">2 · Q, K, V projections</div><div class="tag">32 V · 16 QK · d_h = 128</div></div>
+            <p>Three linear projections produce <b>16 query heads</b>, <b>16 key heads</b>, and <b>32 value heads</b> at head dimension 128. The asymmetric V : QK ratio gives the recurrent state a larger codomain than its dot-product index space — a known Gated DeltaNet design choice.</p>
+          </div>
+          <div class="block-step norm">
+            <div class="h"><div class="t">3 · Forget / output gates</div><div class="tag">σ(·) · learned</div></div>
+            <p>Input-dependent sigmoid gates control (a) how much of the prior recurrent state survives into the next step and (b) how much of the read-out enters the residual stream. Gating is what distinguishes this from a vanilla DeltaNet recurrence.</p>
+          </div>
+          <div class="block-step delta">
+            <div class="h"><div class="t">4 · Recurrent state update</div><div class="tag">delta rule · linear in T</div></div>
+            <p>The state <code>S_t</code> is updated each step by a <i>delta-rule</i> outer product — replacing the value previously associated with the current key — and multiplicatively decayed by the forget gate. No quadratic Q·Kᵀ. No KV cache.</p>
+          </div>
+          <div class="block-step delta">
+            <div class="h"><div class="t">5 · State read-out</div><div class="tag">o_t = g · (S_t · Q_t)</div></div>
+            <p>The current query reads the recurrent state by a matrix-vector product, optionally gated. Output dimension is 32 × 128 = 4 096; <code>W_O</code> projects back to the 2 048-d residual stream.</p>
+          </div>
+          <div class="block-step add">
+            <div class="h"><div class="t">6 · Residual + MoE sub-block</div><div class="tag">→ §07</div></div>
+            <p>Residual add, then the standard <b>256-expert MoE</b> channel mixer (top-8 + 1 shared), then another residual. The MoE sub-block is shared by every layer regardless of mixer type — see §07.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────── 05 · GATED ATTENTION BLOCK ─────── -->
+    <section id="attn">
+      <div class="sec-head">
+        <div class="num">05 · Gated Attention block</div>
+        <h2>Full softmax attention with QK-Norm and partial M-RoPE — one in every four layers.</h2>
+        <p class="lede">The Gated Attention layers carry the exact long-range routing that linear attention cannot represent. There are <b>10 of them</b>, one per 4-layer cycle. The model card pins this layer's geometry precisely: <b>16 query heads</b>, <b>2 KV heads</b> (an 8 : 1 grouped-query ratio), head dimension <b>256</b>, and <b>RoPE applied to only the first 64</b> of those 256 dimensions — a partial-rotary recipe that leaves the remaining 192 dimensions positionless.</p>
+      </div>
+
+      <div class="block-wrap">
+        <div class="block-svg">
+          <svg viewBox="0 0 560 660" width="100%" height="660" aria-label="Gated Attention block">
+            <defs>
+              <marker id="a-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="#5E5E5E"/>
+              </marker>
+              <marker id="a-ar-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="#0D69D4"/>
+              </marker>
+            </defs>
+
+            <line x1="60" y1="40" x2="60" y2="620" stroke="#5E5E5E" stroke-dasharray="4 4"/>
+            <text x="40" y="44" font-size="10" class="muted" text-anchor="middle">residual</text>
+
+            <rect x="200" y="20" width="220" height="32" fill="#fff" stroke="#5E5E5E"/>
+            <text x="310" y="40" font-size="12" text-anchor="middle">h_t ∈ ℝ^(B, T, 2 048)</text>
+            <line x1="310" y1="52" x2="310" y2="80" stroke="#5E5E5E" marker-end="url(#a-ar)"/>
+
+            <rect x="230" y="84" width="160" height="30" fill="var(--c-norm-bg)" stroke="var(--c-norm)"/>
+            <text x="310" y="103" font-size="12" text-anchor="middle">RMSNorm</text>
+            <line x1="310" y1="114" x2="310" y2="138" stroke="#5E5E5E" marker-end="url(#a-ar)"/>
+
+            <!-- Gated Attention module -->
+            <rect x="120" y="142" width="380" height="260" fill="#fff" stroke="var(--c-attn)" stroke-width="1.5"/>
+            <text x="310" y="162" font-size="12" font-weight="500" text-anchor="middle" fill="var(--c-attn)">Gated Attention · softmax · GQA 8 : 1</text>
+
+            <rect x="140" y="178" width="100" height="26" fill="var(--c-attn-bg)" stroke="var(--c-attn)"/>
+            <text x="190" y="195" font-size="11" text-anchor="middle">W_Q · h</text>
+            <rect x="260" y="178" width="100" height="26" fill="var(--c-attn-bg)" stroke="var(--c-attn)"/>
+            <text x="310" y="195" font-size="11" text-anchor="middle">W_K · h</text>
+            <rect x="380" y="178" width="100" height="26" fill="var(--c-attn-bg)" stroke="var(--c-attn)"/>
+            <text x="430" y="195" font-size="11" text-anchor="middle">W_V · h</text>
+            <text x="190" y="220" font-size="9" class="muted" text-anchor="middle">16 heads · d_h = 256</text>
+            <text x="310" y="220" font-size="9" class="muted" text-anchor="middle">2 heads · d_h = 256</text>
+            <text x="430" y="220" font-size="9" class="muted" text-anchor="middle">2 heads · d_h = 256</text>
+
+            <!-- partial RoPE + QK-Norm -->
+            <rect x="140" y="232" width="220" height="26" fill="var(--c-rope-bg)" stroke="var(--c-rope)"/>
+            <text x="250" y="249" font-size="11" text-anchor="middle">M-RoPE · dims [0..63]   ·   no-pos [64..255]</text>
+            <rect x="380" y="232" width="100" height="26" fill="var(--c-norm-bg)" stroke="var(--c-norm)"/>
+            <text x="430" y="249" font-size="11" text-anchor="middle">QK-Norm</text>
+
+            <!-- attention scores -->
+            <rect x="160" y="266" width="300" height="32" fill="var(--c-attn-bg)" stroke="var(--c-attn)"/>
+            <text x="310" y="285" font-size="11" text-anchor="middle">A = softmax( Q K' ᵀ / √256 )</text>
+            <text x="310" y="300" font-size="9" class="muted" text-anchor="middle">causal · full sequence · KV cache replicated across 8 query-head groups</text>
+
+            <!-- gating on context -->
+            <rect x="180" y="306" width="260" height="26" fill="var(--c-attn-bg)" stroke="var(--c-attn)"/>
+            <text x="310" y="323" font-size="11" text-anchor="middle">o_t  =  g_t  ⊙  ( A · V )</text>
+
+            <!-- out proj -->
+            <rect x="220" y="338" width="180" height="22" fill="var(--c-attn-bg)" stroke="var(--c-attn)"/>
+            <text x="310" y="354" font-size="11" text-anchor="middle">W_O  ·  16·256 → 2 048</text>
+
+            <line x1="310" y1="402" x2="310" y2="430" stroke="#5E5E5E" marker-end="url(#a-ar)"/>
+            <circle cx="310" cy="440" r="14" fill="#fff" stroke="#5E5E5E"/>
+            <text x="310" y="445" font-size="14" text-anchor="middle" font-weight="500">+</text>
+            <line x1="60" y1="440" x2="294" y2="440" stroke="#5E5E5E" stroke-dasharray="4 4"/>
+            <line x1="310" y1="454" x2="310" y2="476" stroke="#5E5E5E" marker-end="url(#a-ar)"/>
+
+            <rect x="230" y="478" width="160" height="30" fill="var(--c-norm-bg)" stroke="var(--c-norm)"/>
+            <text x="310" y="497" font-size="12" text-anchor="middle">RMSNorm</text>
+            <line x1="310" y1="508" x2="310" y2="530" stroke="#5E5E5E" marker-end="url(#a-ar)"/>
+
+            <rect x="160" y="534" width="300" height="68" fill="#fff" stroke="var(--c-moe)" stroke-width="1.5"/>
+            <text x="310" y="552" font-size="12" font-weight="500" text-anchor="middle" fill="var(--c-moe-dk)">MoE · 256 experts · 8 routed + 1 shared</text>
+            <text x="310" y="572" font-size="11" text-anchor="middle">same module as in DeltaNet layers</text>
+            <text x="310" y="590" font-size="9" class="muted" text-anchor="middle">expert intermediate dim = 512</text>
+
+            <line x1="310" y1="602" x2="310" y2="618" stroke="#5E5E5E" marker-end="url(#a-ar)"/>
+            <circle cx="310" cy="628" r="14" fill="#fff" stroke="#5E5E5E"/>
+            <text x="310" y="633" font-size="14" text-anchor="middle" font-weight="500">+</text>
+            <line x1="60" y1="628" x2="294" y2="628" stroke="#5E5E5E" stroke-dasharray="4 4"/>
+
+            <text x="400" y="652" font-size="11" class="muted">→ next layer</text>
+          </svg>
+        </div>
+
+        <div class="block-side">
+          <div class="block-step norm">
+            <div class="h"><div class="t">1 · Pre-attention RMSNorm</div><div class="tag">pre-norm</div></div>
+            <p>Same RMSNorm as the DeltaNet variant. The Gated Attention layer otherwise has different head counts and projection shapes than its linear-attention neighbour.</p>
+          </div>
+          <div class="block-step attn">
+            <div class="h"><div class="t">2 · GQA 8 : 1 projections</div><div class="tag">16 Q · 2 KV</div></div>
+            <p>16 query heads share 2 KV heads — every KV head is replicated to 8 query heads at attention time. Per-head dimension is 256; the QKV slab is 4 096 + 512 + 512 = 5 120 wide.</p>
+          </div>
+          <div class="block-step rope">
+            <div class="h"><div class="t">3 · Partial M-RoPE on the first 64 dims</div><div class="tag">rotary_dim = 64</div></div>
+            <p>Rotary position embedding rotates only the leading 64 dimensions of each Q/K head; the remaining 192 are positionless. <code>partial_rotary_factor = 0.25</code> in <code>config.json</code>. The rotation itself is <b>M-RoPE</b> — see §08 for the (t, h, w) interleave.</p>
+          </div>
+          <div class="block-step norm">
+            <div class="h"><div class="t">4 · QK-Norm</div><div class="tag">per-head RMSNorm</div></div>
+            <p>Additional RMSNorm on the per-head Q and K vectors before the dot product. Stabilises attention logits at long context; carried over from the Qwen family. <i>Not stated by name in the fetched model card; carried from inventory lead and Qwen3 conventions.</i></p>
+          </div>
+          <div class="block-step attn">
+            <div class="h"><div class="t">5 · Softmax attention + output gate</div><div class="tag">causal · full ctx</div></div>
+            <p>Standard scaled-dot-product softmax over the entire causal context. The "Gated" in <i>Gated Attention</i> refers to a multiplicative gate applied to the attention output before <code>W_O</code> — the same gating motif as the DeltaNet layer, giving the two mixers a consistent interface.</p>
+          </div>
+          <div class="block-step moe">
+            <div class="h"><div class="t">6 · MoE channel mixer</div><div class="tag">→ §07</div></div>
+            <p>Identical MoE sub-block to the DeltaNet variant. The two block types share everything <i>except</i> the sequence-mixer module — same norm, same residual structure, same expert bank.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────── 06 · HEAD GEOMETRY COMPARE ─────── -->
+    <section id="heads">
+      <div class="sec-head">
+        <div class="num">06 · Head geometry · side by side</div>
+        <h2>Two mixers, two completely different projection slabs.</h2>
+        <p class="lede">The two sub-blocks differ in head count, head dimension, and the asymmetry between query and value heads. The cards below summarise the model-card numbers verbatim and visualise the per-token state each layer maintains.</p>
+      </div>
+
+      <div class="compare-grid">
+
+        <!-- DELTANET CARD -->
+        <div class="cmp-card delta">
+          <div class="strip"></div>
+          <div class="body">
+            <div class="eyebrow">30 of 40 layers</div>
+            <h4>Gated DeltaNet</h4>
+            <p>Linear-attention recurrence with a delta-rule state update and a learned forget gate. <b>32 value heads</b> wider than <b>16 QK heads</b> gives the state matrix more value capacity than dot-product index slots.</p>
+
+            <div class="diagram">
+              <svg viewBox="0 0 480 160" width="100%" height="160" aria-label="DeltaNet head layout">
+                <!-- Q heads -->
+                <text x="20" y="20" font-size="10" class="muted">Q heads · 16</text>
+                <g>
+                  <g fill="#7C3AED">
+                    <rect x="20" y="28" width="16" height="16"/><rect x="40" y="28" width="16" height="16"/>
+                    <rect x="60" y="28" width="16" height="16"/><rect x="80" y="28" width="16" height="16"/>
+                    <rect x="100" y="28" width="16" height="16"/><rect x="120" y="28" width="16" height="16"/>
+                    <rect x="140" y="28" width="16" height="16"/><rect x="160" y="28" width="16" height="16"/>
+                    <rect x="180" y="28" width="16" height="16"/><rect x="200" y="28" width="16" height="16"/>
+                    <rect x="220" y="28" width="16" height="16"/><rect x="240" y="28" width="16" height="16"/>
+                    <rect x="260" y="28" width="16" height="16"/><rect x="280" y="28" width="16" height="16"/>
+                    <rect x="300" y="28" width="16" height="16"/><rect x="320" y="28" width="16" height="16"/>
+                  </g>
+                </g>
+                <!-- K heads -->
+                <text x="20" y="62" font-size="10" class="muted">K heads · 16</text>
+                <g fill="#A78BFA">
+                  <rect x="20" y="70" width="16" height="16"/><rect x="40" y="70" width="16" height="16"/>
+                  <rect x="60" y="70" width="16" height="16"/><rect x="80" y="70" width="16" height="16"/>
+                  <rect x="100" y="70" width="16" height="16"/><rect x="120" y="70" width="16" height="16"/>
+                  <rect x="140" y="70" width="16" height="16"/><rect x="160" y="70" width="16" height="16"/>
+                  <rect x="180" y="70" width="16" height="16"/><rect x="200" y="70" width="16" height="16"/>
+                  <rect x="220" y="70" width="16" height="16"/><rect x="240" y="70" width="16" height="16"/>
+                  <rect x="260" y="70" width="16" height="16"/><rect x="280" y="70" width="16" height="16"/>
+                  <rect x="300" y="70" width="16" height="16"/><rect x="320" y="70" width="16" height="16"/>
+                </g>
+                <!-- V heads -->
+                <text x="20" y="104" font-size="10" class="muted">V heads · 32</text>
+                <g fill="#5B21B6">
+                  <g id="vrow"></g>
+                </g>
+                <script type="application/ecmascript"><![CDATA[ ]]></script>
+                <!-- manual V heads, 32 cells, 10px wide each -->
+                <g fill="#5B21B6">
+                  <rect x="20" y="112" width="10" height="16"/><rect x="32" y="112" width="10" height="16"/>
+                  <rect x="44" y="112" width="10" height="16"/><rect x="56" y="112" width="10" height="16"/>
+                  <rect x="68" y="112" width="10" height="16"/><rect x="80" y="112" width="10" height="16"/>
+                  <rect x="92" y="112" width="10" height="16"/><rect x="104" y="112" width="10" height="16"/>
+                  <rect x="116" y="112" width="10" height="16"/><rect x="128" y="112" width="10" height="16"/>
+                  <rect x="140" y="112" width="10" height="16"/><rect x="152" y="112" width="10" height="16"/>
+                  <rect x="164" y="112" width="10" height="16"/><rect x="176" y="112" width="10" height="16"/>
+                  <rect x="188" y="112" width="10" height="16"/><rect x="200" y="112" width="10" height="16"/>
+                  <rect x="212" y="112" width="10" height="16"/><rect x="224" y="112" width="10" height="16"/>
+                  <rect x="236" y="112" width="10" height="16"/><rect x="248" y="112" width="10" height="16"/>
+                  <rect x="260" y="112" width="10" height="16"/><rect x="272" y="112" width="10" height="16"/>
+                  <rect x="284" y="112" width="10" height="16"/><rect x="296" y="112" width="10" height="16"/>
+                  <rect x="308" y="112" width="10" height="16"/><rect x="320" y="112" width="10" height="16"/>
+                  <rect x="332" y="112" width="10" height="16"/><rect x="344" y="112" width="10" height="16"/>
+                  <rect x="356" y="112" width="10" height="16"/><rect x="368" y="112" width="10" height="16"/>
+                  <rect x="380" y="112" width="10" height="16"/><rect x="392" y="112" width="10" height="16"/>
+                </g>
+
+                <text x="450" y="40" font-size="10" class="muted" text-anchor="end">d_h = 128</text>
+                <text x="450" y="82" font-size="10" class="muted" text-anchor="end">d_h = 128</text>
+                <text x="450" y="124" font-size="10" class="muted" text-anchor="end">d_h = 128</text>
+
+                <text x="20" y="152" font-size="10" class="muted">state per token  ·  S ∈ ℝ^(32, 128, 128) per layer · no KV cache</text>
+              </svg>
+            </div>
+
+            <div class="spec spec-grid">
+              <div class="k">Layers using this mixer</div><div class="v">30 / 40</div>
+              <div class="k">QK heads</div><div class="v">16</div>
+              <div class="k">V heads</div><div class="v">32</div>
+              <div class="k">Head dim</div><div class="v">128</div>
+              <div class="k">Per-token cost</div><div class="v">O(d²) · linear in T</div>
+              <div class="k">Sequence cache</div><div class="v">recurrent state · no KV</div>
+              <div class="k">Positional encoding</div><div class="v unk">not reported</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ATTN CARD -->
+        <div class="cmp-card attn">
+          <div class="strip"></div>
+          <div class="body">
+            <div class="eyebrow">10 of 40 layers</div>
+            <h4>Gated Attention · GQA 8 : 1</h4>
+            <p>Full softmax causal attention. <b>16 query heads share 2 KV heads</b> — an aggressive 8 : 1 grouped-query ratio that keeps the KV cache small. Head dimension <b>256</b>, partial RoPE applied only to the first <b>64</b> dimensions.</p>
+
+            <div class="diagram">
+              <svg viewBox="0 0 480 160" width="100%" height="160" aria-label="Gated Attention head layout">
+                <text x="20" y="20" font-size="10" class="muted">Q heads · 16</text>
+                <g fill="#0D69D4">
+                  <rect x="20" y="28" width="16" height="16"/><rect x="40" y="28" width="16" height="16"/>
+                  <rect x="60" y="28" width="16" height="16"/><rect x="80" y="28" width="16" height="16"/>
+                  <rect x="100" y="28" width="16" height="16"/><rect x="120" y="28" width="16" height="16"/>
+                  <rect x="140" y="28" width="16" height="16"/><rect x="160" y="28" width="16" height="16"/>
+                  <rect x="180" y="28" width="16" height="16"/><rect x="200" y="28" width="16" height="16"/>
+                  <rect x="220" y="28" width="16" height="16"/><rect x="240" y="28" width="16" height="16"/>
+                  <rect x="260" y="28" width="16" height="16"/><rect x="280" y="28" width="16" height="16"/>
+                  <rect x="300" y="28" width="16" height="16"/><rect x="320" y="28" width="16" height="16"/>
+                </g>
+
+                <!-- grouping brackets -->
+                <g stroke="#0D69D4" stroke-dasharray="2 2" fill="none">
+                  <path d="M20 50 L180 50"/>
+                  <path d="M180 50 L340 50"/>
+                </g>
+                <text x="100" y="64" font-size="10" class="muted" text-anchor="middle">group 1 · 8 Q → 1 KV</text>
+                <text x="260" y="64" font-size="10" class="muted" text-anchor="middle">group 2 · 8 Q → 1 KV</text>
+
+                <text x="20" y="84" font-size="10" class="muted">K heads · 2</text>
+                <g fill="#0D69D4" opacity="0.55">
+                  <rect x="20" y="92" width="100" height="20"/>
+                  <rect x="220" y="92" width="100" height="20"/>
+                </g>
+                <text x="70" y="106" font-size="10" class="white" text-anchor="middle">K_1</text>
+                <text x="270" y="106" font-size="10" class="white" text-anchor="middle">K_2</text>
+
+                <text x="20" y="130" font-size="10" class="muted">V heads · 2</text>
+                <g fill="#0D69D4" opacity="0.3">
+                  <rect x="20" y="138" width="100" height="20"/>
+                  <rect x="220" y="138" width="100" height="20"/>
+                </g>
+                <text x="70" y="152" font-size="10" class="muted" text-anchor="middle">V_1</text>
+                <text x="270" y="152" font-size="10" class="muted" text-anchor="middle">V_2</text>
+
+                <text x="450" y="40" font-size="10" class="muted" text-anchor="end">d_h = 256</text>
+                <text x="450" y="106" font-size="10" class="muted" text-anchor="end">d_h = 256</text>
+                <text x="450" y="152" font-size="10" class="muted" text-anchor="end">d_h = 256</text>
+              </svg>
+            </div>
+
+            <div class="spec spec-grid">
+              <div class="k">Layers using this mixer</div><div class="v">10 / 40</div>
+              <div class="k">Q heads</div><div class="v">16</div>
+              <div class="k">KV heads (GQA)</div><div class="v">2</div>
+              <div class="k">Head dim</div><div class="v">256</div>
+              <div class="k">RoPE dim · partial</div><div class="v">64 of 256</div>
+              <div class="k">Sequence cache</div><div class="v">KV cache · grows with T</div>
+              <div class="k">Per-token cost</div><div class="v">O(T · d)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="math-panel" style="margin-top:20px;">
+        <div class="lbl">Why the asymmetry helps</div>
+        <div class="eq">DeltaNet:  state size  =  H_v · d_h · d_h  =  32 · 128 · 128  ≈  524 K params  <span class="comment">per layer · independent of T</span></div>
+        <div class="eq">Attention:  KV cache  =  2 · H_kv · d_h · T  =  2 · 2 · 256 · T  =  <b>1 024 · T</b>  <span class="comment">per layer · linear in T</span></div>
+        <div class="eq comment">At T = 262 144 a Gated Attention layer caches 268 M values per token batch — but only 10 layers do this. The other 30 keep a fixed-size state, which is why the hybrid memory budget at 256 K context stays tractable.</div>
+      </div>
+    </section>
+
+    <!-- ─────── 07 · MoE ─────── -->
+    <section id="moe">
+      <div class="sec-head">
+        <div class="num">07 · Mixture-of-Experts channel mixer</div>
+        <h2>256 experts. Eight routed and one shared active per token. Same module on every layer.</h2>
+        <p class="lede">Every layer — DeltaNet or Attention — ends in a single, uniform MoE channel mixer. There are <b>256 experts</b> per layer; each token routes to its <b>top-8</b> by router score and additionally pulls from <b>1 always-on shared expert</b>, for a total of <b>9 active experts per token per layer</b>. With expert intermediate dimension <b>512</b> and 40 layers, this is the mechanism that turns 35 B total parameters into a <b>3 B activated</b> footprint.</p>
+      </div>
+
+      <div class="moe-grid">
+        <div class="moe-svg">
+          <svg viewBox="0 0 660 380" width="100%" height="380" aria-label="MoE router and experts">
+            <defs>
+              <marker id="m-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="#76B900"/>
+              </marker>
+            </defs>
+
+            <!-- input token -->
+            <rect x="20" y="170" width="120" height="40" fill="#fff" stroke="#5E5E5E"/>
+            <text x="80" y="186" font-size="11" text-anchor="middle">token hidden state</text>
+            <text x="80" y="202" font-size="10" class="muted" text-anchor="middle">h ∈ ℝ^2048</text>
+
+            <line x1="140" y1="190" x2="178" y2="190" stroke="#5E5E5E" marker-end="url(#m-ar)"/>
+
+            <!-- router -->
+            <rect x="180" y="160" width="120" height="60" fill="#fff" stroke="var(--c-moe)" stroke-width="1.5"/>
+            <text x="240" y="184" font-size="12" font-weight="500" text-anchor="middle" fill="var(--c-moe-dk)">Router</text>
+            <text x="240" y="200" font-size="10" class="muted" text-anchor="middle">W_g · h → softmax</text>
+            <text x="240" y="213" font-size="10" class="muted" text-anchor="middle">→ top-8 indices</text>
+
+            <line x1="300" y1="190" x2="338" y2="190" stroke="#5E5E5E" marker-end="url(#m-ar)"/>
+
+            <!-- experts column -->
+            <text x="500" y="22" font-size="12" font-weight="500" text-anchor="middle" fill="var(--c-moe-dk)">Experts · 256 total</text>
+            <text x="500" y="38" font-size="10" class="muted" text-anchor="middle">SwiGLU FFN · d = 2 048 → 512 → 2 048</text>
+
+            <g id="moe-experts"></g>
+            <!-- experts grid will be drawn here by JS -->
+
+            <!-- shared expert -->
+            <rect x="340" y="306" width="320" height="46" fill="var(--c-delta-bg)" stroke="var(--c-delta)" stroke-width="1.5"/>
+            <text x="500" y="324" font-size="12" font-weight="500" text-anchor="middle" fill="var(--c-delta-dk)">1 shared expert · always active</text>
+            <text x="500" y="340" font-size="10" class="muted" text-anchor="middle">absorbs token-invariant features · runs every token</text>
+
+            <!-- routing line to chosen experts -->
+            <g stroke="#76B900" stroke-width="1" opacity="0.85">
+              <line x1="338" y1="200" x2="385" y2="80"/>
+              <line x1="338" y1="200" x2="430" y2="100"/>
+              <line x1="338" y1="200" x2="475" y2="120"/>
+              <line x1="338" y1="200" x2="520" y2="120"/>
+              <line x1="338" y1="200" x2="565" y2="100"/>
+              <line x1="338" y1="200" x2="608" y2="80"/>
+              <line x1="338" y1="200" x2="650" y2="100"/>
+              <line x1="338" y1="200" x2="385" y2="180"/>
+            </g>
+            <!-- shared link -->
+            <line x1="300" y1="200" x2="338" y2="328" stroke="var(--c-delta)" stroke-width="1.5" stroke-dasharray="3 3"/>
+
+            <text x="240" y="245" font-size="10" class="muted" text-anchor="middle">top-8 routed weights</text>
+            <text x="240" y="258" font-size="10" class="muted" text-anchor="middle">w_i ∝ softmax( h · W_g )_i</text>
+
+            <text x="240" y="328" font-size="10" class="muted" text-anchor="middle">shared expert pulled</text>
+            <text x="240" y="341" font-size="10" class="muted" text-anchor="middle">independently · always weight 1</text>
+          </svg>
+          <div class="experts-legend">
+            <span><i style="background:var(--c-moe)"></i> Routed expert · chosen this step</span>
+            <span><i style="background:var(--kui-n100)"></i> Routed expert · not chosen</span>
+            <span><i style="background:var(--c-delta)"></i> Shared expert · always on</span>
+          </div>
+          <div class="experts-grid" id="experts-grid"><!-- script-rendered --></div>
+        </div>
+
+        <div class="moe-stats">
+          <div class="row"><div class="k">Total experts<small>per layer</small></div><div class="v">256<small>routed + shared</small></div></div>
+          <div class="row"><div class="k">Active per token<small>routed</small></div><div class="v">8<small>top-k of 256</small></div></div>
+          <div class="row"><div class="k">Shared experts<small>always on</small></div><div class="v">1<small>not routed</small></div></div>
+          <div class="row"><div class="k">Active per token<small>total</small></div><div class="v">9<small>= 8 + 1</small></div></div>
+          <div class="row"><div class="k">Expert intermediate dim</div><div class="v">512<small>d_ff per expert</small></div></div>
+          <div class="row"><div class="k">Activation ratio<small>experts touched</small></div><div class="v">3.5%<small>9 / 256</small></div></div>
+          <div class="row"><div class="k">Total / active params<small>whole model</small></div><div class="v">35 B / 3 B<small>≈ 8.6 % active</small></div></div>
+          <div class="row"><div class="k">Activation function<small>per expert</small></div><div class="v unk">SwiGLU<small>family default · not re-stated</small></div></div>
+          <div class="row"><div class="k">Load balancing recipe</div><div class="v unk">not reported<small>fetched model card silent</small></div></div>
+        </div>
+      </div>
+
+      <div class="math-panel">
+        <div class="lbl">MoE output, one layer · per token</div>
+        <div class="eq"><span class="m">indices, weights</span>  =  top_k( softmax( W_g · h ),  k = 8 )</div>
+        <div class="eq">y_routed  =  Σ_{i ∈ top-8}  w_i · Expert_i(h)</div>
+        <div class="eq">y_shared  =  Expert_shared(h)  <span class="comment">// always evaluated</span></div>
+        <div class="eq">y  =  <span class="m">y_routed  +  y_shared</span>  <span class="comment">// fed back into the residual stream</span></div>
+        <div class="eq comment">Each Expert is a SwiGLU FFN with intermediate dim 512: y = W_down( SiLU(W_gate·h) ⊙ (W_up·h) ).  Each expert ≈ 3.1 M params; 256 experts × 40 layers ≈ 32 B of the model's parameter budget.</div>
+      </div>
+    </section>
+
+    <!-- ─────── 08 · M-RoPE ─────── -->
+    <section id="mrope">
+      <div class="sec-head">
+        <div class="num">08 · M-RoPE &amp; long context</div>
+        <h2>Three-axis rotary embeddings — time, height, width — applied to a partial-rotary slice.</h2>
+        <p class="lede">Qwen3.6 uses <b>Multimodal RoPE (M-RoPE)</b>: the rotation budget is split across <b>three position axes</b> — temporal, image-height, image-width — so a single positional encoding scheme covers text, image, and video tokens uniformly. The model card's recommended long-context config sets <code>mrope_section = [11, 11, 10]</code> — 32 rotary pairs split 11/11/10 across (t, h, w) — with <code>mrope_interleaved = true</code>, <code>rope_theta = 10 000 000</code>, and <code>partial_rotary_factor = 0.25</code>, meaning M-RoPE rotates only the first <b>64 of 256</b> head dimensions.</p>
+      </div>
+
+      <div class="mrope">
+        <div class="mrope-axes" style="grid-template-rows: repeat(3, 1fr); row-gap: 8px;">
+          <div class="a-label t">temporal · t</div>
+          <div class="a-track">
+            <div class="a-bar t" style="width: 34.4%;"></div>
+            <span>11 rotary pairs</span>
+          </div>
+          <div class="a-label h">height · h</div>
+          <div class="a-track">
+            <div class="a-bar h" style="width: 34.4%;"></div>
+            <span>11 rotary pairs</span>
+          </div>
+          <div class="a-label w">width · w</div>
+          <div class="a-track">
+            <div class="a-bar w" style="width: 31.2%;"></div>
+            <span>10 rotary pairs</span>
+          </div>
+        </div>
+        <div style="margin-top:16px; font: 12px/1.55 var(--kui-font-sans); color: var(--kui-fg-default);">
+          The 32 rotary pairs (64 dimensions) form a single rotary slice of each 256-d head; the remaining 192 dimensions per head are positionless. <code>mrope_interleaved = true</code> interleaves the three axes inside that slice rather than stacking them. For pure text, all positions write to the <i>t</i> axis only; for image tokens, <i>h</i> and <i>w</i> become non-trivial; video adds motion along <i>t</i> simultaneously.
+        </div>
+      </div>
+
+      <div class="deep" style="margin-top:24px;">
+        <div class="deep-head">
+          <div>
+            <div class="e">Long-context extension</div>
+            <h3>YaRN · static scaling from 262 144 → 1 010 000 tokens</h3>
+          </div>
+          <div class="strip" style="background: var(--c-rope);"></div>
+        </div>
+        <div class="deep-body">
+          <div class="diagram">
+            <svg viewBox="0 0 600 260" width="100%" height="260" aria-label="YaRN long-context extension">
+              <defs>
+                <marker id="yr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                  <path d="M0 0 L10 5 L0 10 z" fill="#851F41"/>
+                </marker>
+              </defs>
+
+              <text x="120" y="28" font-size="12" text-anchor="middle" font-weight="500">Native context</text>
+              <rect x="40" y="40" width="160" height="60" fill="var(--c-rope-bg)" stroke="var(--c-rope)"/>
+              <text x="120" y="62" font-size="11" text-anchor="middle">262 144 tokens</text>
+              <text x="120" y="80" font-size="10" class="muted" text-anchor="middle">trained context length</text>
+              <text x="120" y="94" font-size="10" class="muted" text-anchor="middle">rope_theta = 10 M</text>
+
+              <line x1="200" y1="70" x2="240" y2="70" stroke="#851F41" stroke-width="2" marker-end="url(#yr)"/>
+              <text x="220" y="60" font-size="10" class="muted" text-anchor="middle">YaRN</text>
+              <text x="220" y="84" font-size="10" class="muted" text-anchor="middle">factor = 4.0</text>
+
+              <text x="380" y="28" font-size="12" text-anchor="middle" font-weight="500">Extended context</text>
+              <rect x="260" y="40" width="240" height="60" fill="var(--c-rope)" stroke="var(--c-rope)"/>
+              <text x="380" y="62" font-size="11" text-anchor="middle" class="white">1 010 000 tokens</text>
+              <text x="380" y="82" font-size="10" class="white" text-anchor="middle">static scaling · all positions</text>
+
+              <!-- caveat box -->
+              <rect x="40" y="130" width="520" height="110" fill="var(--kui-n050)" stroke="#D8D8D8"/>
+              <text x="60" y="152" font-size="11" font-weight="500">Use the YaRN config only when you actually need &gt; 262 K context.</text>
+              <text x="60" y="172" font-size="10" class="muted">All major open-source frameworks implement static YaRN — the scaling factor is</text>
+              <text x="60" y="186" font-size="10" class="muted">applied uniformly regardless of input length, which can degrade quality on short prompts.</text>
+              <text x="60" y="208" font-size="10" class="muted">For typical 524 288-token applications the model card recommends factor = 2.0 instead.</text>
+              <text x="60" y="222" font-size="10" class="muted" style="font-style:italic;">Source: Qwen3.6-35B-A3B model card, "Processing Ultra-Long Texts".</text>
+            </svg>
+          </div>
+          <div class="side">
+            <p><b>Native vs extended context.</b> The model is trained at 262 144 tokens. YaRN — a learned-rate-free RoPE scaling scheme — can extend the effective window to 1 010 000 tokens by rescaling the rotary frequencies, without further fine-tuning.</p>
+            <p><b>Where it lives.</b> YaRN is enabled by overriding <code>rope_parameters</code> in <code>text_config</code> or via inference-server flags (<code>--max-model-len 1010000</code> on vLLM/SGLang). The override fields are <code>rope_type: "yarn"</code>, <code>factor: 4.0</code>, <code>original_max_position_embeddings: 262144</code>.</p>
+            <p><b>Why short prompts suffer.</b> Static YaRN applies the same scaling factor everywhere, so 1 K-token prompts get rotated through the same long-range frequencies that were calibrated for 1 M. The model card recommends keeping context at <b>≥ 128 K to preserve thinking quality</b> if YaRN is on.</p>
+
+            <div class="math-panel">
+              <div class="lbl">Long-context rope_parameters · model card recommendation</div>
+              <div class="eq"><b>rope_type</b>          : "yarn"</div>
+              <div class="eq"><b>mrope_interleaved</b>  : true</div>
+              <div class="eq"><b>mrope_section</b>      : [11, 11, 10]</div>
+              <div class="eq"><b>rope_theta</b>         : 10 000 000</div>
+              <div class="eq"><b>partial_rotary_factor</b> : 0.25</div>
+              <div class="eq"><b>factor</b>             : 4.0</div>
+              <div class="eq"><b>original_max_pos_embed</b> : 262 144</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────── 09 · MTP ─────── -->
+    <section id="mtp">
+      <div class="sec-head">
+        <div class="num">09 · Multi-Token Prediction</div>
+        <h2>Trained to predict several future tokens per step — used at inference as a speculative decoder.</h2>
+        <p class="lede">The model card lists <code>MTP: trained with multi-steps</code>. In practice the model is shipped with an additional MTP head that emits <b>N future tokens</b> at every position; serving frameworks then use those predictions as draft tokens, verifying them in a single batched forward pass. SGLang and vLLM both expose dedicated flags (<code>--speculative-algo NEXTN</code>, <code>method: qwen3_next_mtp</code>) — the recommended setting is <b>3 speculative steps · top-1 draft · 4 verify tokens</b> on SGLang.</p>
+      </div>
+
+      <div class="mtp-grid">
+        <div class="mtp">
+          <svg viewBox="0 0 720 260" width="100%" height="260" aria-label="MTP speculative decoding timeline">
+            <defs>
+              <marker id="mt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="#1F8A5B"/>
+              </marker>
+            </defs>
+
+            <!-- step 1: backbone produces a token + N speculative draft tokens -->
+            <text x="60" y="28" font-size="12" font-weight="500">Step 1 · backbone forward pass</text>
+            <rect x="40" y="40" width="100" height="50" fill="#fff" stroke="#5E5E5E"/>
+            <text x="90" y="60" font-size="11" text-anchor="middle">backbone</text>
+            <text x="90" y="76" font-size="10" class="muted" text-anchor="middle">40 layers</text>
+
+            <line x1="140" y1="65" x2="178" y2="65" stroke="#1F8A5B" marker-end="url(#mt)"/>
+
+            <!-- main LM head -->
+            <rect x="180" y="40" width="80" height="22" fill="var(--c-moe-bg)" stroke="var(--c-moe)"/>
+            <text x="220" y="56" font-size="10" text-anchor="middle">LM head</text>
+            <rect x="270" y="40" width="60" height="22" fill="var(--c-moe)" stroke="var(--c-moe)"/>
+            <text x="300" y="56" font-size="11" text-anchor="middle" class="white">t_n</text>
+
+            <!-- MTP heads -->
+            <rect x="180" y="70" width="80" height="22" fill="var(--c-mtp-bg)" stroke="var(--c-mtp)"/>
+            <text x="220" y="86" font-size="10" text-anchor="middle">MTP · h₁</text>
+            <rect x="270" y="70" width="60" height="22" fill="var(--c-mtp)" stroke="var(--c-mtp)"/>
+            <text x="300" y="86" font-size="11" text-anchor="middle" class="white">t_n+1</text>
+
+            <rect x="340" y="70" width="60" height="22" fill="var(--c-mtp)" stroke="var(--c-mtp)" opacity="0.85"/>
+            <text x="370" y="86" font-size="11" text-anchor="middle" class="white">t_n+2</text>
+
+            <rect x="410" y="70" width="60" height="22" fill="var(--c-mtp)" stroke="var(--c-mtp)" opacity="0.7"/>
+            <text x="440" y="86" font-size="11" text-anchor="middle" class="white">t_n+3</text>
+
+            <text x="220" y="118" font-size="10" class="muted">main token</text>
+            <text x="370" y="118" font-size="10" class="muted" text-anchor="middle">draft tokens · cheap · stochastic-greedy</text>
+
+            <!-- step 2: verification -->
+            <text x="60" y="160" font-size="12" font-weight="500">Step 2 · single batched verify pass</text>
+            <rect x="40" y="172" width="100" height="50" fill="#fff" stroke="#5E5E5E"/>
+            <text x="90" y="192" font-size="11" text-anchor="middle">backbone</text>
+            <text x="90" y="208" font-size="10" class="muted" text-anchor="middle">verifies drafts</text>
+
+            <line x1="140" y1="196" x2="178" y2="196" stroke="#1F8A5B" marker-end="url(#mt)"/>
+
+            <g>
+              <rect x="180" y="180" width="60" height="32" fill="var(--c-moe)" stroke="var(--c-moe)"/>
+              <text x="210" y="200" font-size="11" text-anchor="middle" class="white">accept</text>
+              <rect x="250" y="180" width="60" height="32" fill="var(--c-moe)" stroke="var(--c-moe)" opacity="0.7"/>
+              <text x="280" y="200" font-size="11" text-anchor="middle" class="white">accept</text>
+              <rect x="320" y="180" width="60" height="32" fill="#fff" stroke="var(--kui-fg-muted)"/>
+              <text x="350" y="200" font-size="11" text-anchor="middle">reject</text>
+              <rect x="390" y="180" width="60" height="32" fill="#fff" stroke="var(--kui-fg-muted)" opacity="0.5"/>
+              <text x="420" y="200" font-size="11" text-anchor="middle" class="muted">discard</text>
+            </g>
+
+            <text x="500" y="200" font-size="10" class="muted">commit accepted prefix · loop back to step 1</text>
+
+            <!-- speedup label -->
+            <rect x="540" y="40" width="160" height="80" fill="var(--c-mtp-bg)" stroke="var(--c-mtp)"/>
+            <text x="620" y="62" font-size="11" font-weight="500" text-anchor="middle" fill="var(--c-mtp)">SGLang recipe</text>
+            <text x="620" y="80" font-size="10" text-anchor="middle">NEXTN · num_steps = 3</text>
+            <text x="620" y="94" font-size="10" text-anchor="middle">eagle_topk = 1</text>
+            <text x="620" y="108" font-size="10" text-anchor="middle">draft_tokens = 4</text>
+          </svg>
+        </div>
+
+        <div class="mtp-side">
+          <div class="block-step" style="border-left: 3px solid var(--c-mtp); padding-left: 16px;">
+            <div class="h"><div class="t">Why ship MTP weights?</div><div class="tag">train-time signal</div></div>
+            <p>Multi-step MTP training gives the backbone richer gradients (the model must predict <i>several</i> next tokens, not just one), even before any speculative decoding is used. The serving-time speedup is a downstream consequence.</p>
+          </div>
+          <div class="block-step" style="border-left: 3px solid var(--c-mtp); padding-left: 16px;">
+            <div class="h"><div class="t">vLLM config</div><div class="tag">qwen3_next_mtp</div></div>
+            <p><code>--speculative-config '{"method":"qwen3_next_mtp","num_speculative_tokens":2}'</code>. vLLM ships a Qwen3-Next-specific MTP recipe; the speculative head shares the backbone's last-layer hidden states.</p>
+          </div>
+          <div class="block-step" style="border-left: 3px solid var(--c-mtp); padding-left: 16px;">
+            <div class="h"><div class="t">SGLang config</div><div class="tag">NEXTN</div></div>
+            <p><code>--speculative-algo NEXTN --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4</code>. Recommended in the model card for the standard 256 K-context deployment.</p>
+          </div>
+          <div class="block-step" style="border-left: 3px solid var(--c-mtp); padding-left: 16px;">
+            <div class="h"><div class="t">Acceptance dynamics</div><div class="tag">not reported</div></div>
+            <p>The model card does not publish empirical acceptance rates or end-to-end speedup numbers for MTP on Qwen3.6-35B-A3B. Treat speedup as deployment-dependent.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────── 10 · VISION ─────── -->
+    <section id="vision">
+      <div class="sec-head">
+        <div class="num">10 · Vision encoder</div>
+        <h2>An image-text-to-text model — vision is first-class, not bolted on.</h2>
+        <p class="lede">The Hugging Face pipeline tag for Qwen3.6-35B-A3B is <code>image-text-to-text</code>: vision is the default input modality alongside text. The model card describes the model as a <i>Causal Language Model with Vision Encoder</i>; the exact vision-tower specification (depth, hidden dim, patch resolution) is not duplicated in the fetched model-card text, but the inference surface is documented: image and video inputs are accepted via the OpenAI Chat Completions API with <code>type: image_url</code> and <code>type: video_url</code>, video frame sampling is driven by an <code>fps</code> parameter, and a <code>--language-model-only</code> flag exists to skip the vision tower entirely when running pure text workloads.</p>
+      </div>
+
+      <div class="vision">
+        <div class="vision-svg">
+          <svg viewBox="0 0 660 340" width="100%" height="340" aria-label="Vision tower flow">
+            <defs>
+              <marker id="vr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 z" fill="#C54600"/>
+              </marker>
+            </defs>
+
+            <!-- input image -->
+            <rect x="20" y="60" width="120" height="120" fill="var(--c-vision-bg)" stroke="#C54600"/>
+            <text x="80" y="42" font-size="12" text-anchor="middle">Input image / frame</text>
+            <text x="80" y="58" font-size="10" class="muted" text-anchor="middle">variable aspect &amp; resolution</text>
+            <g stroke="#C54600" stroke-dasharray="2 2" opacity="0.5">
+              <line x1="20" y1="90" x2="140" y2="90"/>
+              <line x1="20" y1="120" x2="140" y2="120"/>
+              <line x1="20" y1="150" x2="140" y2="150"/>
+              <line x1="50" y1="60" x2="50" y2="180"/>
+              <line x1="80" y1="60" x2="80" y2="180"/>
+              <line x1="110" y1="60" x2="110" y2="180"/>
+            </g>
+
+            <line x1="140" y1="120" x2="178" y2="120" stroke="#C54600" marker-end="url(#vr)"/>
+
+            <!-- vision encoder -->
+            <rect x="180" y="80" width="200" height="80" fill="#fff" stroke="#C54600" stroke-width="1.5"/>
+            <text x="280" y="108" font-size="13" font-weight="500" text-anchor="middle" fill="#C54600">Vision encoder</text>
+            <text x="280" y="126" font-size="11" text-anchor="middle">patch embed → ViT-style</text>
+            <text x="280" y="142" font-size="10" class="muted" text-anchor="middle">size / depth not in fetched model-card text</text>
+
+            <line x1="380" y1="120" x2="418" y2="120" stroke="#C54600" marker-end="url(#vr)"/>
+
+            <!-- visual tokens -->
+            <rect x="420" y="80" width="220" height="80" fill="#fff" stroke="#C54600"/>
+            <text x="530" y="105" font-size="12" text-anchor="middle" font-weight="500">Visual tokens</text>
+            <g>
+              <rect x="436" y="118" width="20" height="20" fill="var(--c-vision-bg)" stroke="#C54600"/>
+              <rect x="460" y="118" width="20" height="20" fill="var(--c-vision-bg)" stroke="#C54600"/>
+              <rect x="484" y="118" width="20" height="20" fill="var(--c-vision-bg)" stroke="#C54600"/>
+              <rect x="508" y="118" width="20" height="20" fill="var(--c-vision-bg)" stroke="#C54600"/>
+              <rect x="532" y="118" width="20" height="20" fill="var(--c-vision-bg)" stroke="#C54600"/>
+              <rect x="556" y="118" width="20" height="20" fill="var(--c-vision-bg)" stroke="#C54600"/>
+              <rect x="580" y="118" width="20" height="20" fill="var(--c-vision-bg)" stroke="#C54600"/>
+              <rect x="604" y="118" width="20" height="20" fill="var(--c-vision)" stroke="#C54600"/>
+            </g>
+            <text x="530" y="156" font-size="10" class="muted" text-anchor="middle">positions written to (h, w) M-RoPE axes</text>
+
+            <!-- joint stream -->
+            <text x="20" y="220" font-size="12" font-weight="500">Interleaved into the LM token stream</text>
+            <g>
+              <rect x="20" y="232" width="40" height="22" fill="var(--c-vision-bg)" stroke="#C54600"/>
+              <text x="40" y="247" font-size="10" text-anchor="middle">v₁</text>
+              <rect x="64" y="232" width="40" height="22" fill="var(--c-vision-bg)" stroke="#C54600"/>
+              <text x="84" y="247" font-size="10" text-anchor="middle">v₂</text>
+              <rect x="108" y="232" width="40" height="22" fill="var(--c-vision-bg)" stroke="#C54600"/>
+              <text x="128" y="247" font-size="10" text-anchor="middle">v₃</text>
+              <rect x="152" y="232" width="40" height="22" fill="var(--c-vision-bg)" stroke="#C54600"/>
+              <text x="172" y="247" font-size="10" text-anchor="middle">…</text>
+              <rect x="196" y="232" width="40" height="22" fill="var(--c-vision)" stroke="#C54600"/>
+              <text x="216" y="247" font-size="10" text-anchor="middle" class="white">v_n</text>
+              <rect x="240" y="232" width="40" height="22" fill="#fff" stroke="#5E5E5E"/>
+              <text x="260" y="247" font-size="10" text-anchor="middle">t₁</text>
+              <rect x="284" y="232" width="40" height="22" fill="#fff" stroke="#5E5E5E"/>
+              <text x="304" y="247" font-size="10" text-anchor="middle">t₂</text>
+              <rect x="328" y="232" width="40" height="22" fill="#fff" stroke="#5E5E5E"/>
+              <text x="348" y="247" font-size="10" text-anchor="middle">t₃</text>
+              <rect x="372" y="232" width="40" height="22" fill="#fff" stroke="#5E5E5E"/>
+              <text x="392" y="247" font-size="10" text-anchor="middle">…</text>
+            </g>
+            <text x="60"  y="278" font-size="10" class="muted">visual tokens · (t, h, w) positions</text>
+            <text x="320" y="278" font-size="10" class="muted">text tokens · t-only positions</text>
+
+            <text x="20" y="312" font-size="10" class="muted">For pure-text workloads, vLLM exposes <tspan font-family="var(--kui-font-mono)" fill="#202020">--language-model-only</tspan> to skip the vision tower.</text>
+          </svg>
+        </div>
+
+        <div class="budget-card">
+          <h4>Video input</h4>
+          <div class="sub">Driven by <code>fps</code> (default 2) and <code>do_sample_frames</code>. The video processor's <code>longest_edge</code> defaults conservatively; the model card recommends raising it to 469 762 048 (≈ 224 K video tokens) for hour-scale video.</div>
+
+          <div class="spec-grid">
+            <div class="k">Default frame sample rate</div><div class="v">fps = 2</div>
+            <div class="k">Sampler toggle</div><div class="v">do_sample_frames</div>
+            <div class="k">Tokens / hour video</div><div class="v">≈ 224 K · w/ tuned longest_edge</div>
+            <div class="k">Long-edge default · pixels</div><div class="v">conservative</div>
+            <div class="k">Recommended long-edge</div><div class="v">469 762 048</div>
+            <div class="k">Vision tower size</div><div class="v unk">not reported</div>
+            <div class="k">Patch resolution</div><div class="v unk">not reported</div>
+          </div>
+
+          <div class="sub" style="margin-top:16px; margin-bottom:0;"><b>Constraint.</b> When deploying for text only, pass <code>--language-model-only</code> on vLLM (or skip the vision tower equivalently on SGLang) to recover the KV-cache memory the vision tower would otherwise reserve.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────── 11 · THINKING MODE ─────── -->
+    <section id="thinking">
+      <div class="sec-head">
+        <div class="num">11 · Thinking mode</div>
+        <h2>Reasoning is on by default; preservation across turns is a Qwen3.6 first.</h2>
+        <p class="lede">Qwen3.6-35B-A3B "operates in thinking mode by default, generating thinking content signified by <code>&lt;think&gt;…&lt;/think&gt;</code> before producing the final response." Unlike Qwen3, the soft <code>/think</code>, <code>/nothink</code> commands are <b>not</b> supported — callers toggle thinking through the chat-template kwarg <code>enable_thinking</code>. The new Qwen3.6 capability is <code>preserve_thinking = true</code>, which retains the reasoning trace from previous turns to streamline iterative agent work.</p>
+      </div>
+
+      <div class="ribbon-wrap">
+        <div class="ribbon-head">
+          <h4>Per-turn generation timeline · thinking enabled</h4>
+          <div class="key">
+            <span><i style="background:var(--c-think-bg); border:1px solid var(--c-think);"></i> System / control</span>
+            <span><i style="background:var(--c-think)"></i> Thought channel</span>
+            <span><i style="background:var(--c-moe)"></i> Final answer</span>
+          </div>
+        </div>
+
+        <div class="think-track">
+          <div class="think-seg a">
+            <div class="ph">Trigger</div>
+            <div class="nm">enable_thinking = true</div>
+            <div class="ex">chat_template_kwargs default</div>
+          </div>
+          <div class="think-seg b">
+            <div class="ph">Reasoning</div>
+            <div class="nm">&lt;think&gt; · internal trace</div>
+            <div class="ex">step-by-step plan · scratch arithmetic · tool decisions</div>
+          </div>
+          <div class="think-seg c">
+            <div class="ph">Answer</div>
+            <div class="nm">&lt;/think&gt; · final response</div>
+            <div class="ex">user-visible output · sampled at temp 1.0 / top_p 0.95</div>
+          </div>
+        </div>
+
+        <div class="think-tokens">
+          <div class="t">
+            <div class="h">Enable / disable</div>
+            <div class="code">enable_thinking: false</div>
+            <p>Pass through <code>chat_template_kwargs</code> (vLLM/SGLang/Transformers) or directly as <code>enable_thinking</code> on Alibaba Cloud Model Studio. Off by default for non-thinking workloads.</p>
+          </div>
+          <div class="t">
+            <div class="h">Preserve thinking</div>
+            <div class="code">preserve_thinking: true</div>
+            <p>Retain prior-turn thinking blocks in history. Qwen3.6 is trained to leverage them for decision consistency and KV-cache reuse. Independent of <code>enable_thinking</code>.</p>
+          </div>
+          <div class="t">
+            <div class="h">Sampling (thinking · general)</div>
+            <div class="code">temp = 1.0 · top_p = 0.95</div>
+            <p>Model-card defaults: <code>top_k = 20</code>, <code>min_p = 0.0</code>, <code>presence_penalty = 1.5</code>. For precise coding switch to <code>temp = 0.6</code>; for non-thinking <code>temp = 0.7, top_p = 0.80</code>.</p>
+          </div>
+        </div>
+
+        <div class="ribbon-caveat" style="background:#FFFBF0; border-left-color: var(--kui-warning);">
+          <b>Output length.</b> Default recommended output length is <b>32 768 tokens</b>; raise to <b>81 920</b> for math &amp; programming competitions. With YaRN active, keep total context at <b>≥ 128 K</b> to preserve thinking quality.
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────── 12 · TRAINING ─────── -->
+    <section id="training">
+      <div class="sec-head">
+        <div class="num">12 · Training pipeline</div>
+        <h2>Pre-training and post-training stages — broad strokes only.</h2>
+        <p class="lede">The Qwen3.6 model card lists "Training Stage: Pre-training &amp; Post-training" and identifies the model as a community-feedback-driven successor to Qwen3.5. Concrete token budgets, optimisers, RL recipes, and reward models are <b>not</b> disclosed in the fetched model-card text; the pipeline below is what the model card and the release blog directly support.</p>
+      </div>
+
+      <div class="pipe">
+        <div class="step">
+          <div class="num">01</div>
+          <h6>Multimodal pre-training</h6>
+          <p>Large-scale text + image + video pretraining producing the base hybrid MoE backbone, the vision encoder, and the MTP head. Token budget, language mix, code share, and curriculum: not reported.</p>
+          <span class="vol unk">tokens: unknown</span>
+        </div>
+        <div class="step">
+          <div class="num">02</div>
+          <h6>MTP multi-step training</h6>
+          <p>The model card states <code>MTP: trained with multi-steps</code>. The MTP head is co-trained from pre-training so that downstream serving frameworks (vLLM <code>qwen3_next_mtp</code>, SGLang NEXTN) can speculate multiple tokens ahead.</p>
+          <span class="vol">multi-step · co-trained</span>
+        </div>
+        <div class="step">
+          <div class="num">03</div>
+          <h6>Long-context extension</h6>
+          <p>Native context trained at <b>262 144</b> tokens. Mechanism (continuous pretraining vs RoPE-base scaling vs SFT) not detailed; <b>YaRN</b> extension to 1 010 K is a post-hoc inference-time scheme, not a separate training stage.</p>
+          <span class="vol">262 K → 1 010 K</span>
+        </div>
+        <div class="step">
+          <div class="num">04</div>
+          <h6>Agentic / coding SFT &amp; RL</h6>
+          <p>Qwen3.6's stated focus is <i>agentic coding</i>: repository-level reasoning, frontend workflows, tool-call fluency. The release blog frames this as feedback-driven post-training; the exact SFT mix, reward signals, and RL algorithm are not stated in the fetched text.</p>
+          <span class="vol unk">recipe: unknown</span>
+        </div>
+        <div class="step">
+          <div class="num">05</div>
+          <h6>Thinking-preservation tuning</h6>
+          <p>Qwen3.6 was <i>"additionally trained to preserve and leverage thinking traces from historical messages"</i> — the data and supervision that produce this behaviour are not detailed beyond that statement.</p>
+          <span class="vol">Apache 2.0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────── 13 · BENCHMARKS ─────── -->
+    <section id="bench">
+      <div class="sec-head">
+        <div class="num">13 · Reported benchmarks</div>
+        <h2>Model-card numbers · publisher-reported only.</h2>
+        <p class="lede">The Qwen3.6-35B-A3B model card publishes two benchmark tables — <b>Language</b> and <b>Vision-Language</b>. The selection below pulls headline numbers from each. <b>None of these are independently verified</b>; treat as the publisher's claims. Scoring conditions (temperature, scaffolds, judge models) are documented on the model card.</p>
+      </div>
+
+      <div class="bench-grid">
+        <div class="bench-card">
+          <h5>Knowledge &amp; reasoning</h5>
+          <div class="bench-row"><div class="lbl">GPQA Diamond</div><div class="bar"><div style="width:86%"></div></div><div class="val">86.0</div></div>
+          <div class="bench-row"><div class="lbl">MMLU-Pro</div><div class="bar"><div style="width:85.2%"></div></div><div class="val">85.2</div></div>
+          <div class="bench-row"><div class="lbl">MMLU-Redux</div><div class="bar"><div style="width:93.3%"></div></div><div class="val">93.3</div></div>
+          <div class="bench-row"><div class="lbl">SuperGPQA</div><div class="bar"><div style="width:64.7%"></div></div><div class="val">64.7</div></div>
+          <div class="bench-row"><div class="lbl">C-Eval</div><div class="bar"><div style="width:90%"></div></div><div class="val">90.0</div></div>
+          <div class="bench-row"><div class="lbl">HLE</div><div class="bar"><div style="width:21.4%"></div></div><div class="val">21.4</div></div>
+        </div>
+        <div class="bench-card">
+          <h5>Math &amp; code</h5>
+          <div class="bench-row"><div class="lbl">AIME 2026</div><div class="bar"><div style="width:92.7%"></div></div><div class="val">92.7</div></div>
+          <div class="bench-row"><div class="lbl">HMMT Feb 2026</div><div class="bar"><div style="width:83.6%"></div></div><div class="val">83.6</div></div>
+          <div class="bench-row"><div class="lbl">HMMT Feb 25</div><div class="bar"><div style="width:90.7%"></div></div><div class="val">90.7</div></div>
+          <div class="bench-row"><div class="lbl">IMOAnswerBench</div><div class="bar"><div style="width:78.9%"></div></div><div class="val">78.9</div></div>
+          <div class="bench-row"><div class="lbl">LiveCodeBench v6</div><div class="bar"><div style="width:80.4%"></div></div><div class="val">80.4</div></div>
+          <div class="bench-row"><div class="lbl">Terminal-Bench 2.0</div><div class="bar"><div style="width:51.5%"></div></div><div class="val">51.5</div></div>
+        </div>
+        <div class="bench-card">
+          <h5>Coding agent</h5>
+          <div class="bench-row"><div class="lbl">SWE-bench Verified</div><div class="bar"><div style="width:73.4%; background: var(--c-attn);"></div></div><div class="val">73.4</div></div>
+          <div class="bench-row"><div class="lbl">SWE-bench Multilingual</div><div class="bar"><div style="width:67.2%; background: var(--c-attn);"></div></div><div class="val">67.2</div></div>
+          <div class="bench-row"><div class="lbl">SWE-bench Pro</div><div class="bar"><div style="width:49.5%; background: var(--c-attn);"></div></div><div class="val">49.5</div></div>
+          <div class="bench-row"><div class="lbl">Claw-Eval avg</div><div class="bar"><div style="width:68.7%; background: var(--c-attn);"></div></div><div class="val">68.7</div></div>
+          <div class="bench-row"><div class="lbl">QwenWebBench · ELO</div><div class="bar"><div style="width:93.2%; background: var(--c-attn);"></div></div><div class="val">1 397</div></div>
+          <div class="bench-row"><div class="lbl">NL2Repo</div><div class="bar"><div style="width:29.4%; background: var(--c-attn);"></div></div><div class="val">29.4</div></div>
+        </div>
+        <div class="bench-card">
+          <h5>Vision · STEM &amp; VQA</h5>
+          <div class="bench-row"><div class="lbl">MMMU</div><div class="bar"><div class="alt" style="width:81.7%"></div></div><div class="val">81.7</div></div>
+          <div class="bench-row"><div class="lbl">MMMU-Pro</div><div class="bar"><div class="alt" style="width:75.3%"></div></div><div class="val">75.3</div></div>
+          <div class="bench-row"><div class="lbl">MathVista (mini)</div><div class="bar"><div class="alt" style="width:86.4%"></div></div><div class="val">86.4</div></div>
+          <div class="bench-row"><div class="lbl">RealWorldQA</div><div class="bar"><div class="alt" style="width:85.3%"></div></div><div class="val">85.3</div></div>
+          <div class="bench-row"><div class="lbl">MMBench-EN-DEV v1.1</div><div class="bar"><div class="alt" style="width:92.8%"></div></div><div class="val">92.8</div></div>
+          <div class="bench-row"><div class="lbl">HallusionBench</div><div class="bar"><div class="alt" style="width:69.8%"></div></div><div class="val">69.8</div></div>
+        </div>
+        <div class="bench-card">
+          <h5>Vision · OCR &amp; docs</h5>
+          <div class="bench-row"><div class="lbl">OmniDocBench 1.5</div><div class="bar"><div class="alt" style="width:89.9%"></div></div><div class="val">89.9</div></div>
+          <div class="bench-row"><div class="lbl">CharXiv (RQ)</div><div class="bar"><div class="alt" style="width:78%"></div></div><div class="val">78.0</div></div>
+          <div class="bench-row"><div class="lbl">CC-OCR</div><div class="bar"><div class="alt" style="width:81.9%"></div></div><div class="val">81.9</div></div>
+          <div class="bench-row"><div class="lbl">AI2D Test</div><div class="bar"><div class="alt" style="width:92.7%"></div></div><div class="val">92.7</div></div>
+          <div class="bench-row"><div class="lbl">RefCOCO (avg)</div><div class="bar"><div class="alt" style="width:92%"></div></div><div class="val">92.0</div></div>
+          <div class="bench-row"><div class="lbl">ODInW13</div><div class="bar"><div class="alt" style="width:50.8%"></div></div><div class="val">50.8</div></div>
+        </div>
+        <div class="bench-card">
+          <h5>Video</h5>
+          <div class="bench-row"><div class="lbl">VideoMME · w/ subs</div><div class="bar"><div class="alt" style="width:86.6%"></div></div><div class="val">86.6</div></div>
+          <div class="bench-row"><div class="lbl">VideoMME · w/o subs</div><div class="bar"><div class="alt" style="width:82.5%"></div></div><div class="val">82.5</div></div>
+          <div class="bench-row"><div class="lbl">VideoMMMU</div><div class="bar"><div class="alt" style="width:83.7%"></div></div><div class="val">83.7</div></div>
+          <div class="bench-row"><div class="lbl">MLVU</div><div class="bar"><div class="alt" style="width:86.2%"></div></div><div class="val">86.2</div></div>
+          <div class="bench-row"><div class="lbl">MVBench</div><div class="bar"><div class="alt" style="width:74.6%"></div></div><div class="val">74.6</div></div>
+          <div class="bench-row"><div class="lbl">LVBench</div><div class="bar"><div class="alt" style="width:71.4%"></div></div><div class="val">71.4</div></div>
+        </div>
+      </div>
+
+      <div class="vs-wrap" style="margin-top:24px;">
+        <h4>Qwen3.6 35B-A3B vs Qwen3.5 35B-A3B</h4>
+        <div class="sub">Same architecture family, same active-param count — these deltas isolate the Qwen3.6 post-training upgrade. Source: Qwen3.6 model card language &amp; vision tables.</div>
+        <div class="vs-key">
+          <span><i style="background:var(--kui-fg-muted)"></i> Qwen3.5 35B-A3B</span>
+          <span><i style="background:var(--c-moe)"></i> Qwen3.6 35B-A3B</span>
+        </div>
+
+        <div class="vs-row">
+          <div class="lbl">SWE-bench Verified<small>coding agent</small></div>
+          <div class="bars"><div class="b"><div class="p" style="width:70%"></div></div><div class="b"><div class="n" style="width:73.4%"></div></div></div>
+          <div class="val">+3.4<small>pts</small></div>
+        </div>
+        <div class="vs-row">
+          <div class="lbl">SWE-bench Multilingual<small>multilingual code</small></div>
+          <div class="bars"><div class="b"><div class="p" style="width:60.3%"></div></div><div class="b"><div class="n" style="width:67.2%"></div></div></div>
+          <div class="val">+6.9<small>pts</small></div>
+        </div>
+        <div class="vs-row">
+          <div class="lbl">Terminal-Bench 2.0<small>shell agent</small></div>
+          <div class="bars"><div class="b"><div class="p" style="width:40.5%"></div></div><div class="b"><div class="n" style="width:51.5%"></div></div></div>
+          <div class="val">+11.0<small>pts</small></div>
+        </div>
+        <div class="vs-row">
+          <div class="lbl">QwenWebBench · ELO<small>frontend code gen</small></div>
+          <div class="bars"><div class="b"><div class="p" style="width:65%"></div></div><div class="b"><div class="n" style="width:93%"></div></div></div>
+          <div class="val">+419<small>ELO</small></div>
+        </div>
+        <div class="vs-row">
+          <div class="lbl">NL2Repo<small>repo-level codegen</small></div>
+          <div class="bars"><div class="b"><div class="p" style="width:20.5%"></div></div><div class="b"><div class="n" style="width:29.4%"></div></div></div>
+          <div class="val">+8.9<small>pts</small></div>
+        </div>
+        <div class="vs-row">
+          <div class="lbl">AIME 2026<small>math · no tools</small></div>
+          <div class="bars"><div class="b"><div class="p" style="width:91%"></div></div><div class="b"><div class="n" style="width:92.7%"></div></div></div>
+          <div class="val">+1.7<small>pts</small></div>
+        </div>
+        <div class="vs-row">
+          <div class="lbl">HMMT Feb 2026<small>math</small></div>
+          <div class="bars"><div class="b"><div class="p" style="width:78.7%"></div></div><div class="b"><div class="n" style="width:83.6%"></div></div></div>
+          <div class="val">+4.9<small>pts</small></div>
+        </div>
+        <div class="vs-row">
+          <div class="lbl">RealWorldQA<small>VQA</small></div>
+          <div class="bars"><div class="b"><div class="p" style="width:84.1%"></div></div><div class="b"><div class="n" style="width:85.3%"></div></div></div>
+          <div class="val">+1.2<small>pts</small></div>
+        </div>
+        <div class="vs-row">
+          <div class="lbl">ODInW13<small>open-vocab detection</small></div>
+          <div class="bars"><div class="b"><div class="p" style="width:42.6%"></div></div><div class="b"><div class="n" style="width:50.8%"></div></div></div>
+          <div class="val">+8.2<small>pts</small></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────── 14 · CAVEATS ─────── -->
+    <section id="caveats">
+      <div class="sec-head">
+        <div class="num">14 · Caveats &amp; unknowns</div>
+        <h2>What the model card pins down — and what it leaves to the implementation.</h2>
+        <p class="lede">The Qwen3.6-35B-A3B model card is unusually precise about <i>architecture geometry</i> (it ships the full layer layout in one line) but stays silent on training scale, data composition, and the closed-form Gated DeltaNet update. The list below catalogues what is <code>not reported</code> in the fetched model-card text and should be sourced elsewhere before quoting.</p>
+      </div>
+
+      <div class="caveats">
+        <div class="caveat">
+          <h6>Gated DeltaNet update equation</h6>
+          <p>The Gated DeltaNet head counts are pinned (32 V / 16 QK · d_h = 128), but the exact state-update recipe — delta-rule formulation, gate parameterisation, normalisation — is not written out on the model card. The diagram in §04 uses the canonical Gated DeltaNet form and labels it as a <i>sketch</i>.</p>
+        </div>
+        <div class="caveat">
+          <h6>QK-Norm in Gated Attention</h6>
+          <p>QK-Norm is a Qwen3-family convention and is in the Raschka-table entry, but the Qwen3.6 model card does not explicitly re-name it. Treat as inventory-led for now; confirm against <code>config.json</code> on the HF repo.</p>
+        </div>
+        <div class="caveat">
+          <h6>Positional encoding on DeltaNet layers</h6>
+          <p>M-RoPE is named for the global softmax-attention layers; the positional behaviour of the 30 Gated DeltaNet layers (implicit via recurrence vs explicit rotary on Q/K) is not separately described in the fetched model-card text.</p>
+        </div>
+        <div class="caveat">
+          <h6>MoE load balancing &amp; auxiliary loss</h6>
+          <p>The model card lists expert counts and intermediate width, but does <b>not</b> describe the load-balancing recipe (auxiliary loss, expert capacity, drop policy) or the router parametrisation. The diagram shows a generic top-8 softmax router as a placeholder.</p>
+        </div>
+        <div class="caveat">
+          <h6>Vision tower specification</h6>
+          <p>The model is image-text-to-text by design, but the fetched model-card text does not duplicate the vision-tower architecture (depth, hidden dim, patch size). The video preprocessor's <code>longest_edge</code> tuning recipe is the only hard number it ships.</p>
+        </div>
+        <div class="caveat">
+          <h6>Training data &amp; token budget</h6>
+          <p>Pretraining and post-training stages are listed by name only. No token counts, language distributions, code-share, RL algorithm, reward model, or compute budget are disclosed in the fetched text. The release blog should be consulted for any additional public detail.</p>
+        </div>
+        <div class="caveat">
+          <h6>Per-layer parameter accounting</h6>
+          <p>The hidden dim (2 048), expert width (512), expert count (256), and layer count (40) are stated — but the model card does not give a parameter-by-component breakdown. The 35 B / 3 B totals are reported; the split between vision tower, MoE experts, attention/DeltaNet projections, and embeddings is not.</p>
+        </div>
+        <div class="caveat">
+          <h6>Quantisation &amp; serving</h6>
+          <p>The HF repository advertises <b>BF16</b> tensor type for the base release; over 300 community quantised mirrors exist (none first-party). Quantisation-aware-training details, if any, are not in the model-card text.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <div class="row">
+    <div>Architecture atlas · Qwen3.6 35B-A3B · sourced 2026-05.</div>
+    <div>Primary sources: <a href="https://huggingface.co/Qwen/Qwen3.6-35B-A3B">huggingface.co/Qwen/Qwen3.6-35B-A3B</a> · <a href="https://qwen.ai/blog?id=qwen3.6-35b-a3b">Qwen release blog</a>.</div>
+  </div>
+</footer>
+
+<script>
+/* ──────── render the 40-layer ribbon: 10 × (D D D A) ──────── */
+(function() {
+  const N = 40;
+  const cells = [];
+  for (let i = 1; i <= N; i++) {
+    // every 4th layer is Gated Attention; 1,2,3 in each cycle are DeltaNet
+    const inCycle = ((i - 1) % 4) + 1; // 1..4
+    cells.push(inCycle === 4 ? 'A' : 'D');
+  }
+  const ribbon = document.getElementById('ribbon');
+  ribbon.innerHTML = cells.map((t, i) => {
+    const idx = i + 1;
+    const showNum = (idx === 1 || idx === N || idx % 5 === 0);
+    return `<div class="cell ${t}" title="Layer ${idx} · ${t === 'A' ? 'Gated Attention → MoE' : 'Gated DeltaNet → MoE'}">`
+      + `<div class="bar"></div>`
+      + `<div class="moe" title="MoE channel mixer"></div>`
+      + (showNum ? `<div class="num">${idx}</div>` : '')
+      + `</div>`;
+  }).join('');
+})();
+
+/* ──────── render the MoE expert grid: 256 cells, 8 routed + 1 shared highlighted ──────── */
+(function() {
+  const grid = document.getElementById('experts-grid');
+  if (!grid) return;
+  const total = 256;
+  // deterministic pseudo-random pick of 8 routed indices for visual purposes
+  const routed = new Set([3, 19, 47, 88, 121, 164, 207, 233]);
+  const shared = 130; // arbitrary cell to color as shared
+  const cells = [];
+  for (let i = 0; i < total; i++) {
+    let cls = 'ex';
+    if (i === shared) cls += ' s';
+    else if (routed.has(i)) cls += ' r';
+    cells.push(`<div class="${cls}" title="Expert ${i}"></div>`);
+  }
+  grid.innerHTML = cells.join('');
+})();
+
+/* ──────── render the SVG-embedded experts cluster on the MoE diagram ──────── */
+(function() {
+  const target = document.getElementById('moe-experts');
+  if (!target) return;
+  // arrange 256 small dots in a cluster, with a few highlighted as routed
+  const rows = 8, cols = 32;
+  const x0 = 360, y0 = 50;
+  const sx = 9, sy = 9;
+  const routed = new Set([3, 67, 80, 132, 145, 200, 218, 245]);
+  let svg = '';
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const i = r * cols + c;
+      const fill = routed.has(i) ? '#76B900' : '#D8D8D8';
+      svg += `<rect x="${x0 + c * sx}" y="${y0 + r * sy}" width="6" height="6" fill="${fill}"/>`;
+    }
+  }
+  target.innerHTML = svg;
+})();
+
+/* ──────── sidebar active-link tracking ──────── */
+(function() {
+  const links = document.querySelectorAll('.sidebar nav a');
+  const sections = [...links].map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  function update() {
+    const y = window.scrollY + 120;
+    let active = sections[0];
+    for (const s of sections) {
+      if (s.offsetTop <= y) active = s;
+    }
+    links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + active.id));
+  }
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();
+</script>
+
+</body>
+</html>

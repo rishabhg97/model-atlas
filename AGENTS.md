@@ -41,6 +41,7 @@ models/nemotron-3-nano/index.html
 4. Add a visible back link from the model page to the atlas home. For pages under `models/<model-slug>/`, the link should point to `../../index.html` and use clear text such as `Atlas home`.
 5. Add one entry to the `ATLAS_PAGES` array in the root `index.html`.
 6. Verify the root atlas page and the new model page return HTTP 200 from the local static server.
+7. After adding a new model file, commit the atlas update and push it to the remote branch.
 
 ## When Asked To Add A New Model
 

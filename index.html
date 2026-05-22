@@ -474,6 +474,52 @@
         }
       },
       {
+        title: "Qwen3.6 35B-A3B Architecture",
+        family: "Qwen",
+        model: "Qwen3.6 35B-A3B",
+        href: "models/qwen3-6-35b-a3b/index.html",
+        status: "downloaded",
+        tags: ["MoE", "DeltaNet", "M-RoPE", "MTP", "vision"],
+        note: "Sparse hybrid MoE with 3:1 Gated DeltaNet/Gated Attention interleave, M-RoPE long context, MTP, and thinking mode.",
+        mark: "Q3",
+        company: "Alibaba Qwen",
+        symbol: "BABA / 9988.HK",
+        context: "262K native / ~1M YaRN",
+        size: "35B / 3B active",
+        dataset: "Not reported",
+        aaIndex: "Not listed",
+        aaLabel: "Public index not confirmed",
+        visual: {
+          kind: "hybrid",
+          title: "DeltaNet + attention MoE",
+          accent: "#7c3aed",
+          labels: ["DeltaNet", "Gated attn", "MoE", "MTP"]
+        }
+      },
+      {
+        title: "Gemma 4 31B Architecture",
+        family: "Gemma",
+        model: "Gemma 4 31B",
+        href: "models/gemma-4-31b/index.html",
+        status: "downloaded",
+        tags: ["dense", "local-global", "p-RoPE", "vision", "thinking"],
+        note: "Dense multimodal Gemma 4 page covering local/global attention, p-RoPE, unified KV, vision tokens, and thinking mode.",
+        mark: "G4",
+        company: "Google DeepMind",
+        symbol: "GOOGL / GOOG",
+        context: "256K tokens",
+        size: "30.7B dense",
+        dataset: "Not reported",
+        aaIndex: "Not listed",
+        aaLabel: "Public index not confirmed",
+        visual: {
+          kind: "dense",
+          title: "Local/global decoder",
+          accent: "#7c3aed",
+          labels: ["Local", "Global", "p-RoPE", "Vision"]
+        }
+      },
+      {
         title: "Nemotron 3 Nano 30B-A3B Architecture",
         family: "NVIDIA",
         model: "Nemotron 3 Nano 30B-A3B",

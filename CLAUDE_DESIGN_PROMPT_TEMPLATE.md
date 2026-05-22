@@ -10,6 +10,10 @@ Primary sources to use:
 - [SOURCE_2_TITLE]: [SOURCE_2_URL]
 - [SOURCE_3_TITLE]: [SOURCE_3_URL]
 
+Workspace scope:
+- Ignore all other model HTML files, downloaded atlas pages, and unrelated model artifacts in the workspace.
+- Use only the sources and files named in this current prompt/design request; do not treat existing atlas content as evidence or design input unless explicitly listed here.
+
 Model identity:
 - Model: [EXACT_MODEL_NAME]
 - Family/vendor: [FAMILY_OR_VENDOR]

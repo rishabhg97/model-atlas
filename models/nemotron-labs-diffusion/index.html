@@ -1,0 +1,1621 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nemotron-Labs-Diffusion Architecture</title>
+<link rel="stylesheet" href="kaizen/colors_and_type.css">
+<style>
+  /* ============================================================
+     Layout shell
+     ============================================================ */
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font: var(--kui-body);
+    color: var(--kui-fg-strong);
+    background: var(--kui-bg-canvas);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  .mono { font-family: var(--kui-font-mono); }
+  .num  { font-family: var(--kui-font-mono); font-variant-numeric: tabular-nums; }
+  a { color: var(--kui-info); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---------- App bar ---------- */
+  .appbar {
+    position: sticky; top: 0; z-index: 50;
+    background: var(--kui-n950); color: var(--kui-fg-inverse);
+    border-bottom: 1px solid #1a1a1a;
+  }
+  .appbar-inner {
+    max-width: 1320px; margin: 0 auto;
+    display: flex; align-items: center; gap: var(--kui-space-md);
+    padding: var(--kui-space-ms) var(--kui-space-ml);
+    height: 56px;
+  }
+  .appbar img { height: 22px; display: block; }
+  .appbar .home-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid #2a2a2a;
+    color: #C6C6C6;
+    font: var(--kui-text-sm);
+  }
+  .appbar .home-link:hover {
+    border-color: var(--kui-brand-green);
+    color: #fff;
+    text-decoration: none;
+  }
+  .appbar .home-link::before { content: "←"; color: var(--kui-brand-green); }
+  .appbar .brand-sep {
+    width: 1px; height: 20px; background: #2a2a2a;
+  }
+  .appbar-title {
+    font: var(--kui-text);
+    color: #C6C6C6;
+    letter-spacing: 0.02em;
+  }
+  .appbar-title strong { color: #fff; font-weight: var(--kui-fw-medium); }
+  .appbar-spacer { flex: 1; }
+  .appbar-meta {
+    font: var(--kui-text-sm);
+    color: #8F8F8F;
+    display: flex; gap: var(--kui-space-md);
+  }
+  .appbar-meta span { display: inline-flex; align-items: center; gap: 6px; }
+  .pulse {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--kui-brand-green);
+    box-shadow: 0 0 0 0 rgba(118,185,0,0.7);
+    animation: pulse 2.4s infinite;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(118,185,0,0.7); }
+    70%  { box-shadow: 0 0 0 6px rgba(118,185,0,0); }
+    100% { box-shadow: 0 0 0 0 rgba(118,185,0,0); }
+  }
+
+  /* ---------- Page container ---------- */
+  .page {
+    max-width: 1320px; margin: 0 auto;
+    padding: var(--kui-space-xl) var(--kui-space-ml) var(--kui-space-xxl);
+  }
+  .section + .section { margin-top: var(--kui-space-xxl); }
+
+  /* ---------- Eyebrow + section heading ---------- */
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font: var(--kui-overline);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--kui-fg-muted);
+  }
+  .eyebrow .dot {
+    width: 6px; height: 6px; background: var(--kui-brand-green);
+    display: inline-block;
+  }
+  .section-head {
+    display: grid; grid-template-columns: minmax(0,1fr) minmax(0,560px);
+    gap: var(--kui-space-xl);
+    margin-bottom: var(--kui-space-lg);
+    padding-bottom: var(--kui-space-md);
+    border-bottom: 1px solid var(--kui-border-default);
+  }
+  .section-head h2 {
+    font: var(--kui-h1); letter-spacing: var(--kui-tracking-heading);
+    margin: var(--kui-space-sm) 0 0;
+    max-width: 18ch;
+  }
+  .section-head p {
+    margin: 0; color: var(--kui-fg-muted);
+    font: var(--kui-body-md);
+    align-self: end;
+  }
+
+  /* ---------- Cards / surfaces ---------- */
+  .card {
+    background: var(--kui-bg-mid);
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-sm);
+  }
+  .card-pad { padding: var(--kui-space-ml); }
+  .card h3 { font: var(--kui-h3); letter-spacing: var(--kui-tracking-heading); margin: 0; }
+  .card h4 { font: var(--kui-h4); letter-spacing: var(--kui-tracking-heading); margin: 0; }
+
+  /* ============================================================
+     HERO
+     ============================================================ */
+  .hero {
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    gap: var(--kui-space-xl);
+    align-items: start;
+  }
+  .hero-left .title {
+    font: 500 56px/1.05 var(--kui-font-sans);
+    letter-spacing: -1px;
+    margin: var(--kui-space-md) 0 var(--kui-space-md);
+  }
+  .hero-left .title em {
+    font-style: normal;
+    background: linear-gradient(180deg, transparent 62%, rgba(118,185,0,0.35) 62%);
+    padding: 0 2px;
+  }
+  .hero-deck {
+    font: 400 18px/1.55 var(--kui-font-sans);
+    color: var(--kui-fg-default);
+    max-width: 56ch;
+  }
+  .hero-meta {
+    margin-top: var(--kui-space-ml);
+    display: grid; grid-template-columns: repeat(4, auto);
+    gap: var(--kui-space-md) var(--kui-space-xl);
+    padding: var(--kui-space-md) 0;
+    border-top: 1px solid var(--kui-border-default);
+    border-bottom: 1px solid var(--kui-border-default);
+  }
+  .hero-meta dt { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.1em; color: var(--kui-fg-muted); margin-bottom: 4px; }
+  .hero-meta dd { font: 500 14px/1.2 var(--kui-font-sans); margin: 0; color: var(--kui-fg-strong); }
+  .hero-meta dd.num { font-family: var(--kui-font-mono); font-weight: 500; }
+  .hero-links {
+    margin-top: var(--kui-space-md);
+    display: flex; gap: var(--kui-space-sm); flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: var(--kui-space-sm);
+    height: 36px; padding: 0 var(--kui-space-md);
+    border: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+    color: var(--kui-fg-strong);
+    border-radius: var(--kui-radius-sm);
+    font: var(--kui-button);
+    cursor: pointer;
+    transition: border-color 120ms ease-out, background 120ms ease-out;
+  }
+  .btn:hover { border-color: var(--kui-border-strong); text-decoration: none; }
+  .btn--primary {
+    background: var(--kui-brand-green);
+    border-color: var(--kui-brand-green);
+    color: #fff;
+  }
+  .btn--primary:hover { background: var(--kui-brand-green-darker); border-color: var(--kui-brand-green-darker); }
+  .btn .ico { width: 14px; height: 14px; }
+
+  /* ---------- Hero visual (right) ---------- */
+  .hero-viz {
+    background: var(--kui-n950);
+    color: #E3E3E3;
+    border-radius: var(--kui-radius-sm);
+    padding: var(--kui-space-ml);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-viz::before {
+    content: ""; position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+  .hero-viz > * { position: relative; }
+  .hero-viz .viz-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: var(--kui-space-md);
+  }
+  .hero-viz .viz-head .label {
+    font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em;
+    color: #8F8F8F;
+  }
+  .hero-viz .viz-head .label strong { color: var(--kui-brand-green); font-weight: 500; }
+  .hero-viz .viz-head .tag {
+    font: var(--kui-text-sm); color: #8F8F8F;
+    border: 1px solid #2a2a2a; padding: 2px 6px;
+  }
+
+  /* ============================================================
+     TRI-MODE SWITCHER
+     ============================================================ */
+  .tri-tabs {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    border: 1px solid #2a2a2a;
+    background: #0d0d0d;
+  }
+  .tri-tabs button {
+    appearance: none; background: transparent; color: #C6C6C6;
+    border: 0; border-right: 1px solid #2a2a2a;
+    text-align: left; cursor: pointer;
+    padding: var(--kui-space-ms) var(--kui-space-md);
+    font: var(--kui-button);
+    transition: background 120ms ease-out, color 120ms ease-out;
+  }
+  .tri-tabs button:last-child { border-right: 0; }
+  .tri-tabs button .idx {
+    font-family: var(--kui-font-mono); font-size: 10px;
+    color: #5E5E5E; margin-right: 8px;
+  }
+  .tri-tabs button:hover { background: #131313; color: #fff; }
+  .tri-tabs button[aria-selected="true"] {
+    background: #131313;
+    color: #fff;
+    border-bottom: 2px solid var(--kui-brand-green);
+  }
+  .tri-tabs button[aria-selected="true"] .idx { color: var(--kui-brand-green); }
+
+  .tri-body {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: var(--kui-space-md);
+    margin-top: var(--kui-space-md);
+  }
+  .tri-mask {
+    background: #050505; border: 1px solid #1f1f1f;
+    padding: var(--kui-space-ms);
+    aspect-ratio: 1 / 1; position: relative;
+  }
+  .tri-mask svg { width: 100%; height: 100%; display: block; }
+  .tri-mask .mask-caption {
+    position: absolute; bottom: 8px; left: 12px; right: 12px;
+    font: var(--kui-text-sm); color: #8F8F8F;
+    display: flex; justify-content: space-between;
+  }
+  .tri-info {
+    background: #0d0d0d; border: 1px solid #1f1f1f;
+    padding: var(--kui-space-ms);
+    display: flex; flex-direction: column; gap: var(--kui-space-sm);
+  }
+  .tri-info h4 { color: #fff; font: var(--kui-h4); }
+  .tri-info p { color: #C6C6C6; font: var(--kui-body); margin: 0; }
+  .tri-stats {
+    margin-top: auto;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: #1f1f1f;
+    border: 1px solid #1f1f1f;
+  }
+  .tri-stats > div { background: #0d0d0d; padding: var(--kui-space-sm) var(--kui-space-ms); }
+  .tri-stats dt { font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.1em; color: #5E5E5E; margin: 0 0 4px; }
+  .tri-stats dd { font: 500 16px/1 var(--kui-font-mono); color: #fff; margin: 0; }
+  .tri-api {
+    margin-top: var(--kui-space-md);
+    background: #050505;
+    border: 1px solid #1f1f1f;
+    padding: var(--kui-space-sm) var(--kui-space-ms);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .tri-api code {
+    font: 400 13px/1.2 var(--kui-font-mono);
+    color: #E3E3E3;
+  }
+  .tri-api code .fn { color: var(--kui-brand-green); }
+  .tri-api .badge {
+    font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.1em;
+    color: #5E5E5E;
+  }
+
+  /* ============================================================
+     Tri-mode shared backbone diagram (full row)
+     ============================================================ */
+  .backbone-card {
+    margin-top: var(--kui-space-md);
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    border: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid);
+  }
+  .backbone-cell {
+    padding: var(--kui-space-ml);
+    border-right: 1px solid var(--kui-border-default);
+    position: relative;
+  }
+  .backbone-cell:last-child { border-right: 0; }
+  .backbone-cell .step {
+    font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--kui-fg-muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .backbone-cell .step .num { font-family: var(--kui-font-mono); color: var(--kui-brand-green); }
+  .backbone-cell h4 {
+    font: var(--kui-h3); letter-spacing: var(--kui-tracking-heading);
+    margin: 8px 0 12px;
+  }
+  .backbone-cell p { color: var(--kui-fg-muted); font: var(--kui-body); margin: 0; }
+  .backbone-flow { margin-top: var(--kui-space-md); }
+
+  /* ============================================================
+     SHARED BACKBONE SVG (mode anatomy)
+     ============================================================ */
+  .anatomy {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: var(--kui-space-xl);
+  }
+  .anatomy-legend ul { list-style: none; padding: 0; margin: 0; }
+  .anatomy-legend li {
+    padding: var(--kui-space-sm) 0;
+    border-top: 1px solid var(--kui-border-default);
+    display: grid; grid-template-columns: 16px 1fr;
+    gap: var(--kui-space-sm);
+    align-items: start;
+  }
+  .anatomy-legend li:first-child { border-top: 0; }
+  .anatomy-legend .sw {
+    width: 12px; height: 12px; margin-top: 4px;
+    border: 1px solid var(--kui-fg-strong);
+  }
+  .anatomy-legend strong { display: block; font: var(--kui-h4); letter-spacing: var(--kui-tracking-heading); }
+  .anatomy-legend span { display: block; color: var(--kui-fg-muted); font: var(--kui-body); }
+
+  /* ============================================================
+     OBJECTIVE / TRAINING
+     ============================================================ */
+  .obj-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: var(--kui-space-md);
+  }
+  .obj-eq {
+    background: var(--kui-n950); color: #E3E3E3;
+    border-radius: var(--kui-radius-sm);
+    padding: var(--kui-space-ml);
+  }
+  .obj-eq .formula {
+    font: 400 22px/1.4 var(--kui-font-mono);
+    letter-spacing: -0.2px;
+    margin: var(--kui-space-md) 0 var(--kui-space-md);
+  }
+  .obj-eq .formula .ar  { color: #9ACCF2; }
+  .obj-eq .formula .dif { color: var(--kui-brand-green); }
+  .obj-eq .formula .lam { color: #C6C6C6; }
+  .obj-eq .formula .op  { color: #767676; }
+  .obj-eq .annot {
+    font: var(--kui-text-sm); color: #8F8F8F;
+    line-height: 1.55;
+  }
+  .obj-eq dl {
+    margin: 0; display: grid; gap: var(--kui-space-sm);
+    grid-template-columns: 1fr;
+  }
+  .obj-eq dl div { display: grid; grid-template-columns: 96px 1fr; gap: var(--kui-space-md); }
+  .obj-eq dt {
+    font: 400 13px/1.4 var(--kui-font-mono);
+    color: #fff;
+  }
+  .obj-eq dt.ar  { color: #9ACCF2; }
+  .obj-eq dt.dif { color: var(--kui-brand-green); }
+  .obj-eq dd { font: var(--kui-body); color: #C6C6C6; margin: 0; }
+
+  /* ============================================================
+     SELF-SPECULATION FLOW
+     ============================================================ */
+  .selfspec {
+    background: var(--kui-bg-mid);
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-sm);
+    padding: var(--kui-space-ml);
+  }
+  .selfspec-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--kui-space-md); }
+  .selfspec-head h3 { font: var(--kui-h3); letter-spacing: var(--kui-tracking-heading); }
+  .selfspec-head .meta { color: var(--kui-fg-muted); font: var(--kui-body); }
+
+  /* ============================================================
+     VARIANTS
+     ============================================================ */
+  .variants {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: var(--kui-space-md);
+  }
+  .variant {
+    background: var(--kui-bg-mid);
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-sm);
+    padding: var(--kui-space-md);
+    display: flex; flex-direction: column; gap: var(--kui-space-sm);
+    position: relative;
+  }
+  .variant .ribbon {
+    position: absolute; top: 0; left: 0;
+    height: 3px; width: 36px;
+    background: var(--kui-brand-green);
+  }
+  .variant .v-name {
+    font: 500 18px/1.2 var(--kui-font-sans);
+    letter-spacing: -0.25px;
+    margin-top: var(--kui-space-xs);
+  }
+  .variant .v-id {
+    font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--kui-fg-muted);
+  }
+  .variant .v-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: var(--kui-space-xs); }
+  .tag {
+    font: var(--kui-text-sm); padding: 2px 6px;
+    border: 1px solid var(--kui-border-default);
+    color: var(--kui-fg-strong);
+    border-radius: var(--kui-radius-xs);
+  }
+  .tag--green { background: var(--kui-success-bg); border-color: #C7E6A0; color: #2f5d00; }
+  .tag--blue  { background: var(--kui-info-bg);    border-color: #BFD9F0; color: #144F8F; }
+  .tag--purple{ background: var(--kui-accent-pink-bg); border-color: #E8C6F0; color: #6E2484; }
+  .tag--mono  { background: var(--kui-n050); border-color: var(--kui-border-default); color: var(--kui-fg-muted); }
+  .variant dl {
+    margin-top: var(--kui-space-xs);
+    display: grid; grid-template-columns: 1fr; gap: 6px;
+  }
+  .variant dl div {
+    display: grid; grid-template-columns: 1fr auto;
+    padding: 6px 0;
+    border-top: 1px dashed var(--kui-border-default);
+  }
+  .variant dl div:first-child { border-top: 0; }
+  .variant dt { font: var(--kui-text-sm); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .variant dd { font: 500 14px/1 var(--kui-font-mono); margin: 0; color: var(--kui-fg-strong); }
+  .variant dd.dim { color: var(--kui-fg-disabled); font-weight: 400; }
+
+  /* ============================================================
+     BENCHMARK TABLE
+     ============================================================ */
+  .bench {
+    background: var(--kui-bg-mid);
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-sm);
+    overflow: hidden;
+  }
+  .bench-tabs { display: flex; border-bottom: 1px solid var(--kui-border-default); }
+  .bench-tabs button {
+    appearance: none; background: var(--kui-bg-mid);
+    border: 0; border-right: 1px solid var(--kui-border-default);
+    padding: var(--kui-space-md) var(--kui-space-ml);
+    font: var(--kui-button); color: var(--kui-fg-muted);
+    cursor: pointer; text-align: left;
+    transition: background 120ms ease-out, color 120ms ease-out;
+  }
+  .bench-tabs button:hover { background: var(--kui-n050); color: var(--kui-fg-strong); }
+  .bench-tabs button[aria-selected="true"] {
+    color: var(--kui-fg-strong);
+    background: var(--kui-bg-mid);
+    border-bottom: 2px solid var(--kui-brand-green);
+    margin-bottom: -1px;
+  }
+  table.kt {
+    width: 100%; border-collapse: collapse;
+    font: var(--kui-body);
+  }
+  table.kt th, table.kt td {
+    text-align: left;
+    padding: var(--kui-space-sm) var(--kui-space-md);
+    border-bottom: 1px solid var(--kui-border-default);
+  }
+  table.kt th {
+    font: var(--kui-overline); text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--kui-fg-muted);
+    background: var(--kui-n050);
+    border-bottom: 1px solid var(--kui-border-default);
+    font-weight: var(--kui-fw-medium);
+  }
+  table.kt td.num, table.kt th.num { font-family: var(--kui-font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+  table.kt tbody tr:last-child td { border-bottom: 0; }
+  table.kt td .gain {
+    display: inline-block; margin-left: 8px;
+    color: var(--kui-success); font-family: var(--kui-font-mono); font-size: 12px;
+  }
+  table.kt td.row-head { font-weight: var(--kui-fw-medium); }
+  .bench-note {
+    padding: var(--kui-space-sm) var(--kui-space-md);
+    background: var(--kui-n050);
+    color: var(--kui-fg-muted);
+    font: var(--kui-text-sm);
+    border-top: 1px solid var(--kui-border-default);
+    display: flex; gap: var(--kui-space-sm); align-items: center;
+  }
+
+  /* ============================================================
+     UNKNOWNS PANEL
+     ============================================================ */
+  .unknowns {
+    display: grid; grid-template-columns: 320px 1fr; gap: var(--kui-space-xl);
+    background: var(--kui-warning-bg);
+    border: 1px solid #F3C5A5;
+    border-left: 4px solid var(--kui-warning);
+    border-radius: var(--kui-radius-sm);
+    padding: var(--kui-space-ml);
+  }
+  .unknowns h3 { font: var(--kui-h3); letter-spacing: var(--kui-tracking-heading); margin: 0 0 var(--kui-space-sm); color: #6b2900; }
+  .unknowns .lead { color: #6b2900; font: var(--kui-body); margin: 0; }
+  .unknowns ul {
+    list-style: none; padding: 0; margin: 0;
+    display: grid; grid-template-columns: 1fr 1fr; gap: var(--kui-space-sm) var(--kui-space-md);
+  }
+  .unknowns li {
+    background: #fff; border: 1px solid #F3C5A5;
+    padding: var(--kui-space-sm) var(--kui-space-ms);
+    display: grid; grid-template-columns: 18px 1fr; gap: var(--kui-space-sm); align-items: start;
+  }
+  .unknowns li .q { color: var(--kui-warning); font-weight: 700; font-family: var(--kui-font-mono); }
+  .unknowns li strong { font: var(--kui-h4); letter-spacing: var(--kui-tracking-heading); display: block; }
+  .unknowns li span { display: block; color: var(--kui-fg-muted); font: var(--kui-text-sm); margin-top: 2px; }
+
+  /* ============================================================
+     FOOTER
+     ============================================================ */
+  footer {
+    border-top: 1px solid var(--kui-border-default);
+    margin-top: var(--kui-space-xxl);
+    padding: var(--kui-space-ml) 0 var(--kui-space-md);
+    color: var(--kui-fg-muted);
+    font: var(--kui-text-sm);
+    display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: var(--kui-space-md);
+  }
+
+  /* ============================================================
+     Inline blockquote / pull
+     ============================================================ */
+  .pull {
+    border-left: 3px solid var(--kui-brand-green);
+    padding: 4px 0 4px var(--kui-space-md);
+    margin: var(--kui-space-md) 0;
+    color: var(--kui-fg-default);
+    font: 400 16px/1.55 var(--kui-font-sans);
+  }
+  .pull cite {
+    display: block; margin-top: 6px;
+    font: var(--kui-text-sm); color: var(--kui-fg-muted);
+    font-style: normal;
+  }
+
+  /* Small responsive — keep desktop-first */
+  @media (max-width: 1024px) {
+    .hero, .obj-grid, .anatomy, .unknowns { grid-template-columns: 1fr; }
+    .variants { grid-template-columns: repeat(2, 1fr); }
+    .backbone-card { grid-template-columns: 1fr; }
+    .backbone-cell { border-right: 0; border-bottom: 1px solid var(--kui-border-default); }
+    .section-head { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     APP BAR
+     ============================================================ -->
+<header class="appbar">
+  <div class="appbar-inner">
+    <a class="home-link" href="../../index.html">Atlas home</a>
+    <div class="brand-sep"></div>
+    <img src="kaizen/NVIDIA-wordmark.svg" alt="NVIDIA">
+    <div class="brand-sep"></div>
+    <div class="appbar-title">Research <span style="color:#5E5E5E"> / </span> Publications <span style="color:#5E5E5E"> / </span> <strong>Nemotron-Labs-Diffusion</strong></div>
+    <div class="appbar-spacer"></div>
+    <div class="appbar-meta">
+      <span><span class="pulse"></span> Tech report v1</span>
+      <span>May 19, 2026</span>
+      <span>NVIDIA Open Model License</span>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+
+  <!-- ============================================================
+       HERO
+       ============================================================ -->
+  <section class="section hero">
+    <div class="hero-left">
+      <div class="eyebrow"><span class="dot"></span> Architecture briefing · Tri-mode language model</div>
+      <h1 class="title">Nemotron-Labs-<em>Diffusion</em></h1>
+      <p class="hero-deck">
+        A single transformer that unifies <strong>autoregressive</strong>,
+        <strong>diffusion</strong>, and <strong>self-speculation</strong> decoding within one set of
+        weights. Modes are selected at inference time by swapping the attention pattern.
+        Trained with a joint AR &times; diffusion objective at 3B, 8B, and 14B; base, instruct,
+        and vision-language variants.
+      </p>
+
+      <p class="pull">
+        "AR and diffusion objectives are complementary: diffusion improves lookahead planning,
+        while AR provides left-to-right linguistic priors. In self-speculation mode, diffusion
+        drafts while AR verifies, outperforming multi-token prediction (MTP) methods in both
+        acceptance rate and real-device efficiency."
+        <cite>— NVIDIA Research publication abstract, May 19, 2026</cite>
+      </p>
+
+      <dl class="hero-meta">
+        <div><dt>Family</dt><dd>3B · 8B · 14B</dd></div>
+        <div><dt>Variants</dt><dd>Base · Instruct · VLM</dd></div>
+        <div><dt>License</dt><dd>NVIDIA Open Model</dd></div>
+        <div><dt>Released</dt><dd class="num">2026-05-19</dd></div>
+      </dl>
+
+      <div class="hero-links">
+        <a class="btn btn--primary" href="https://research.nvidia.com/publication/2026-05_nemotron-labs-diffusion-tri-mode-language-model-unifying-autoregressive" target="_blank" rel="noopener">
+          <svg class="ico" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 3h7l3 3v7H3V3z" stroke="currentColor" stroke-width="1.4"/><path d="M10 3v3h3" stroke="currentColor" stroke-width="1.4"/></svg>
+          Publication
+        </a>
+        <a class="btn" href="https://huggingface.co/collections/nvidia/nemotron-labs-diffusion" target="_blank" rel="noopener">HF collection</a>
+        <a class="btn" href="https://huggingface.co/nvidia/Nemotron-Labs-Diffusion-3B" target="_blank" rel="noopener">3B model card</a>
+        <a class="btn" href="https://d1qx31qr3h6wln.cloudfront.net/publications/Nemotron_Diffusion_Tech_Report_v1.pdf?VersionId=db8_EMO8B.vmU26.jr7Le9pN3MqcUDNL" target="_blank" rel="noopener">Tech report PDF · 3.34 MB</a>
+      </div>
+    </div>
+
+    <!-- Hero visual: tri-mode mechanism, dominant first viewport -->
+    <aside class="hero-viz" aria-label="Tri-mode mechanism">
+      <div class="viz-head">
+        <span class="label"><strong>One backbone</strong> · three decoding modes</span>
+        <span class="tag">Live mode switch · attention pattern</span>
+      </div>
+
+      <div class="tri-tabs" role="tablist" id="modeTabs">
+        <button role="tab" data-mode="ar"   aria-selected="true"><span class="idx">01</span>Autoregressive</button>
+        <button role="tab" data-mode="dif"  aria-selected="false"><span class="idx">02</span>Diffusion</button>
+        <button role="tab" data-mode="spec" aria-selected="false"><span class="idx">03</span>Self-speculation</button>
+      </div>
+
+      <div class="tri-body">
+        <div class="tri-mask" aria-hidden="true">
+          <svg id="maskSvg" viewBox="0 0 240 240" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="mask-caption">
+            <span id="maskLabel" class="mono">attention(Q,K)</span>
+            <span class="mono" id="maskShape">8 × 8</span>
+          </div>
+        </div>
+        <div class="tri-info">
+          <h4 id="modeTitle">Causal · left-to-right</h4>
+          <p id="modeDesc">
+            Standard autoregressive next-token prediction. Each position attends only to itself
+            and earlier positions, sampled one token per forward pass.
+          </p>
+          <dl class="tri-stats">
+            <div><dt>Parallelism</dt><dd id="statPar">1 tok / fwd</dd></div>
+            <div><dt>Strength</dt><dd id="statStr">priors</dd></div>
+            <div><dt>Mask</dt><dd id="statMask">causal</dd></div>
+            <div><dt>KV cache</dt><dd id="statKV">shared</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <div class="tri-api">
+        <code><span style="color:#8F8F8F">model.</span><span class="fn" id="apiName">ar_generate</span>(<span style="color:#9ACCF2" id="apiArgs">prompt_ids, max_new_tokens=512</span>)</code>
+        <span class="badge" id="apiBadge">mode · AR</span>
+      </div>
+    </aside>
+  </section>
+
+  <!-- ============================================================
+       SHARED BACKBONE FLOW
+       ============================================================ -->
+  <section class="section">
+    <header class="section-head">
+      <div>
+        <div class="eyebrow"><span class="dot"></span> Mechanism · 01</div>
+        <h2>Mode switching by attention pattern, not by weights.</h2>
+      </div>
+      <p>
+        The base, instruct, and VLM checkpoints expose three generation entry points on a
+        single set of parameters. Switching between AR decoding, diffusion-based parallel
+        decoding, and linear self-speculation requires only changing the attention mask;
+        the shared KV cache is reused across drafting and verification.
+      </p>
+    </header>
+
+    <div class="backbone-card">
+      <div class="backbone-cell">
+        <div class="step"><span class="num">01</span> AR decoding</div>
+        <h4>Causal next-token</h4>
+        <p>
+          Left-to-right sampling with a strictly causal mask. Used by
+          <code class="mono" style="font-size:12px">model.ar_generate()</code> on the
+          model card. Latency-optimal at concurrency 1 when sequences are short; one
+          token per forward pass.
+        </p>
+      </div>
+      <div class="backbone-cell">
+        <div class="step"><span class="num">02</span> Diffusion (dLM)</div>
+        <h4>Block-bidirectional denoise</h4>
+        <p>
+          Masked-token denoising over blocks. The model fills a length-<code class="mono" style="font-size:12px">block_length</code>
+          window in parallel and iterates with a confidence
+          <code class="mono" style="font-size:12px">threshold</code>; multiple tokens
+          land per forward pass.
+        </p>
+      </div>
+      <div class="backbone-cell">
+        <div class="step"><span class="num">03</span> Self-speculation</div>
+        <h4>Diffusion drafts · AR verifies</h4>
+        <p>
+          The same network plays both roles: diffusion proposes a block of draft tokens
+          in parallel, AR scores the block sequentially, accepted prefixes commit, the
+          rest are rolled back. KV cache is shared across both paths.
+        </p>
+      </div>
+    </div>
+
+    <!-- Anatomy: combined mask + token timeline -->
+    <div class="anatomy" style="margin-top: var(--kui-space-xl);">
+      <div class="anatomy-legend">
+        <h3 style="font: var(--kui-h3); letter-spacing: var(--kui-tracking-heading); margin: 0 0 var(--kui-space-md);">Reading the attention masks</h3>
+        <ul>
+          <li>
+            <span class="sw" style="background: var(--kui-brand-green); border-color: var(--kui-brand-green);"></span>
+            <div>
+              <strong>Bidirectional</strong>
+              <span>Token attends to all other tokens in its block — diffusion's lookahead.</span>
+            </div>
+          </li>
+          <li>
+            <span class="sw" style="background: var(--kui-fg-strong); border-color: var(--kui-fg-strong);"></span>
+            <div>
+              <strong>Causal</strong>
+              <span>Token attends to itself and to all earlier positions — AR's prior.</span>
+            </div>
+          </li>
+          <li>
+            <span class="sw" style="background: #fff;"></span>
+            <div>
+              <strong>Masked</strong>
+              <span>Attention forbidden (future or out-of-block positions).</span>
+            </div>
+          </li>
+          <li>
+            <span class="sw" style="background: repeating-linear-gradient(45deg, var(--kui-brand-green), var(--kui-brand-green) 2px, #fff 2px, #fff 4px); border-color: var(--kui-brand-green);"></span>
+            <div>
+              <strong>Draft span</strong>
+              <span>Block of positions the model fills bidirectionally during the draft phase of self-speculation.</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card card-pad" style="background: var(--kui-n950); color:#E3E3E3;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom: var(--kui-space-md);">
+          <h3 style="color:#fff; font: var(--kui-h3); letter-spacing: var(--kui-tracking-heading); margin:0;">Side-by-side attention patterns</h3>
+          <span class="mono" style="color:#8F8F8F; font-size:12px;">block_length = 4 · seq = 8</span>
+        </div>
+        <svg viewBox="0 0 880 240" style="width:100%; height:auto; display:block;" aria-label="Side-by-side attention masks for AR, diffusion, and self-speculation modes">
+          <!-- Each mask is 200x200, gap 40 -->
+          <!-- AR -->
+          <g transform="translate(20,20)">
+            <text x="0" y="-4" fill="#9ACCF2" font-family="Roboto Mono" font-size="11">AR · causal</text>
+            <g id="m_ar"></g>
+            <rect x="0" y="0" width="200" height="200" fill="none" stroke="#2a2a2a"/>
+          </g>
+          <!-- DIF -->
+          <g transform="translate(340,20)">
+            <text x="0" y="-4" fill="#76B900" font-family="Roboto Mono" font-size="11">Diffusion · block-bidirectional</text>
+            <g id="m_dif"></g>
+            <rect x="0" y="0" width="200" height="200" fill="none" stroke="#2a2a2a"/>
+          </g>
+          <!-- SPEC -->
+          <g transform="translate(660,20)">
+            <text x="0" y="-4" fill="#fff" font-family="Roboto Mono" font-size="11">Self-spec · draft+verify</text>
+            <g id="m_spec"></g>
+            <rect x="0" y="0" width="200" height="200" fill="none" stroke="#2a2a2a"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       JOINT OBJECTIVE
+       ============================================================ -->
+  <section class="section">
+    <header class="section-head">
+      <div>
+        <div class="eyebrow"><span class="dot"></span> Training · 02</div>
+        <h2>One model. Two losses. Trained jointly.</h2>
+      </div>
+      <p>
+        The publication frames the architecture as a <em>joint AR-diffusion objective</em>:
+        the same parameters minimize next-token cross-entropy and a masked / denoising
+        diffusion loss. NVIDIA reports the two objectives as complementary — diffusion
+        contributing lookahead planning, AR contributing left-to-right linguistic priors.
+      </p>
+    </header>
+
+    <div class="obj-grid">
+      <div class="obj-eq">
+        <div class="eyebrow" style="color:#8F8F8F;"><span class="dot"></span> Joint objective · schematic</div>
+        <div class="formula">
+          <span class="lam">L</span><span class="op">(θ)</span> <span class="op">=</span>
+          <span class="ar">L<sub style="font-size:11px;">AR</sub><span class="op">(θ)</span></span>
+          <span class="op">&nbsp;+&nbsp;λ&nbsp;·&nbsp;</span>
+          <span class="dif">L<sub style="font-size:11px;">DIF</sub><span class="op">(θ)</span></span>
+        </div>
+        <div class="annot" style="margin-bottom: var(--kui-space-md);">
+          Schematic notation — the publication describes the objective as joint AR plus diffusion;
+          the exact weighting <code>λ</code> and training schedule (curriculum, mixing ratio, masking
+          schedule) are not reproduced verbatim here. See the technical report for specifics.
+        </div>
+        <dl>
+          <div>
+            <dt class="ar">L_AR(θ)</dt>
+            <dd>Causal next-token cross-entropy. The standard autoregressive language modeling loss; provides left-to-right linguistic priors.</dd>
+          </div>
+          <div>
+            <dt class="dif">L_DIF(θ)</dt>
+            <dd>Diffusion / masked-token denoising loss over blocks. Enables bidirectional context and parallel decoding; provides lookahead planning.</dd>
+          </div>
+          <div>
+            <dt style="color:#fff;">θ</dt>
+            <dd>Shared transformer parameters. The same weights serve both objectives — no separate drafter network is trained.</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="card card-pad" style="display:flex; flex-direction:column; gap: var(--kui-space-md);">
+        <div>
+          <div class="eyebrow"><span class="dot"></span> What the joint training buys you</div>
+          <h3 style="margin-top:8px;">Mode synergy at inference</h3>
+        </div>
+
+        <!-- Synergy diagram -->
+        <svg viewBox="0 0 520 220" style="width:100%; height:auto; display:block;" aria-label="Synergy diagram: AR + diffusion training produces a shared backbone enabling three modes">
+          <!-- AR box -->
+          <g>
+            <rect x="10" y="20" width="170" height="60" fill="#fff" stroke="#0D69D4" stroke-width="1.5"/>
+            <text x="20" y="42" font-family="DM Sans" font-size="13" font-weight="500" fill="#0D69D4">AR objective</text>
+            <text x="20" y="62" font-family="DM Sans" font-size="11" fill="#5E5E5E">causal next-token CE</text>
+          </g>
+          <!-- DIF box -->
+          <g>
+            <rect x="10" y="140" width="170" height="60" fill="#fff" stroke="#76B900" stroke-width="1.5"/>
+            <text x="20" y="162" font-family="DM Sans" font-size="13" font-weight="500" fill="#5E9600">Diffusion objective</text>
+            <text x="20" y="182" font-family="DM Sans" font-size="11" fill="#5E5E5E">masked-token / denoising</text>
+          </g>
+          <!-- Arrows -->
+          <g stroke="#767676" fill="none" stroke-width="1.2">
+            <path d="M180 50 L260 105"/>
+            <path d="M180 170 L260 115"/>
+            <path d="M255 100 l5 5 l-5 5 M255 110 l5 5 l-5 -5" />
+          </g>
+          <!-- Backbone box -->
+          <g>
+            <rect x="260" y="80" width="100" height="60" fill="#0D0D0D"/>
+            <text x="310" y="105" text-anchor="middle" font-family="DM Sans" font-size="12" font-weight="500" fill="#fff">Shared θ</text>
+            <text x="310" y="122" text-anchor="middle" font-family="Roboto Mono" font-size="10" fill="#76B900">one backbone</text>
+          </g>
+          <!-- Right arrows -->
+          <g stroke="#767676" fill="none" stroke-width="1.2">
+            <path d="M360 95 L440 40"/>
+            <path d="M360 110 L440 110"/>
+            <path d="M360 125 L440 180"/>
+          </g>
+          <!-- Three mode chips -->
+          <g>
+            <rect x="440" y="22" width="80" height="36" fill="#fff" stroke="#0D69D4"/>
+            <text x="480" y="44" text-anchor="middle" font-family="DM Sans" font-size="11" font-weight="500" fill="#0D69D4">AR</text>
+
+            <rect x="440" y="92" width="80" height="36" fill="#fff" stroke="#76B900"/>
+            <text x="480" y="114" text-anchor="middle" font-family="DM Sans" font-size="11" font-weight="500" fill="#5E9600">Diffusion</text>
+
+            <rect x="440" y="162" width="80" height="36" fill="#0D0D0D" stroke="#76B900"/>
+            <text x="480" y="184" text-anchor="middle" font-family="DM Sans" font-size="11" font-weight="500" fill="#fff">Self-spec</text>
+          </g>
+        </svg>
+
+        <ul style="margin: 0; padding: 0; list-style: none; display:grid; gap: var(--kui-space-sm); border-top: 1px solid var(--kui-border-default); padding-top: var(--kui-space-md);">
+          <li style="display:grid; grid-template-columns: 24px 1fr; gap: 12px;">
+            <span class="mono" style="color: var(--kui-info)">→</span>
+            <span><strong>AR</strong> contributes left-to-right linguistic priors — fluent token-by-token continuation.</span>
+          </li>
+          <li style="display:grid; grid-template-columns: 24px 1fr; gap: 12px;">
+            <span class="mono" style="color: var(--kui-brand-green)">→</span>
+            <span><strong>Diffusion</strong> contributes lookahead planning — global structure of a span before its tokens commit.</span>
+          </li>
+          <li style="display:grid; grid-template-columns: 24px 1fr; gap: 12px;">
+            <span class="mono" style="color: var(--kui-fg-strong)">→</span>
+            <span><strong>Self-speculation</strong> rides on both: diffusion drafts, AR verifies, KV cache shared.</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SELF-SPECULATION FLOW
+       ============================================================ -->
+  <section class="section">
+    <header class="section-head">
+      <div>
+        <div class="eyebrow"><span class="dot"></span> Mechanism · 03</div>
+        <h2>Self-speculation: diffusion drafts, AR verifies.</h2>
+      </div>
+      <p>
+        Linear self-speculation runs the same network twice per step: a diffusion forward
+        produces a length-<code class="mono">block_length</code> draft in parallel, then an
+        AR forward scores the draft. The longest accepted prefix commits; the remaining
+        positions are re-drafted on the next step. NVIDIA reports this beats Eagle3-style
+        MTP on both acceptance length and real-device speed.
+      </p>
+    </header>
+
+    <div class="selfspec">
+      <div class="selfspec-head">
+        <h3>Per-step draft → verify → commit loop</h3>
+        <span class="meta mono">model.linear_spec_generate( prompt_ids, block_length=32 )</span>
+      </div>
+
+      <svg viewBox="0 0 1240 320" style="width:100%; height:auto; display:block;" aria-label="Self-speculation per-step flow">
+        <!-- Lane labels -->
+        <g font-family="Roboto Mono" font-size="10" fill="#767676">
+          <text x="0" y="58">PROMPT</text>
+          <text x="0" y="138">DIFFUSION DRAFT</text>
+          <text x="0" y="218">AR VERIFY</text>
+          <text x="0" y="298">COMMIT</text>
+        </g>
+
+        <!-- Horizontal lane separators -->
+        <g stroke="#E3E3E3" stroke-width="1">
+          <line x1="120" y1="80"  x2="1240" y2="80"/>
+          <line x1="120" y1="160" x2="1240" y2="160"/>
+          <line x1="120" y1="240" x2="1240" y2="240"/>
+        </g>
+
+        <!-- Prompt tokens -->
+        <g>
+          <g font-family="Roboto Mono" font-size="11" fill="#202020">
+            <rect x="130" y="36" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="150" y="56" text-anchor="middle">The</text>
+            <rect x="178" y="36" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="198" y="56" text-anchor="middle">cat</text>
+            <rect x="226" y="36" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="246" y="56" text-anchor="middle">sat</text>
+            <rect x="274" y="36" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="294" y="56" text-anchor="middle">on</text>
+          </g>
+        </g>
+
+        <!-- Draft block (8 positions filled in parallel) -->
+        <g>
+          <text x="330" y="110" font-family="Roboto Mono" font-size="10" fill="#76B900">block_length tokens drafted in 1 forward</text>
+          <g>
+            <rect x="330" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="358" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">the</text>
+            <rect x="390" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="418" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">mat</text>
+            <rect x="450" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="478" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">and</text>
+            <rect x="510" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="538" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">purred</text>
+            <rect x="570" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="598" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">in</text>
+            <rect x="630" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="658" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">the</text>
+            <rect x="690" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="718" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">cool</text>
+            <rect x="750" y="116" width="56" height="32" fill="#fff" stroke="#76B900" stroke-width="1.6"/><text x="778" y="136" font-family="Roboto Mono" font-size="11" fill="#5E9600" text-anchor="middle">grass</text>
+          </g>
+        </g>
+
+        <!-- AR verify pass -->
+        <g>
+          <text x="330" y="190" font-family="Roboto Mono" font-size="10" fill="#0D69D4">AR scores each draft token sequentially · shared KV cache</text>
+          <!-- accept dots -->
+          <g>
+            <!-- accept first 4 -->
+            <g font-family="Roboto Mono" font-size="12" font-weight="700">
+              <text x="358" y="216" fill="#007D00" text-anchor="middle">✓</text>
+              <text x="418" y="216" fill="#007D00" text-anchor="middle">✓</text>
+              <text x="478" y="216" fill="#007D00" text-anchor="middle">✓</text>
+              <text x="538" y="216" fill="#007D00" text-anchor="middle">✓</text>
+              <text x="598" y="216" fill="#DC3528" text-anchor="middle">✗</text>
+              <text x="658" y="216" fill="#8F8F8F" text-anchor="middle">·</text>
+              <text x="718" y="216" fill="#8F8F8F" text-anchor="middle">·</text>
+              <text x="778" y="216" fill="#8F8F8F" text-anchor="middle">·</text>
+            </g>
+          </g>
+          <!-- bracket showing accepted prefix -->
+          <g stroke="#007D00" fill="none" stroke-width="1.4">
+            <path d="M330 232 L330 226 L566 226 L566 232"/>
+          </g>
+          <text x="448" y="220" font-family="Roboto Mono" font-size="10" fill="#007D00" text-anchor="middle" opacity="0">accepted prefix: 4</text>
+        </g>
+
+        <!-- Commit -->
+        <g>
+          <g font-family="Roboto Mono" font-size="11" fill="#202020">
+            <rect x="130" y="276" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="150" y="296" text-anchor="middle">The</text>
+            <rect x="178" y="276" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="198" y="296" text-anchor="middle">cat</text>
+            <rect x="226" y="276" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="246" y="296" text-anchor="middle">sat</text>
+            <rect x="274" y="276" width="40" height="32" fill="#F2F2F2" stroke="#D8D8D8"/><text x="294" y="296" text-anchor="middle">on</text>
+
+            <rect x="330" y="276" width="56" height="32" fill="#E8F4D6" stroke="#76B900"/><text x="358" y="296" text-anchor="middle">the</text>
+            <rect x="390" y="276" width="56" height="32" fill="#E8F4D6" stroke="#76B900"/><text x="418" y="296" text-anchor="middle">mat</text>
+            <rect x="450" y="276" width="56" height="32" fill="#E8F4D6" stroke="#76B900"/><text x="478" y="296" text-anchor="middle">and</text>
+            <rect x="510" y="276" width="56" height="32" fill="#E8F4D6" stroke="#76B900"/><text x="538" y="296" text-anchor="middle">purred</text>
+
+            <!-- rejected positions shown faded -->
+            <rect x="570" y="276" width="56" height="32" fill="#fff" stroke="#D8D8D8" stroke-dasharray="3 3"/><text x="598" y="296" fill="#8F8F8F" text-anchor="middle">re-draft</text>
+            <rect x="630" y="276" width="56" height="32" fill="#fff" stroke="#D8D8D8" stroke-dasharray="3 3"/>
+            <rect x="690" y="276" width="56" height="32" fill="#fff" stroke="#D8D8D8" stroke-dasharray="3 3"/>
+            <rect x="750" y="276" width="56" height="32" fill="#fff" stroke="#D8D8D8" stroke-dasharray="3 3"/>
+          </g>
+          <text x="900" y="296" font-family="Roboto Mono" font-size="11" fill="#5E5E5E">→ next step</text>
+        </g>
+
+        <!-- Right side step summary -->
+        <g transform="translate(940, 24)">
+          <rect x="0" y="0" width="290" height="280" fill="#0D0D0D"/>
+          <text x="16" y="28" font-family="DM Sans" font-size="11" fill="#76B900">REPORTED · 8B SELF-SPEC</text>
+          <line x1="16" y1="40" x2="274" y2="40" stroke="#2a2a2a"/>
+
+          <g font-family="DM Sans" font-size="12" fill="#C6C6C6">
+            <text x="16" y="68">Acceptance length vs Eagle3</text>
+            <text x="274" y="68" text-anchor="end" font-family="Roboto Mono" font-weight="500" fill="#fff">3.0×</text>
+
+            <text x="16" y="100">Speed-up vs Eagle3 (SGLang)</text>
+            <text x="274" y="100" text-anchor="end" font-family="Roboto Mono" font-weight="500" fill="#fff">2.2×</text>
+
+            <text x="16" y="132">Tok / forward vs Qwen3-8B</text>
+            <text x="274" y="132" text-anchor="end" font-family="Roboto Mono" font-weight="500" fill="#76B900">5.9×</text>
+
+            <text x="16" y="164">SPEED-Bench throughput · GB200</text>
+            <text x="274" y="164" text-anchor="end" font-family="Roboto Mono" font-weight="500" fill="#fff">4×</text>
+          </g>
+          <line x1="16" y1="184" x2="274" y2="184" stroke="#2a2a2a"/>
+          <text x="16" y="206" font-family="DM Sans" font-size="10" fill="#5E5E5E">Speed-of-light · optimal sampler</text>
+          <text x="16" y="226" font-family="DM Sans" font-size="11" fill="#9ACCF2">up to <tspan font-family="Roboto Mono" font-weight="500" fill="#9ACCF2">+76.5%</tspan> tokens / forward</text>
+          <text x="16" y="244" font-family="DM Sans" font-size="11" fill="#9ACCF2">vs self-speculation</text>
+          <text x="16" y="266" font-family="DM Sans" font-size="9" fill="#5E5E5E">Source-reported · NVIDIA Research, May 2026</text>
+        </g>
+      </svg>
+
+      <div class="bench-note" style="margin-top: var(--kui-space-md); border-radius: var(--kui-radius-sm); border: 1px solid var(--kui-border-default);">
+        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="#5E5E5E" fill="none"/><circle cx="8" cy="5" r="0.8" fill="#5E5E5E"/><line x1="8" y1="7.5" x2="8" y2="11" stroke="#5E5E5E"/></svg>
+        Numbers shown above are illustrative draft contents only — accepted tokens above are
+        a stylization of the typical 8B self-speculation step. See the Benchmarks section for the
+        figures NVIDIA actually reports.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       VARIANTS
+       ============================================================ -->
+  <section class="section">
+    <header class="section-head">
+      <div>
+        <div class="eyebrow"><span class="dot"></span> Model family · 04</div>
+        <h2>Seven checkpoints. One architecture.</h2>
+      </div>
+      <p>
+        NVIDIA ships base, instruct, and a vision-language variant at the 3B/8B/14B scale
+        points. All run the tri-mode interface. Tokenizer, context length, layer
+        dimensions, and the VLM's vision encoder details are not published on the
+        public Hugging Face pages at the time of writing — see <a href="#unknowns">Open questions</a>.
+      </p>
+    </header>
+
+    <div class="variants">
+      <article class="variant">
+        <div class="ribbon"></div>
+        <div class="v-id">3B · instruct</div>
+        <div class="v-name">Nemotron-Labs-Diffusion-3B</div>
+        <div class="v-tags">
+          <span class="tag tag--green">Instruct</span>
+          <span class="tag tag--mono">BF16</span>
+          <span class="tag tag--mono">Safetensors</span>
+        </div>
+        <dl>
+          <div><dt>Reported size</dt><dd>4 B</dd></div>
+          <div><dt>Tri-mode</dt><dd>✓</dd></div>
+          <div><dt>LoRA drafter</dt><dd>✓</dd></div>
+          <div><dt>Tokenizer</dt><dd class="dim">unspec.</dd></div>
+        </dl>
+      </article>
+
+      <article class="variant">
+        <div class="ribbon"></div>
+        <div class="v-id">3B · base</div>
+        <div class="v-name">Nemotron-Labs-Diffusion-3B-Base</div>
+        <div class="v-tags">
+          <span class="tag tag--mono">Base</span>
+          <span class="tag tag--mono">BF16</span>
+        </div>
+        <dl>
+          <div><dt>Reported size</dt><dd class="dim">unspec.</dd></div>
+          <div><dt>Tri-mode</dt><dd>✓</dd></div>
+          <div><dt>Use case</dt><dd>fine-tune</dd></div>
+          <div><dt>Tokenizer</dt><dd class="dim">unspec.</dd></div>
+        </dl>
+      </article>
+
+      <article class="variant">
+        <div class="ribbon"></div>
+        <div class="v-id">8B · instruct</div>
+        <div class="v-name">Nemotron-Labs-Diffusion-8B</div>
+        <div class="v-tags">
+          <span class="tag tag--green">Instruct</span>
+          <span class="tag tag--blue">Headline</span>
+          <span class="tag tag--mono">BF16</span>
+        </div>
+        <dl>
+          <div><dt>Reported size</dt><dd class="dim">≈ 8 B</dd></div>
+          <div><dt>Tri-mode</dt><dd>✓</dd></div>
+          <div><dt>vs Qwen3-8B</dt><dd>5.9× tok/fwd</dd></div>
+          <div><dt>GB200 throughput</dt><dd>4× SPEED-Bench</dd></div>
+        </dl>
+      </article>
+
+      <article class="variant">
+        <div class="ribbon"></div>
+        <div class="v-id">8B · base</div>
+        <div class="v-name">Nemotron-Labs-Diffusion-8B-Base</div>
+        <div class="v-tags">
+          <span class="tag tag--mono">Base</span>
+          <span class="tag tag--mono">BF16</span>
+        </div>
+        <dl>
+          <div><dt>Reported size</dt><dd class="dim">unspec.</dd></div>
+          <div><dt>Tri-mode</dt><dd>✓</dd></div>
+          <div><dt>Use case</dt><dd>fine-tune</dd></div>
+          <div><dt>Tokenizer</dt><dd class="dim">unspec.</dd></div>
+        </dl>
+      </article>
+
+      <article class="variant">
+        <div class="ribbon"></div>
+        <div class="v-id">14B · instruct</div>
+        <div class="v-name">Nemotron-Labs-Diffusion-14B</div>
+        <div class="v-tags">
+          <span class="tag tag--green">Instruct</span>
+          <span class="tag tag--mono">BF16</span>
+        </div>
+        <dl>
+          <div><dt>Reported size</dt><dd class="dim">≈ 14 B</dd></div>
+          <div><dt>Tri-mode</dt><dd>✓</dd></div>
+          <div><dt>Tokenizer</dt><dd class="dim">unspec.</dd></div>
+          <div><dt>Layer dims</dt><dd class="dim">unspec.</dd></div>
+        </dl>
+      </article>
+
+      <article class="variant">
+        <div class="ribbon"></div>
+        <div class="v-id">14B · base</div>
+        <div class="v-name">Nemotron-Labs-Diffusion-14B-Base</div>
+        <div class="v-tags">
+          <span class="tag tag--mono">Base</span>
+          <span class="tag tag--mono">BF16</span>
+        </div>
+        <dl>
+          <div><dt>Reported size</dt><dd class="dim">unspec.</dd></div>
+          <div><dt>Tri-mode</dt><dd>✓</dd></div>
+          <div><dt>Use case</dt><dd>fine-tune</dd></div>
+          <div><dt>Tokenizer</dt><dd class="dim">unspec.</dd></div>
+        </dl>
+      </article>
+
+      <article class="variant" style="grid-column: span 2;">
+        <div class="ribbon" style="background: var(--kui-accent-purple)"></div>
+        <div class="v-id">VLM · 8B</div>
+        <div class="v-name">Nemotron-Labs-Diffusion-VLM-8B</div>
+        <div class="v-tags">
+          <span class="tag tag--purple">Vision-language</span>
+          <span class="tag tag--mono">BF16</span>
+          <span class="tag tag--mono">Multimodal</span>
+        </div>
+        <p style="margin: 0; color: var(--kui-fg-muted); font: var(--kui-body);">
+          A vision-language variant of the family. The publication confirms a VLM is
+          included; the specific vision encoder (architecture, resolution, pooling),
+          projector design, and total parameter budget for the multimodal stack are
+          not enumerated in the sources used to build this page.
+        </p>
+        <dl style="grid-template-columns: 1fr 1fr; column-gap: var(--kui-space-md);">
+          <div><dt>Tri-mode text path</dt><dd>✓</dd></div>
+          <div><dt>Vision encoder</dt><dd class="dim">unspec.</dd></div>
+          <div><dt>Image resolution</dt><dd class="dim">unspec.</dd></div>
+          <div><dt>Projector</dt><dd class="dim">unspec.</dd></div>
+        </dl>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       REPORTED METRICS
+       ============================================================ -->
+  <section class="section">
+    <header class="section-head">
+      <div>
+        <div class="eyebrow"><span class="dot"></span> Reported metrics · 05</div>
+        <h2>Numbers as published, not independently verified.</h2>
+      </div>
+      <p>
+        Figures below are reproduced verbatim from the NVIDIA Research abstract and the
+        <code class="mono">Nemotron-Labs-Diffusion-3B</code> model card on Hugging Face. They
+        characterize an 8B configuration unless otherwise noted; this briefing has not
+        re-benchmarked the model.
+      </p>
+    </header>
+
+    <div class="bench">
+      <div class="bench-tabs" role="tablist" id="benchTabs">
+        <button role="tab" data-bench="speed"  aria-selected="true">Decode speed (8B)</button>
+        <button role="tab" data-bench="spec"   aria-selected="false">Self-speculation gains</button>
+        <button role="tab" data-bench="speedoflight" aria-selected="false">Speed-of-light analysis</button>
+      </div>
+
+      <div data-bench-panel="speed">
+        <table class="kt">
+          <thead>
+            <tr>
+              <th>Platform · 8B · concurrency 1</th>
+              <th>Mode</th>
+              <th class="num">Tokens / sec</th>
+              <th class="num">Speed-up vs AR</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="row-head">DGX Spark · w4a16</td>
+              <td>AR</td>
+              <td class="num">41.8</td>
+              <td class="num">1.0×</td>
+              <td>HF · 3B card highlights</td>
+            </tr>
+            <tr>
+              <td class="row-head">DGX Spark · w4a16</td>
+              <td>Self-speculation</td>
+              <td class="num">112</td>
+              <td class="num">2.7×</td>
+              <td>HF · 3B card highlights</td>
+            </tr>
+            <tr>
+              <td class="row-head">GB200</td>
+              <td>AR</td>
+              <td class="num">253</td>
+              <td class="num">1.0×</td>
+              <td>HF · 3B card highlights</td>
+            </tr>
+            <tr>
+              <td class="row-head">GB200</td>
+              <td>Eagle3 (MTP baseline)</td>
+              <td class="num">360</td>
+              <td class="num">1.4×</td>
+              <td>HF · 3B card highlights</td>
+            </tr>
+            <tr>
+              <td class="row-head">GB200</td>
+              <td>Self-speculation</td>
+              <td class="num">850</td>
+              <td class="num">3.3×</td>
+              <td>HF · 3B card highlights</td>
+            </tr>
+            <tr>
+              <td class="row-head">GB200 · custom CUDA kernels</td>
+              <td>Self-speculation</td>
+              <td class="num">1015</td>
+              <td class="num">4.0×</td>
+              <td>HF · 3B card highlights</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="bench-note">
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="#C54600" fill="none"/><text x="8" y="11" text-anchor="middle" font-family="Roboto Mono" font-size="10" fill="#C54600">!</text></svg>
+          All numbers attributed to the <em>Highlights</em> section of the
+          <code class="mono">Nemotron-Labs-Diffusion-3B</code> Hugging Face model card. Values describe an 8B
+          model at concurrency 1; specific evaluation harness, prompt distribution, and decoding
+          settings beyond what is shown are not reproduced here. Treat as source-reported.
+        </div>
+      </div>
+
+      <div data-bench-panel="spec" hidden>
+        <table class="kt">
+          <thead>
+            <tr>
+              <th>Comparison · 8B</th>
+              <th>Metric</th>
+              <th class="num">Ratio</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="row-head">Self-spec vs Qwen3-8B-Eagle3 (SGLang)</td>
+              <td>Acceptance length</td>
+              <td class="num">3.0×</td>
+              <td>HF · 3B card highlights</td>
+            </tr>
+            <tr>
+              <td class="row-head">Self-spec vs Qwen3-8B-Eagle3 (SGLang)</td>
+              <td>Decode speed-up</td>
+              <td class="num">2.2×</td>
+              <td>HF · 3B card highlights</td>
+            </tr>
+            <tr>
+              <td class="row-head">Self-spec vs Qwen3-8B (no MTP)</td>
+              <td>Tokens per forward, same accuracy</td>
+              <td class="num">5.9×</td>
+              <td>Abstract · HF · 3B card</td>
+            </tr>
+            <tr>
+              <td class="row-head">SPEED-Bench · GB200 · SGLang</td>
+              <td>Throughput vs Qwen3-8B</td>
+              <td class="num">4.0×</td>
+              <td>Publication abstract</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="bench-note">
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="#C54600" fill="none"/><text x="8" y="11" text-anchor="middle" font-family="Roboto Mono" font-size="10" fill="#C54600">!</text></svg>
+          Multi-token prediction (MTP) baseline here is Eagle3. Acceptance length and tok/forward
+          are not interchangeable — the former counts contiguous accepted draft tokens per step;
+          the latter counts <em>any</em> token committed per forward pass averaged across the
+          generation.
+        </div>
+      </div>
+
+      <div data-bench-panel="speedoflight" hidden>
+        <div style="padding: var(--kui-space-ml); display:grid; grid-template-columns: 1fr 1.2fr; gap: var(--kui-space-xl); align-items:center;">
+          <div>
+            <div class="eyebrow"><span class="dot"></span> Speed-of-light · optimal sampler</div>
+            <div style="margin-top: var(--kui-space-md); font: 500 56px/1 var(--kui-font-mono); color: var(--kui-fg-strong);">+76.5%</div>
+            <div style="margin-top: var(--kui-space-xs); font: var(--kui-body-md); color: var(--kui-fg-muted);">
+              tokens per forward pass vs self-speculation, under an optimal sampler.
+            </div>
+            <p class="pull" style="margin-top: var(--kui-space-ml);">
+              "A speed-of-light analysis further demonstrates diffusion's long-term potential, with
+              up to 76.5% more tokens per forward pass than self-speculation under an optimal sampler."
+              <cite>— NVIDIA Research abstract, May 2026</cite>
+            </p>
+          </div>
+          <!-- Bars -->
+          <div>
+            <div style="display:grid; grid-template-columns: 140px 1fr 70px; align-items:center; gap: var(--kui-space-sm); margin-bottom: var(--kui-space-sm); font: var(--kui-body);">
+              <span style="color: var(--kui-fg-muted);">AR baseline</span>
+              <div style="height:18px; background:#E3E3E3; position:relative;">
+                <div style="position:absolute; left:0; top:0; bottom:0; width:18%; background:#0D69D4;"></div>
+              </div>
+              <span class="num" style="text-align:right;">1.0×</span>
+            </div>
+            <div style="display:grid; grid-template-columns: 140px 1fr 70px; align-items:center; gap: var(--kui-space-sm); margin-bottom: var(--kui-space-sm); font: var(--kui-body);">
+              <span style="color: var(--kui-fg-muted);">Self-speculation</span>
+              <div style="height:18px; background:#E3E3E3; position:relative;">
+                <div style="position:absolute; left:0; top:0; bottom:0; width:57%; background:#76B900;"></div>
+              </div>
+              <span class="num" style="text-align:right;">~3×</span>
+            </div>
+            <div style="display:grid; grid-template-columns: 140px 1fr 70px; align-items:center; gap: var(--kui-space-sm); margin-bottom: var(--kui-space-sm); font: var(--kui-body);">
+              <span style="color: var(--kui-fg-muted);">Diffusion · optimal</span>
+              <div style="height:18px; background:#E3E3E3; position:relative;">
+                <div style="position:absolute; left:0; top:0; bottom:0; width:100%; background: repeating-linear-gradient(45deg, #76B900, #76B900 6px, #5E9600 6px, #5E9600 12px);"></div>
+              </div>
+              <span class="num" style="text-align:right;">+76.5%</span>
+            </div>
+            <div style="font: var(--kui-text-sm); color: var(--kui-fg-disabled); margin-top: var(--kui-space-sm);">
+              Bar widths are illustrative — exact AR and self-spec baselines for this comparison are
+              not given in the public abstract.
+            </div>
+          </div>
+        </div>
+        <div class="bench-note">
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="#C54600" fill="none"/><text x="8" y="11" text-anchor="middle" font-family="Roboto Mono" font-size="10" fill="#C54600">!</text></svg>
+          NVIDIA frames this as <em>long-term potential</em> contingent on a future optimal sampler — not a number
+          delivered by the released checkpoints today.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       UNKNOWNS
+       ============================================================ -->
+  <section class="section" id="unknowns">
+    <header class="section-head">
+      <div>
+        <div class="eyebrow"><span class="dot"></span> Open questions · 06</div>
+        <h2>What this briefing cannot yet confirm.</h2>
+      </div>
+      <p>
+        The following details could not be sourced from the publication landing page or the
+        public model cards consulted for this brief. The technical report PDF is the
+        authoritative reference and likely contains most of these values — but they are not
+        reproduced here verbatim.
+      </p>
+    </header>
+
+    <div class="unknowns">
+      <div>
+        <h3>Verify in the tech report</h3>
+        <p class="lead">
+          Before quoting any of these facts in downstream materials, open the tech report PDF
+          linked in the hero and confirm the value with its exact wording.
+        </p>
+      </div>
+      <ul>
+        <li><span class="q">?</span><div><strong>Tokenizer</strong><span>Vocabulary size, BPE family, special tokens — not on the public model card.</span></div></li>
+        <li><span class="q">?</span><div><strong>Context length</strong><span>Max sequence length and any sliding-window or RoPE scaling settings.</span></div></li>
+        <li><span class="q">?</span><div><strong>Layer dimensions</strong><span>Layer count, hidden size, head count and head dimension at 3B / 8B / 14B.</span></div></li>
+        <li><span class="q">?</span><div><strong>Attention variant</strong><span>GQA / MQA / MHA, FlashAttention version, kernel routing.</span></div></li>
+        <li><span class="q">?</span><div><strong>Training corpus</strong><span>Pretraining mix, total tokens seen, multilingual share, code share.</span></div></li>
+        <li><span class="q">?</span><div><strong>Training schedule</strong><span>Mixing ratio λ between AR and diffusion losses; curriculum across phases.</span></div></li>
+        <li><span class="q">?</span><div><strong>Diffusion specifics</strong><span>Noise / masking schedule, number of denoising steps used at train and inference.</span></div></li>
+        <li><span class="q">?</span><div><strong>Vision encoder</strong><span>VLM image backbone, resolution, patch size, and projector design.</span></div></li>
+        <li><span class="q">?</span><div><strong>Quantization</strong><span>Beyond <code class="mono">w4a16</code> on DGX Spark, supported precisions and recipes.</span></div></li>
+        <li><span class="q">?</span><div><strong>Accuracy benchmarks</strong><span>MMLU / HumanEval / GSM8K-class numbers per variant.</span></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <div>
+      <div style="font: var(--kui-h4); color: var(--kui-fg-strong); margin-bottom: 4px;">Nemotron-Labs-Diffusion — Architecture briefing</div>
+      <div>
+        Compiled from NVIDIA Research publication page and the
+        <code class="mono">Nemotron-Labs-Diffusion-3B</code> Hugging Face model card,
+        fetched May 2026. Visualizations are schematic.
+      </div>
+    </div>
+    <div style="text-align: right;">
+      <div>NVIDIA Open Model License · Kaizen UI v11 styling</div>
+      <div style="color: var(--kui-fg-disabled);">Not independently benchmarked · numbers source-reported</div>
+    </div>
+  </footer>
+
+</main>
+
+<script>
+/* ============================================================
+   1) Build the attention-mask grids (3 of them, side-by-side)
+   ============================================================ */
+(function() {
+  const SEQ   = 8;
+  const BLOCK = 4;
+  const SIZE  = 200;
+  const CELL  = SIZE / SEQ;
+
+  function rect(g, c, r, fill, stroke) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    el.setAttribute('x', c * CELL);
+    el.setAttribute('y', r * CELL);
+    el.setAttribute('width',  CELL);
+    el.setAttribute('height', CELL);
+    el.setAttribute('fill', fill);
+    if (stroke) el.setAttribute('stroke', stroke);
+    el.setAttribute('stroke-width', '0.5');
+    g.appendChild(el);
+  }
+
+  function paint(g, kind) {
+    while (g.firstChild) g.removeChild(g.firstChild);
+    // grid lines bg
+    for (let r = 0; r < SEQ; r++) {
+      for (let c = 0; c < SEQ; c++) {
+        rect(g, c, r, '#050505', '#1a1a1a');
+      }
+    }
+    for (let r = 0; r < SEQ; r++) {
+      for (let c = 0; c < SEQ; c++) {
+        let fill = null;
+        if (kind === 'ar') {
+          if (c <= r) fill = '#fff';
+        } else if (kind === 'dif') {
+          const blockR = Math.floor(r / BLOCK);
+          const blockC = Math.floor(c / BLOCK);
+          // Within same block → bidirectional (full)
+          // Earlier block → causal context
+          if (blockC < blockR) fill = '#9ACCF2';            // past-block causal context
+          else if (blockC === blockR) fill = '#76B900';     // current block bidirectional
+        } else if (kind === 'spec') {
+          // Verify pass: tokens in draft span see prior context causally,
+          // but draft tokens within the span attend bidirectionally.
+          // Show the verify mask as causal for verify positions r in [0..3],
+          // and bidirectional-within-block for draft positions r in [4..7].
+          const isDraftRow = r >= BLOCK;
+          const isDraftCol = c >= BLOCK;
+          if (!isDraftRow) {
+            // committed positions — causal
+            if (c <= r) fill = '#fff';
+          } else {
+            // draft block row
+            if (!isDraftCol) {
+              fill = '#9ACCF2';                              // attends to all committed context
+            } else {
+              // within draft block — bidirectional
+              fill = '#76B900';
+            }
+          }
+        }
+        if (fill) rect(g, c, r, fill, '#1a1a1a');
+      }
+    }
+    // diagonal indicator
+    const diag = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    diag.setAttribute('x1', 0); diag.setAttribute('y1', 0);
+    diag.setAttribute('x2', SIZE); diag.setAttribute('y2', SIZE);
+    diag.setAttribute('stroke', '#5E5E5E');
+    diag.setAttribute('stroke-dasharray', '2 3');
+    diag.setAttribute('stroke-width', '0.6');
+    g.appendChild(diag);
+    // block dividers for dif/spec
+    if (kind !== 'ar') {
+      const x = BLOCK * CELL;
+      const v = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      v.setAttribute('x1', x); v.setAttribute('x2', x);
+      v.setAttribute('y1', 0); v.setAttribute('y2', SIZE);
+      v.setAttribute('stroke', '#76B900'); v.setAttribute('stroke-width', '0.8');
+      v.setAttribute('stroke-dasharray', '3 3');
+      g.appendChild(v);
+      const h = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      h.setAttribute('y1', x); h.setAttribute('y2', x);
+      h.setAttribute('x1', 0); h.setAttribute('x2', SIZE);
+      h.setAttribute('stroke', '#76B900'); h.setAttribute('stroke-width', '0.8');
+      h.setAttribute('stroke-dasharray', '3 3');
+      g.appendChild(h);
+    }
+  }
+
+  paint(document.getElementById('m_ar'),   'ar');
+  paint(document.getElementById('m_dif'),  'dif');
+  paint(document.getElementById('m_spec'), 'spec');
+
+  /* ============================================================
+     2) Hero mode switcher
+     ============================================================ */
+  const MODES = {
+    ar: {
+      kind: 'ar',
+      title: 'Causal · left-to-right',
+      desc:  "Standard autoregressive next-token prediction. Each position attends only to itself and earlier positions, sampled one token per forward pass.",
+      stats: { par: '1 tok / fwd', str: 'priors', mask: 'causal', kv: 'shared' },
+      api: { fn: 'ar_generate', args: 'prompt_ids, max_new_tokens=512', badge: 'mode · AR' }
+    },
+    dif: {
+      kind: 'dif',
+      title: 'Block-bidirectional · denoise',
+      desc:  "Diffusion-based parallel decoding. The model fills a fixed-length block of masked positions in parallel, iterating with a confidence threshold; multiple tokens commit per forward pass.",
+      stats: { par: 'block / fwd', str: 'lookahead', mask: 'block-bidir', kv: 'shared' },
+      api: { fn: 'generate', args: 'prompt_ids, block_length=32, threshold=0.9', badge: 'mode · dLM' }
+    },
+    spec: {
+      kind: 'spec',
+      title: 'Draft + verify · linear self-spec',
+      desc:  "Diffusion proposes a block of draft tokens in one forward pass; AR scores the block sequentially in another. The longest accepted prefix commits, the rest are re-drafted on the next step. KV cache is shared.",
+      stats: { par: 'block / step', str: 'best of both', mask: 'hybrid', kv: 'shared' },
+      api: { fn: 'linear_spec_generate', args: 'prompt_ids, block_length=32', badge: 'mode · self-spec' }
+    }
+  };
+
+  const tabs = document.querySelectorAll('#modeTabs button');
+  const maskSvg = document.getElementById('maskSvg');
+  // Build a single mask group inside the hero svg
+  const hostG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  hostG.setAttribute('transform', 'translate(20,20)');
+  maskSvg.appendChild(hostG);
+  // Adjust hero mask cell size: viewBox 240 minus 40 margin -> draw at 200
+  // We'll re-use paint but on this group; SIZE/CELL constants are scoped to that fn.
+  function paintHero(kind) {
+    paint(hostG, kind);
+  }
+
+  function setMode(mode) {
+    const m = MODES[mode];
+    paintHero(m.kind);
+    document.getElementById('modeTitle').textContent = m.title;
+    document.getElementById('modeDesc').textContent  = m.desc;
+    document.getElementById('statPar').textContent   = m.stats.par;
+    document.getElementById('statStr').textContent   = m.stats.str;
+    document.getElementById('statMask').textContent  = m.stats.mask;
+    document.getElementById('statKV').textContent    = m.stats.kv;
+    document.getElementById('apiName').textContent   = m.api.fn;
+    document.getElementById('apiArgs').textContent   = m.api.args;
+    document.getElementById('apiBadge').textContent  = m.api.badge;
+    document.getElementById('maskShape').textContent =
+      m.kind === 'ar' ? '8 × 8 · causal' :
+      m.kind === 'dif' ? '8 × 8 · 2 blocks' :
+      '8 × 8 · draft + verify';
+    tabs.forEach(t => {
+      t.setAttribute('aria-selected', t.dataset.mode === mode ? 'true' : 'false');
+    });
+  }
+  tabs.forEach(t => t.addEventListener('click', () => setMode(t.dataset.mode)));
+  setMode('ar');
+
+  /* ============================================================
+     3) Benchmark tab switcher
+     ============================================================ */
+  const benchTabs = document.querySelectorAll('#benchTabs button');
+  benchTabs.forEach(b => {
+    b.addEventListener('click', () => {
+      benchTabs.forEach(x => x.setAttribute('aria-selected', x === b ? 'true' : 'false'));
+      const key = b.dataset.bench;
+      document.querySelectorAll('[data-bench-panel]').forEach(p => {
+        p.hidden = p.dataset.benchPanel !== key;
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -4,3 +4,17 @@ dist/
 **/.observablehq/cache/
 .DS_Store
 npm-debug.log*
+.env
+.env.*
+!.env.example
+
+# Local editor and OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Generated local previews and scratch output
+screenshots/
+*.log
+*.tmp

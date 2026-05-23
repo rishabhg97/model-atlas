@@ -367,26 +367,29 @@
   /* --- Pipeline diagram hover + inspector --- */
   .pipeline-svg-wrap { position: relative; }
   .pipeline-inspector {
-    position: absolute; top: 12px; right: 12px;
-    width: 248px;
+    position: static;
+    width: 100%;
     background: var(--kui-bg-mid);
     border: 1px solid var(--kui-border-default);
     border-left: 3px solid var(--kui-accent-teal);
     border-radius: var(--kui-radius-sm);
     padding: 12px 14px;
-    z-index: 4;
-    box-shadow: var(--kui-shadow-1);
-    pointer-events: none;
+    margin-bottom: var(--kui-space-md);
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr) auto;
+    gap: var(--kui-space-md);
+    align-items: center;
     transition: border-left-color 120ms ease-out;
   }
   .pipeline-inspector[data-stage="encoder"]   { border-left-color: var(--kui-accent-teal); }
   .pipeline-inspector[data-stage="processor"] { border-left-color: var(--kui-brand-green); }
   .pipeline-inspector[data-stage="decoder"]   { border-left-color: var(--kui-info); }
   .pipeline-inspector[data-stage="inputs"]    { border-left-color: var(--kui-n400); }
-  .pi-eyebrow { font: var(--kui-overline); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-  .pi-title { font: var(--kui-h4); letter-spacing: var(--kui-tracking-heading); color: var(--kui-fg-strong); margin-bottom: 6px; }
-  .pi-body { font: var(--kui-text); color: var(--kui-fg-default); margin-bottom: 10px; line-height: 1.4; }
-  .pi-shape { font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-strong); padding: 6px 8px; background: var(--kui-n050); border-radius: 2px; border: 1px solid var(--kui-border-default); display: block; }
+  .pi-head { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .pi-eyebrow { font: var(--kui-overline); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 1px; }
+  .pi-title { font: var(--kui-h4); letter-spacing: var(--kui-tracking-heading); color: var(--kui-fg-strong); }
+  .pi-body { font: var(--kui-text); color: var(--kui-fg-default); line-height: 1.4; min-width: 0; }
+  .pi-shape { font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-strong); padding: 6px 10px; background: var(--kui-n050); border-radius: 2px; border: 1px solid var(--kui-border-default); white-space: nowrap; }
 
   .pipeline .pl-stage { cursor: pointer; transition: opacity 160ms ease-out; }
   .pipeline-svg-wrap.is-hover .pl-stage { opacity: 0.32; }
@@ -589,7 +592,8 @@
 
   /* Mobile-friendly overrides for new widgets */
   @media (max-width: 1024px) {
-    .pipeline-inspector { position: static; width: auto; margin-bottom: 12px; }
+    .pipeline-inspector { grid-template-columns: 1fr; gap: 8px; }
+    .pi-shape { white-space: normal; word-break: break-word; }
     .win-wrap { grid-template-columns: 1fr; }
   }
 </style>
@@ -759,8 +763,10 @@
         </div>
         <div class="pipeline-svg-wrap" id="pipeline-wrap">
           <div class="pipeline-inspector" id="pipeline-inspector" aria-live="polite">
-            <div class="pi-eyebrow">Hover a stage</div>
-            <div class="pi-title">End-to-end view</div>
+            <div class="pi-head">
+              <div class="pi-eyebrow">Hover a stage</div>
+              <div class="pi-title">End-to-end view</div>
+            </div>
             <div class="pi-body">Heterogeneous Earth-system fields enter on the left, become a universal 3D latent in the encoder, evolve through the Swin U-Net processor, and are reconstructed by the decoder. Hover any stage to inspect its tensor shape and role.</div>
             <div class="pi-shape mono" id="pi-shape">tensor: H &times; W &times; (4 + 5C) &middot; float32</div>
           </div>

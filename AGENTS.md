@@ -40,8 +40,15 @@ models/nemotron-3-nano/index.html
 3. Copy any referenced assets beside it, preserving relative paths such as `kaizen/` or `styles.css`.
 4. Add a visible back link from the model page to the atlas home. For pages under `models/<model-slug>/`, the link should point to `../../index.html` and use clear text such as `Atlas home`.
 5. Always make a corresponding change to the root `index.html`: add one `ATLAS_PAGES` entry with the model page `href`, so homepage linkage is preserved for every new model file.
-6. Verify the root atlas page and the new model page return HTTP 200 from the local static server.
-7. After adding a new model file, commit the atlas update and push it to the remote branch.
+6. Check whether Artificial Analysis has a matching public score for the new atlas entry:
+   - Use the free API docs at `https://artificialanalysis.ai/api-reference#free-api`.
+   - Load the API key from `.env` as `AA_INDEX_API`; never print, commit, or expose the key.
+   - Query `https://artificialanalysis.ai/api/v2/data/llms/models` with the `x-api-key` header.
+   - For LLM entries, conservatively match by exact or near-exact model name plus creator/vendor. If the API match is solid, set `aaIndex` from `evaluations.artificial_analysis_intelligence_index` and use `aaLabel` to name the matched AA record or evaluation mode.
+   - If the page is a broader family page, a non-LLM model, or the match is ambiguous, leave `aaIndex: "Not listed"` and make `aaLabel` describe the page's own benchmark/metric panels instead of guessing.
+   - Add or preserve visible attribution to `https://artificialanalysis.ai/` on the root atlas page when AA scores are displayed.
+7. Verify the root atlas page and the new model page return HTTP 200 from the local static server.
+8. After adding a new model file, commit the atlas update and push it to the remote branch.
 
 ## When Asked To Add A New Model
 

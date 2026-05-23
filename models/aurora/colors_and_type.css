@@ -9,9 +9,9 @@
    real NVIDIA Sans .woff2 files into fonts/ to override.
    ============================================================ */
 
-/* ---------- Font stack ----------
-   Offline atlas artifact: use local/system fallbacks instead of remote font imports.
-   ---------- */
+/* ---------- Webfont (system fallback in atlas export) ---------- */
+
+/* Local font files are intentionally omitted; system fallbacks keep this page offline-safe. */
 
 :root {
   /* ─────────────────────────────────────────

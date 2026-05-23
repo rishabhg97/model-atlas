@@ -50,6 +50,20 @@
   .appbar .links { display: flex; gap: var(--kui-space-ml); }
   .appbar .links a { font: var(--kui-text); color: var(--kui-fg-muted); }
   .appbar .links a:hover { color: var(--kui-fg-strong); text-decoration: none; }
+  .atlas-home {
+    display: inline-flex; align-items: center;
+    height: 32px; padding: 0 12px;
+    border: 1px solid var(--kui-border-default);
+    border-radius: var(--kui-radius-xs);
+    color: var(--kui-fg-muted);
+    font: var(--kui-text-sm);
+    text-decoration: none;
+  }
+  .atlas-home:hover {
+    color: var(--kui-fg-strong);
+    border-color: var(--kui-brand-green);
+    text-decoration: none;
+  }
   .pill {
     display: inline-flex; align-items: center; gap: 6px;
     height: 22px; padding: 0 8px;
@@ -101,17 +115,6 @@
   .rail nav a:hover { background: var(--kui-n050); text-decoration: none; }
   .rail nav a.active { color: var(--kui-fg-strong); border-left-color: var(--kui-brand-green); background: var(--kui-n050); font-weight: var(--kui-fw-medium); }
   .rail nav a .num { font: var(--kui-text-sm); color: var(--kui-fg-muted); width: 22px; text-align: right; }
-  .home-link {
-    display: flex; align-items: center;
-    margin: 0 var(--kui-space-ml) var(--kui-space-md);
-    padding: 8px 10px;
-    border: 1px solid var(--kui-border-default);
-    border-radius: var(--kui-radius-xs);
-    color: var(--kui-fg-default);
-    font: var(--kui-text);
-    background: var(--kui-bg-mid);
-  }
-  .home-link:hover { background: var(--kui-n050); border-color: var(--kui-brand-green); color: var(--kui-fg-strong); text-decoration: none; }
   .rail .meta { padding: var(--kui-space-md) var(--kui-space-ml); margin-top: var(--kui-space-md); border-top: 1px solid var(--kui-border-default); }
   .rail .meta dt { font: var(--kui-text-sm); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
   .rail .meta dd { font: var(--kui-text); color: var(--kui-fg-strong); margin: 0 0 var(--kui-space-sm) 0; }
@@ -356,6 +359,239 @@
     .bench-row { grid-template-columns: 1fr; }
     .bench-row .val { text-align: left; }
   }
+
+  /* ============================================================
+     INTERACTIVE ENHANCEMENTS
+     ============================================================ */
+
+  /* --- Pipeline diagram hover + inspector --- */
+  .pipeline-svg-wrap { position: relative; }
+  .pipeline-inspector {
+    position: absolute; top: 12px; right: 12px;
+    width: 248px;
+    background: var(--kui-bg-mid);
+    border: 1px solid var(--kui-border-default);
+    border-left: 3px solid var(--kui-accent-teal);
+    border-radius: var(--kui-radius-sm);
+    padding: 12px 14px;
+    z-index: 4;
+    box-shadow: var(--kui-shadow-1);
+    pointer-events: none;
+    transition: border-left-color 120ms ease-out;
+  }
+  .pipeline-inspector[data-stage="encoder"]   { border-left-color: var(--kui-accent-teal); }
+  .pipeline-inspector[data-stage="processor"] { border-left-color: var(--kui-brand-green); }
+  .pipeline-inspector[data-stage="decoder"]   { border-left-color: var(--kui-info); }
+  .pipeline-inspector[data-stage="inputs"]    { border-left-color: var(--kui-n400); }
+  .pi-eyebrow { font: var(--kui-overline); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .pi-title { font: var(--kui-h4); letter-spacing: var(--kui-tracking-heading); color: var(--kui-fg-strong); margin-bottom: 6px; }
+  .pi-body { font: var(--kui-text); color: var(--kui-fg-default); margin-bottom: 10px; line-height: 1.4; }
+  .pi-shape { font: 11px/1.4 var(--kui-font-mono); color: var(--kui-fg-strong); padding: 6px 8px; background: var(--kui-n050); border-radius: 2px; border: 1px solid var(--kui-border-default); display: block; }
+
+  .pipeline .pl-stage { cursor: pointer; transition: opacity 160ms ease-out; }
+  .pipeline-svg-wrap.is-hover .pl-stage { opacity: 0.32; }
+  .pipeline-svg-wrap.is-hover .pl-stage.is-on { opacity: 1; }
+  .pipeline-svg-wrap.is-hover .pl-stage.is-on rect:first-child { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.08)); }
+
+  /* --- Hero resolution switcher --- */
+  #res-switch { background: transparent; padding-top: var(--kui-space-md); }
+  .res-btn {
+    appearance: none; border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(255,255,255,0.04);
+    color: var(--kui-fg-inverse);
+    padding: 10px 6px;
+    border-radius: var(--kui-radius-xs);
+    display: flex; flex-direction: column; gap: 4px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 120ms ease-out, border-color 120ms ease-out;
+    font: var(--kui-text);
+  }
+  .res-btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.32); }
+  .res-btn.is-on { background: rgba(118,185,0,0.12); border-color: var(--kui-brand-green); }
+  .res-btn .v { font: 500 20px/1 var(--kui-font-sans); color: var(--kui-fg-inverse); }
+  .res-btn .k { font: var(--kui-text-sm); color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.5px; }
+  .res-readout {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--kui-space-md);
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    position: relative; z-index: 1;
+  }
+  .res-readout > span {
+    display: flex; flex-direction: column; gap: 2px;
+    font: 500 14px/1.1 var(--kui-font-mono); color: var(--kui-fg-inverse);
+  }
+  .res-readout > span small { font: var(--kui-text-sm); color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 0.5px; font-weight: var(--kui-fw-regular); font-family: var(--kui-font-sans); }
+  #globe-lat ellipse, #globe-lon ellipse, #globe-lon line { transition: opacity 200ms ease-out; }
+
+  /* --- Variable chip tooltips --- */
+  .chip[data-tip] { position: relative; cursor: help; transition: border-color 120ms ease-out, background 120ms ease-out; }
+  .chip[data-tip]:hover { border-color: var(--kui-brand-green); background: var(--kui-bg-mid); }
+  .chip[data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute; left: 0; bottom: calc(100% + 6px);
+    width: max-content; max-width: 260px;
+    padding: 8px 10px;
+    background: var(--kui-n900); color: var(--kui-fg-inverse);
+    border-radius: var(--kui-radius-xs);
+    font: var(--kui-text-sm);
+    line-height: 1.4;
+    box-shadow: var(--kui-shadow-2);
+    pointer-events: none;
+    z-index: 20;
+  }
+  .chip[data-tip]:hover::before {
+    content: ""; position: absolute; left: 12px; bottom: calc(100% + 1px);
+    width: 0; height: 0; border: 5px solid transparent;
+    border-top-color: var(--kui-n900);
+    z-index: 21;
+  }
+
+  /* --- Benchmark bars: animation + hover --- */
+  .bar-fill { transition: width 900ms cubic-bezier(.22,.65,.2,1); }
+  .bench-row { transition: background 120ms ease-out; padding: 10px 8px; margin: 0 -8px; border-radius: 2px; cursor: default; position: relative; }
+  .bench-row[data-baseline]:hover { background: var(--kui-n050); }
+  .bench-row[data-baseline]:hover::after {
+    content: attr(data-baseline);
+    position: absolute; right: 12px; top: -6px;
+    padding: 6px 10px;
+    background: var(--kui-n900); color: var(--kui-fg-inverse);
+    border-radius: var(--kui-radius-xs);
+    font: var(--kui-text-sm); line-height: 1.3;
+    max-width: 360px;
+    box-shadow: var(--kui-shadow-2);
+    pointer-events: none; z-index: 5;
+  }
+
+  /* --- Window attention demo --- */
+  .win-wrap { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: var(--kui-space-md); background: var(--kui-bg-mid); }
+  .win-grid-host { background: var(--kui-n050); border: 1px solid var(--kui-border-default); border-radius: 2px; padding: 12px; }
+  #win-svg { display: block; width: 100%; height: auto; }
+  .win-aside { display: flex; flex-direction: column; gap: 8px; }
+  .win-aside-row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px dashed var(--kui-border-subtle); align-items: baseline; }
+  .win-aside-row:last-of-type { border-bottom: 0; }
+  .win-aside-row .k { font: var(--kui-text-sm); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .win-aside-row .v { font: var(--kui-text); color: var(--kui-fg-strong); }
+  .win-aside-row .v.mono { font: var(--kui-code); }
+  .win-hint { margin: 8px 0 0 0; font: var(--kui-text); color: var(--kui-fg-muted); line-height: 1.4; }
+  .win-toggle {
+    appearance: none; border: 1px solid var(--kui-border-default);
+    background: var(--kui-bg-mid); color: var(--kui-fg-strong);
+    padding: 4px 10px;
+    border-radius: var(--kui-radius-xs);
+    font: var(--kui-text); cursor: pointer;
+    transition: background 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
+  }
+  .win-toggle:hover { border-color: var(--kui-border-strong); }
+  .win-toggle[aria-pressed="true"] { background: var(--kui-brand-green); color: #FFFFFF; border-color: var(--kui-brand-green); }
+
+  .win-cell { fill: #FFFFFF; stroke: #D8D8D8; stroke-width: 1; transition: fill 280ms ease-out, stroke 280ms ease-out; }
+  .win-cell.cw-0 { fill: rgba(118,185,0,0.10); stroke: #76B900; }
+  .win-cell.cw-1 { fill: rgba(31,161,141,0.10); stroke: #1FA18D; }
+  .win-cell.cw-2 { fill: rgba(13,105,212,0.10); stroke: #0D69D4; }
+  .win-cell.cw-3 { fill: rgba(197,70,0,0.10); stroke: #C54600; }
+  .win-cell.cw-edge { fill: url(#win-hatch); stroke: #1FA18D; stroke-dasharray: 3 2; }
+  .win-cell.is-hover { fill: #76B900; stroke: #5E9600; }
+  .win-frame { fill: none; stroke: #202020; stroke-width: 1; opacity: 0.4; }
+  .win-label { font: 9px var(--kui-font-mono); fill: var(--kui-fg-muted); }
+  .win-slice-label { font: var(--kui-text-sm); fill: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* --- Forecast rollout slider --- */
+  .rollout { margin-top: var(--kui-space-md); border: 1px solid var(--kui-border-default); border-radius: var(--kui-radius-sm); padding: 14px; background: var(--kui-n050); }
+  .rollout-readout { display: flex; justify-content: space-between; align-items: center; gap: var(--kui-space-md); margin-bottom: 12px; }
+  .rollout-step { font: var(--kui-text-sm); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-right: 8px; }
+  .rollout-lead { font: 500 22px/1 var(--kui-font-sans); color: var(--kui-fg-strong); letter-spacing: -0.25px; }
+  .rollout-lead .green { color: var(--kui-brand-green); }
+  .rollout-skill { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 180px; }
+  .rollout-skill-bar { position: relative; display: block; width: 160px; height: 6px; background: var(--kui-n150); border-radius: 1px; overflow: hidden; }
+  .rollout-skill-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--kui-brand-green); transition: width 220ms ease-out, background 220ms ease-out; }
+  #rollout-skill-num { font: 11px/1 var(--kui-font-mono); color: var(--kui-fg-muted); }
+
+  .rollout-stage-row { display: flex; align-items: stretch; gap: 8px; padding: 8px 4px 12px; overflow-x: auto; scrollbar-width: thin; }
+  .rollout-stage {
+    flex: 0 0 88px; min-height: 64px;
+    background: var(--kui-bg-mid); border: 1px solid var(--kui-border-default);
+    border-radius: 2px; padding: 8px;
+    display: flex; flex-direction: column; gap: 2px;
+    transition: border-color 200ms ease-out, background 200ms ease-out, opacity 200ms ease-out;
+    position: relative;
+    opacity: 0.45;
+  }
+  .rollout-stage.is-active { opacity: 1; border-color: var(--kui-brand-green); border-width: 2px; padding: 7px; }
+  .rollout-stage.is-past { opacity: 0.85; border-color: var(--kui-accent-teal); }
+  .rollout-stage.is-future { opacity: 0.3; }
+  .rollout-stage .lead-t { font: 500 13px/1 var(--kui-font-sans); color: var(--kui-fg-strong); }
+  .rollout-stage .lead-s { font: 10px/1 var(--kui-font-mono); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .rollout-stage .heat {
+    flex: 1; margin-top: 6px;
+    background: linear-gradient(135deg, rgba(118,185,0,0.4), rgba(31,161,141,0.2));
+    border-radius: 1px;
+    position: relative; overflow: hidden;
+  }
+  .rollout-stage .heat::after {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 30% 40%, rgba(255,255,255,0.6) 0, transparent 30%),
+      radial-gradient(circle at 70% 70%, rgba(0,0,0,0.12) 0, transparent 40%);
+    filter: blur(var(--blur, 0px));
+    transition: filter 300ms ease-out;
+  }
+  .rollout-stage.is-future .heat { filter: grayscale(1); opacity: 0.5; }
+  .rollout-stage .arrow {
+    position: absolute; right: -8px; top: 50%; transform: translateY(-50%);
+    width: 8px; height: 8px;
+    border-right: 1px solid var(--kui-border-default);
+    border-top: 1px solid var(--kui-border-default);
+    transform: translateY(-50%) rotate(45deg);
+  }
+  .rollout-stage:last-child .arrow { display: none; }
+
+  .rollout-slider {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 32px;
+    background: transparent;
+    margin: 4px 0 0;
+    cursor: ew-resize;
+  }
+  .rollout-slider:focus { outline: none; }
+  .rollout-slider::-webkit-slider-runnable-track {
+    height: 6px;
+    background: linear-gradient(to right,
+      var(--kui-brand-green) 0%, var(--kui-brand-green) var(--p, 0%),
+      var(--kui-n150) var(--p, 0%), var(--kui-n150) 100%);
+    border-radius: 1px;
+  }
+  .rollout-slider::-moz-range-track {
+    height: 6px;
+    background: linear-gradient(to right,
+      var(--kui-brand-green) 0%, var(--kui-brand-green) var(--p, 0%),
+      var(--kui-n150) var(--p, 0%), var(--kui-n150) 100%);
+    border-radius: 1px;
+  }
+  .rollout-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--kui-bg-mid);
+    border: 2px solid var(--kui-brand-green);
+    margin-top: -5px;
+    box-shadow: var(--kui-shadow-1);
+    cursor: ew-resize;
+  }
+  .rollout-slider::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--kui-bg-mid);
+    border: 2px solid var(--kui-brand-green);
+    box-shadow: var(--kui-shadow-1);
+    cursor: ew-resize;
+  }
+  .rollout-ticks { display: flex; justify-content: space-between; padding: 0 4px; margin-top: 2px; font: 10px/1 var(--kui-font-mono); color: var(--kui-fg-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .rollout-hint { font: var(--kui-text); color: var(--kui-fg-muted); margin: 8px 0 0 0; line-height: 1.4; }
+
+  /* Mobile-friendly overrides for new widgets */
+  @media (max-width: 1024px) {
+    .pipeline-inspector { position: static; width: auto; margin-bottom: 12px; }
+    .win-wrap { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -375,6 +611,7 @@
   </div>
   <span class="sep"></span>
   <span class="crumb">Earth system foundation models · <strong>Aurora</strong></span>
+  <a class="atlas-home" href="../../index.html">Atlas home</a>
   <span class="spacer"></span>
   <span class="pill"><span class="dot teal"></span>Source-verified</span>
   <span class="pill"><span class="dot"></span>Open source · weights + code</span>
@@ -388,7 +625,6 @@
   <aside class="rail">
     <div class="accent"></div>
     <h4>On this page</h4>
-    <a class="home-link" href="../../index.html">Atlas home</a>
     <nav id="rail-nav">
       <a href="#identity" data-target="identity"><span class="num">01</span>Identity &amp; specs</a>
       <a href="#map"      data-target="map"><span class="num">02</span>End-to-end model map</a>
@@ -460,7 +696,7 @@
               <!-- Globe -->
               <circle cx="180" cy="210" r="120" fill="url(#globe)" stroke="#1FA18D" stroke-width="0.5"/>
               <!-- Lat lines -->
-              <g stroke="#1FA18D" stroke-width="0.4" fill="none" opacity="0.55">
+              <g id="globe-lat" data-res="025" stroke="#1FA18D" stroke-width="0.4" fill="none" opacity="0.55">
                 <ellipse cx="180" cy="210" rx="120" ry="20"/>
                 <ellipse cx="180" cy="210" rx="120" ry="50"/>
                 <ellipse cx="180" cy="210" rx="120" ry="80"/>
@@ -468,7 +704,7 @@
                 <ellipse cx="180" cy="210" rx="120" ry="120"/>
               </g>
               <!-- Long lines -->
-              <g stroke="#1FA18D" stroke-width="0.4" fill="none" opacity="0.55">
+              <g id="globe-lon" data-res="025" stroke="#1FA18D" stroke-width="0.4" fill="none" opacity="0.55">
                 <ellipse cx="180" cy="210" rx="20"  ry="120"/>
                 <ellipse cx="180" cy="210" rx="50"  ry="120"/>
                 <ellipse cx="180" cy="210" rx="80"  ry="120"/>
@@ -487,10 +723,15 @@
               </g>
             </svg>
           </div>
-          <div class="stat-row">
-            <div class="stat"><span class="v">~5,000<span class="green">x</span></span><span class="k">vs IFS, est.</span></div>
-            <div class="stat"><span class="v">94<span class="green">%</span></span><span class="k">targets vs GraphCast</span></div>
-            <div class="stat"><span class="v">74<span class="green">%</span></span><span class="k">targets vs CAMS</span></div>
+          <div class="stat-row" id="res-switch">
+            <button type="button" class="res-btn" data-res="01"><span class="v">0.1<span class="green">°</span></span><span class="k">~11 km grid</span></button>
+            <button type="button" class="res-btn is-on" data-res="025"><span class="v">0.25<span class="green">°</span></span><span class="k">medium-range</span></button>
+            <button type="button" class="res-btn" data-res="04"><span class="v">0.4<span class="green">°</span></span><span class="k">air quality</span></button>
+          </div>
+          <div class="res-readout">
+            <span><span id="res-grid">1440 × 721</span><small>grid cells</small></span>
+            <span><span id="res-tokens">~16 K</span><small>space tokens</small></span>
+            <span><span id="res-km">~28 km</span><small>at equator</small></span>
           </div>
         </div>
       </div>
@@ -516,7 +757,13 @@
             <span><i style="background:var(--kui-n300)"></i>Pre / post compute</span>
           </div>
         </div>
-        <div class="pipeline-svg-wrap">
+        <div class="pipeline-svg-wrap" id="pipeline-wrap">
+          <div class="pipeline-inspector" id="pipeline-inspector" aria-live="polite">
+            <div class="pi-eyebrow">Hover a stage</div>
+            <div class="pi-title">End-to-end view</div>
+            <div class="pi-body">Heterogeneous Earth-system fields enter on the left, become a universal 3D latent in the encoder, evolve through the Swin U-Net processor, and are reconstructed by the decoder. Hover any stage to inspect its tensor shape and role.</div>
+            <div class="pi-shape mono" id="pi-shape">tensor: H &times; W &times; (4 + 5C) &middot; float32</div>
+          </div>
           <svg class="pipeline" viewBox="0 0 1180 460" xmlns="http://www.w3.org/2000/svg" font-family="DM Sans, system-ui, sans-serif">
             <defs>
               <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
@@ -532,189 +779,189 @@
               .b-enc { fill:#FFFFFF; stroke:#1FA18D; stroke-width:1.5;}
               .b-proc { fill:#FFFFFF; stroke:#76B900; stroke-width:1.5;}
               .b-dec { fill:#FFFFFF; stroke:#0D69D4; stroke-width:1.5;}
-              .ttl { font-size:13px; font-weight:500; fill:#202020;}
-              .sub { font-size:10.5px; fill:#5E5E5E;}
+              .ttl { font-size:12.5px; font-weight:500; fill:#202020;}
+              .sub { font-size:10px; fill:#5E5E5E;}
               .mono { font-family: "Roboto Mono", ui-monospace, monospace; font-size:10px; fill:#202020;}
-              .mono-mute { font-family: "Roboto Mono", ui-monospace, monospace; font-size:10px; fill:#5E5E5E;}
+              .mono-mute { font-family: "Roboto Mono", ui-monospace, monospace; font-size:9.5px; fill:#5E5E5E;}
               .tag { font-size:9px; fill:#1FA18D; font-family:"Roboto Mono", monospace; text-transform:uppercase; letter-spacing:0.5px;}
               .tag-gr { fill:#5E9600; }
               .tag-bl { fill:#0D69D4; }
               .arrow  { stroke:#5E5E5E; stroke-width:1; fill:none; }
               .arrow-gr { stroke:#76B900; stroke-width:1.5; fill:none;}
               .hr { stroke:#E3E3E3; stroke-width:1; stroke-dasharray:3 3;}
+              .skip { stroke:#1FA18D; stroke-width:0.8; stroke-dasharray:3 3; fill:none; }
             </style>
 
             <!-- Stage banners -->
             <g>
               <text x="20"   y="22" class="tag">Native inputs</text>
-              <text x="200"  y="22" class="tag">01 · Encoder (Perceiver)</text>
+              <text x="210"  y="22" class="tag">01 · Encoder (Perceiver)</text>
               <text x="540"  y="22" class="tag tag-gr">02 · Processor (3D Swin U-Net)</text>
-              <text x="880"  y="22" class="tag tag-bl">03 · Decoder (Perceiver)</text>
-              <text x="1090" y="22" class="tag">Outputs</text>
+              <text x="890"  y="22" class="tag tag-bl">03 · Decoder (Perceiver)</text>
               <line x1="0" y1="32" x2="1180" y2="32" class="hr"/>
             </g>
 
             <!-- ============ INPUT COLUMN ============ -->
-            <g transform="translate(20 50)">
-              <rect class="b" x="0" y="0" width="160" height="56" rx="2"/>
-              <text x="10" y="18" class="ttl">Surface vars</text>
-              <text x="10" y="34" class="mono">2T · 10U · 10V · MSL</text>
-              <text x="10" y="48" class="sub">Tensor: H&times;W &middot; 4 channels</text>
+            <g class="pl-stage" data-stage="inputs" transform="translate(20 50)">
+              <rect class="b" x="0" y="0" width="160" height="50" rx="2"/>
+              <text x="10" y="16" class="ttl">Surface vars</text>
+              <text x="10" y="30" class="mono">2T · 10U · 10V · MSL</text>
+              <text x="10" y="42" class="sub">H × W · 4 channels</text>
 
-              <rect class="b" x="0" y="68" width="160" height="74" rx="2"/>
-              <text x="10" y="86" class="ttl">Atmospheric vars</text>
-              <text x="10" y="102" class="mono">T · U · V · Q · Z</text>
-              <text x="10" y="116" class="sub">at C variable-many pressure levels</text>
-              <text x="10" y="130" class="mono-mute">e.g. 50 ... 1000 hPa</text>
+              <rect class="b" x="0" y="62" width="160" height="62" rx="2"/>
+              <text x="10" y="78" class="ttl">Atmospheric vars</text>
+              <text x="10" y="92" class="mono">T · U · V · Q · Z</text>
+              <text x="10" y="105" class="sub">at C pressure levels</text>
+              <text x="10" y="118" class="mono-mute">e.g. 50 … 1000 hPa</text>
 
-              <rect class="b" x="0" y="154" width="160" height="56" rx="2"/>
-              <text x="10" y="172" class="ttl">Static fields</text>
-              <text x="10" y="188" class="mono">orography · land-sea · soil</text>
-              <text x="10" y="202" class="sub">time-invariant per cell</text>
+              <rect class="b" x="0" y="136" width="160" height="50" rx="2"/>
+              <text x="10" y="152" class="ttl">Static fields</text>
+              <text x="10" y="166" class="mono">orography · land-sea</text>
+              <text x="10" y="178" class="sub">time-invariant per cell</text>
 
-              <rect class="b-grey" x="0" y="222" width="160" height="56" rx="2"/>
-              <text x="10" y="240" class="ttl">Task-specific inputs</text>
-              <text x="10" y="256" class="mono">CAMS NO2 · waves · TC track</text>
-              <text x="10" y="270" class="sub">added at fine-tuning</text>
+              <rect class="b-grey" x="0" y="198" width="160" height="50" rx="2"/>
+              <text x="10" y="214" class="ttl">Task-specific inputs</text>
+              <text x="10" y="228" class="mono">CAMS · waves · TC track</text>
+              <text x="10" y="240" class="sub">added at fine-tuning</text>
 
-              <!-- 32-bit note -->
-              <text x="0"  y="296" class="mono-mute">In/out compute: 32-bit float</text>
-              <text x="0"  y="310" class="mono-mute">(numerical stability)</text>
+              <text x="0"  y="270" class="mono-mute">In/out compute: float32</text>
+              <text x="0"  y="283" class="mono-mute">(numerical stability)</text>
             </g>
 
-            <!-- arrows in -->
-            <path class="arrow" d="M180,78  H200" marker-end="url(#ar)"/>
-            <path class="arrow" d="M180,105 H200" marker-end="url(#ar)"/>
-            <path class="arrow" d="M180,182 H200" marker-end="url(#ar)"/>
-            <path class="arrow" d="M180,250 H200" marker-end="url(#ar)"/>
+            <!-- arrows in (aligned to each input box center, absolute coords) -->
+            <!-- Surface 50–100 -> center 75 -->
+            <path class="arrow" d="M180,75  H210" marker-end="url(#ar)"/>
+            <!-- Atmospheric 112–174 -> center 143 -->
+            <path class="arrow" d="M180,143 H210" marker-end="url(#ar)"/>
+            <!-- Static 186–236 -> center 211 -->
+            <path class="arrow" d="M180,211 H210" marker-end="url(#ar)"/>
+            <!-- Task-specific 248–298 -> center 273 -->
+            <path class="arrow" d="M180,273 H210" marker-end="url(#ar)"/>
 
             <!-- ============ ENCODER ============ -->
-            <g transform="translate(200 50)">
-              <rect class="b-enc" x="0" y="0" width="320" height="320" rx="2"/>
+            <g class="pl-stage" data-stage="encoder" transform="translate(210 50)">
+              <rect class="b-enc" x="0" y="0" width="300" height="320" rx="2"/>
               <text x="14" y="18" class="ttl">3D Perceiver encoder</text>
-              <text x="14" y="32" class="sub">Converts heterogeneous inputs into a universal 3D latent</text>
+              <text x="14" y="32" class="sub">Heterogeneous inputs → universal 3D latent</text>
 
               <!-- Step 1: patch embed -->
-              <rect class="b" x="14" y="46" width="292" height="58" rx="2"/>
-              <text x="22" y="64" class="ttl">a · Patch embed (P&times;P spatial patches)</text>
-              <text x="22" y="80" class="mono">H/P &times; W/P &times; L_phys tokens</text>
-              <text x="22" y="94" class="sub">Pressure-level-specific linear weights per variable</text>
+              <rect class="b" x="14" y="48" width="272" height="58" rx="2"/>
+              <text x="22" y="64" class="ttl">a · Patch embed (P×P patches)</text>
+              <text x="22" y="80" class="mono">H/P · W/P · L_phys tokens</text>
+              <text x="22" y="94" class="sub">Pressure-level-specific weights per var</text>
 
               <!-- Step 2: Perceiver level aggregator -->
-              <rect class="b" x="14" y="114" width="292" height="78" rx="2"/>
+              <rect class="b" x="14" y="116" width="272" height="74" rx="2"/>
               <text x="22" y="132" class="ttl">b · Perceiver level aggregator</text>
-              <text x="22" y="148" class="mono">L_phys (variable many) &rarr; L_latent (fixed)</text>
-              <text x="22" y="164" class="sub">Cross-attends pressure-level tokens to fixed latent levels</text>
-              <text x="22" y="178" class="mono-mute">Enables variable input level counts</text>
+              <text x="22" y="148" class="mono">L_phys (variable) → L_latent (fixed)</text>
+              <text x="22" y="162" class="sub">Cross-attends levels to fixed latent levels</text>
+              <text x="22" y="176" class="mono-mute">Enables variable input level counts</text>
 
               <!-- Step 3: Encodings -->
-              <rect class="b" x="14" y="202" width="292" height="74" rx="2"/>
-              <text x="22" y="220" class="ttl">c · Additive Fourier encodings</text>
-              <text x="22" y="236" class="mono">patch position &middot; patch area &middot; abs. time</text>
-              <text x="22" y="250" class="sub">Patch-area encoding lets Aurora ingest 0.1&deg;, 0.25&deg;, 0.4&deg;</text>
-              <text x="22" y="265" class="mono-mute">Fourier expansion w/ tuned wavelengths</text>
+              <rect class="b" x="14" y="200" width="272" height="72" rx="2"/>
+              <text x="22" y="216" class="ttl">c · Additive Fourier encodings</text>
+              <text x="22" y="232" class="mono">patch position · patch area · abs. time</text>
+              <text x="22" y="246" class="sub">Patch-area enables 0.1° / 0.25° / 0.4°</text>
+              <text x="22" y="260" class="mono-mute">Fourier expansion · tuned wavelengths</text>
 
               <!-- Output spec -->
-              <rect class="b-grey" x="14" y="286" width="292" height="22" rx="2"/>
-              <text x="22" y="301" class="mono">latent: (H/P) &middot; (W/P) &middot; L_latent &middot; D_embed</text>
+              <rect class="b-grey" x="14" y="282" width="272" height="28" rx="2"/>
+              <text x="22" y="300" class="mono">latent · (H/P)·(W/P)·L_latent·D_embed</text>
             </g>
 
             <!-- arrow enc->proc -->
-            <path class="arrow-gr" d="M520,210 H560" marker-end="url(#argr)"/>
-            <text x="525" y="200" class="mono-mute">3D latent</text>
+            <path class="arrow-gr" d="M510,210 H540" marker-end="url(#argr)"/>
+            <text x="515" y="202" class="mono-mute">3D latent</text>
 
             <!-- ============ PROCESSOR ============ -->
-            <g transform="translate(560 50)">
-              <rect class="b-proc" x="0" y="0" width="300" height="320" rx="2"/>
+            <g class="pl-stage" data-stage="processor" transform="translate(540 50)">
+              <rect class="b-proc" x="0" y="0" width="320" height="320" rx="2"/>
               <text x="14" y="18" class="ttl">3D Swin Transformer U-Net</text>
-              <text x="14" y="32" class="sub">Evolves the 3D latent in time. 48 layers total.</text>
+              <text x="14" y="32" class="sub">Evolves the 3D latent in time · 48 layers</text>
 
-              <!-- U-Net schematic -->
-              <g transform="translate(0 46)">
-                <!-- encoder side -->
-                <rect class="b" x="14"  y="0"   width="120" height="22" rx="2"/>
-                <text x="22" y="15" class="mono">Swin3D stage 1 &middot; 6 layers</text>
-                <rect class="b" x="34"  y="30"  width="100" height="22" rx="2"/>
-                <text x="42" y="45" class="mono">stage 2 &middot; 10 layers</text>
-                <rect class="b" x="54"  y="60"  width="80"  height="22" rx="2"/>
-                <text x="62" y="75" class="mono">stage 3 &middot; 8 layers</text>
+              <!-- U-Net schematic - clean, non-overlapping -->
+              <g transform="translate(18 50)">
+                <!-- encoder side, descending -->
+                <rect class="b" x="0"   y="0"   width="78" height="20" rx="2"/>
+                <text x="39" y="14" class="mono" text-anchor="middle">enc 1 · 6</text>
+                <rect class="b" x="22"  y="28"  width="56" height="20" rx="2"/>
+                <text x="50" y="42" class="mono" text-anchor="middle">enc 2 · 10</text>
+                <rect class="b" x="44"  y="56"  width="34" height="20" rx="2"/>
+                <text x="61" y="70" class="mono" text-anchor="middle">bot · 8</text>
 
-                <!-- decoder side -->
-                <rect class="b" x="166" y="60"  width="80"  height="22" rx="2"/>
-                <text x="174" y="75" class="mono">stage 3 · 8 layers</text>
-                <rect class="b" x="166" y="30"  width="100" height="22" rx="2"/>
-                <text x="174" y="45" class="mono">stage 2 · 10 layers</text>
-                <rect class="b" x="166" y="0"   width="120" height="22" rx="2"/>
-                <text x="174" y="15" class="mono">stage 1 · 6 layers</text>
+                <!-- decoder side, ascending -->
+                <rect class="b" x="206" y="56" width="34" height="20" rx="2"/>
+                <text x="223" y="70" class="mono" text-anchor="middle">bot · 8</text>
+                <rect class="b" x="206" y="28" width="56" height="20" rx="2"/>
+                <text x="234" y="42" class="mono" text-anchor="middle">dec 2 · 10</text>
+                <rect class="b" x="206" y="0"  width="78" height="20" rx="2"/>
+                <text x="245" y="14" class="mono" text-anchor="middle">dec 1 · 6</text>
 
-                <!-- skip dashes -->
-                <line x1="134" y1="11" x2="166" y2="11" class="hr"/>
-                <line x1="134" y1="41" x2="166" y2="41" class="hr"/>
-                <line x1="134" y1="71" x2="166" y2="71" class="hr"/>
+                <!-- skip connections -->
+                <path d="M78,10 H206" class="skip"/>
+                <path d="M78,38 H206" class="skip"/>
+                <!-- bottleneck connector -->
+                <path d="M78,66 H206" class="arrow" marker-end="url(#ar)"/>
 
-                <!-- down/up arrows -->
-                <path class="arrow" d="M94,22 L114,30" marker-end="url(#ar)"/>
-                <path class="arrow" d="M94,52 L114,60" marker-end="url(#ar)"/>
-                <path class="arrow" d="M186,82 L166,82" marker-end="url(#ar)" transform="translate(0 -4)"/>
-                <path class="arrow" d="M236,52 L256,30" marker-end="url(#ar)"/>
-                <path class="arrow" d="M186,52 L166,30" marker-end="url(#ar)"/>
+                <!-- down arrows (encoder side) -->
+                <path class="arrow" d="M39,20 L50,28" marker-end="url(#ar)"/>
+                <path class="arrow" d="M50,48 L61,56" marker-end="url(#ar)"/>
+                <!-- up arrows (decoder side) -->
+                <path class="arrow" d="M234,48 L245,40 L245,20" marker-end="url(#ar)"/>
+                <path class="arrow" d="M223,48 L234,40" marker-end="url(#ar)"/>
+
+                <text x="142" y="92" class="sub" text-anchor="middle">skip connections concatenate symmetric stages</text>
               </g>
 
               <!-- Window detail -->
-              <rect class="b-grey" x="14" y="184" width="272" height="48" rx="2"/>
-              <text x="22" y="202" class="ttl">Local 3D self-attention</text>
-              <text x="22" y="218" class="mono">window (depth, width, height) = (2, 4, 2)</text>
-              <text x="22" y="228" class="sub">Shifted between layers &mdash; cross-window mixing</text>
+              <rect class="b-grey" x="14" y="158" width="292" height="44" rx="2"/>
+              <text x="22" y="176" class="ttl">Local 3D self-attention</text>
+              <text x="22" y="192" class="mono">window (depth, width, height) = (2, 4, 2)</text>
 
               <!-- Resolution -->
-              <rect class="b-grey" x="14" y="240" width="272" height="36" rx="2"/>
-              <text x="22" y="258" class="ttl">Patch merge &uarr;&darr; halve / double resolution</text>
-              <text x="22" y="270" class="mono">multi-scale processing &middot; embed dim doubles</text>
+              <rect class="b-grey" x="14" y="212" width="292" height="44" rx="2"/>
+              <text x="22" y="230" class="ttl">Patch merge · halve / double resolution</text>
+              <text x="22" y="246" class="mono">multi-scale · embed dim doubles per merge</text>
 
               <!-- output -->
-              <rect class="b" x="14" y="286" width="272" height="22" rx="2"/>
-              <text x="22" y="301" class="mono">latent at t + 6 h (same shape as input latent)</text>
+              <rect class="b" x="14" y="266" width="292" height="28" rx="2"/>
+              <text x="22" y="284" class="mono">latent at t + 6 h · same shape as input</text>
             </g>
 
             <!-- arrow proc->dec -->
-            <path class="arrow" d="M860,210 H900" marker-end="url(#ar)"/>
+            <path class="arrow" d="M860,210 H890" marker-end="url(#ar)"/>
 
             <!-- ============ DECODER ============ -->
-            <g transform="translate(900 50)">
-              <rect class="b-dec" x="0" y="0" width="220" height="320" rx="2"/>
+            <g class="pl-stage" data-stage="decoder" transform="translate(890 50)">
+              <rect class="b-dec" x="0" y="0" width="250" height="320" rx="2"/>
               <text x="14" y="18" class="ttl">3D Perceiver decoder</text>
               <text x="14" y="32" class="sub">Mirrors the encoder structure</text>
 
-              <rect class="b" x="14" y="46" width="192" height="64" rx="2"/>
+              <rect class="b" x="14" y="48" width="222" height="64" rx="2"/>
               <text x="22" y="64" class="ttl">a · Level de-aggregator</text>
-              <text x="22" y="80" class="mono">L_latent &rarr; target L_phys</text>
-              <text x="22" y="94" class="sub">Cross-attention back to physical pressure levels</text>
+              <text x="22" y="80" class="mono">L_latent → target L_phys</text>
+              <text x="22" y="94" class="sub">Cross-attention back to pressure levels</text>
 
-              <rect class="b" x="14" y="120" width="192" height="74" rx="2"/>
+              <rect class="b" x="14" y="122" width="222" height="74" rx="2"/>
               <text x="22" y="138" class="ttl">b · Patch reconstruction</text>
               <text x="22" y="154" class="mono">variable-specific linear layers</text>
-              <text x="22" y="168" class="sub">Dynamically constructed weights per output variable</text>
-              <text x="22" y="182" class="mono-mute">Each P&times;P patch &rarr; physical grid cell values</text>
+              <text x="22" y="168" class="sub">Dynamically constructed per output var</text>
+              <text x="22" y="182" class="mono-mute">P×P patch → physical grid cell values</text>
 
-              <rect class="b" x="14" y="204" width="192" height="60" rx="2"/>
+              <rect class="b" x="14" y="206" width="222" height="56" rx="2"/>
               <text x="22" y="222" class="ttl">c · Air-quality head (optional)</text>
-              <text x="22" y="238" class="sub">Separate 3D Perceiver decoder for CAMS variant</text>
-              <text x="22" y="252" class="mono-mute">distinct features for sparse, skewed pollutants</text>
+              <text x="22" y="238" class="sub">Separate decoder for CAMS variant</text>
+              <text x="22" y="252" class="mono-mute">Sparse, skewed pollutant fields</text>
 
-              <rect class="b-grey" x="14" y="274" width="192" height="32" rx="2"/>
-              <text x="22" y="292" class="mono">predicted state at t + 6 h</text>
+              <rect class="b-grey" x="14" y="272" width="222" height="32" rx="2"/>
+              <text x="22" y="291" class="mono">predicted state at t + 6 h</text>
             </g>
 
-            <!-- ============ OUTPUT ============ -->
-            <g transform="translate(1130 50)" text-anchor="end">
-              <text class="mono" x="0" y="22">future</text>
-              <text class="mono" x="0" y="36">state</text>
-            </g>
-
-            <!-- Rollout loop -->
+            <!-- Rollout: clean rectangular routing that stays clear of all rects -->
             <g>
-              <path class="arrow-gr" d="M1120,200 q40,40 0,80 q-40,40 -880,80 q-200,0 -200,-180" marker-end="url(#argr)" fill="none" stroke-dasharray="5 4"/>
-              <text x="610" y="430" class="tag tag-gr" text-anchor="middle">Autoregressive rollout &middot; recursively re-feed prediction as next input &middot; long-lead fine-tuning with LoRA</text>
+              <path class="arrow-gr" d="M1140,288 L1162,288 L1162,408 L8,408 L8,75 L20,75"
+                    marker-end="url(#argr)" fill="none" stroke-dasharray="5 4"/>
+              <text x="590" y="430" class="tag tag-gr" text-anchor="middle">Autoregressive rollout · recursively re-feed prediction as next input · long-lead fine-tuning with LoRA</text>
             </g>
 
           </svg>
@@ -735,10 +982,10 @@
           <div class="card-sub">Surface variables &middot; per (lat, lon)</div>
           <div class="card-title">2D fields at the ground</div>
           <div class="chip-row" style="margin-bottom: 12px;">
-            <span class="chip"><code>2T</code>2&nbsp;m temperature</span>
-            <span class="chip"><code>10U</code>10&nbsp;m zonal wind</span>
-            <span class="chip"><code>10V</code>10&nbsp;m meridional wind</span>
-            <span class="chip"><code>MSL</code>mean sea-level pressure</span>
+            <span class="chip" data-tip="Air temperature ~2 m above the ground &middot; K"><code>2T</code>2&nbsp;m temperature</span>
+            <span class="chip" data-tip="East–west wind component at 10 m &middot; m s⁻¹"><code>10U</code>10&nbsp;m zonal wind</span>
+            <span class="chip" data-tip="North–south wind component at 10 m &middot; m s⁻¹"><code>10V</code>10&nbsp;m meridional wind</span>
+            <span class="chip" data-tip="Mean sea-level pressure &middot; Pa"><code>MSL</code>mean sea-level pressure</span>
           </div>
           <p style="font: var(--kui-body); color: var(--kui-fg-muted); margin: 0;">These are the variables Aurora is most commonly evaluated against in the medium-range weather configuration. Concrete naming conventions follow ECMWF / ERA5. <span class="src-tag">arxiv 2405.13063</span></p>
         </div>
@@ -747,11 +994,11 @@
           <div class="card-sub">Atmospheric variables &middot; per (lat, lon, level)</div>
           <div class="card-title">3D fields at C pressure levels</div>
           <div class="chip-row" style="margin-bottom: 12px;">
-            <span class="chip"><code>T</code>temperature</span>
-            <span class="chip"><code>U</code>zonal wind</span>
-            <span class="chip"><code>V</code>meridional wind</span>
-            <span class="chip"><code>Q</code>specific humidity</span>
-            <span class="chip"><code>Z</code>geopotential</span>
+            <span class="chip" data-tip="Air temperature at each pressure level &middot; K"><code>T</code>temperature</span>
+            <span class="chip" data-tip="East-west horizontal wind at each level &middot; m s⁻¹"><code>U</code>zonal wind</span>
+            <span class="chip" data-tip="North-south horizontal wind at each level &middot; m s⁻¹"><code>V</code>meridional wind</span>
+            <span class="chip" data-tip="Mass of water vapour per unit mass of air &middot; kg kg⁻¹"><code>Q</code>specific humidity</span>
+            <span class="chip" data-tip="Gravitational potential energy at the surface of constant pressure &middot; m² s⁻²"><code>Z</code>geopotential</span>
           </div>
           <p style="font: var(--kui-body); color: var(--kui-fg-muted); margin: 0;">The number of pressure levels is variable across the input datasets &mdash; the encoder's Perceiver module compresses them to a fixed latent depth. <span class="src-tag unk">exact level set: see paper</span></p>
         </div>
@@ -907,6 +1154,37 @@
           </ul>
         </div>
       </div>
+
+      <div class="card pipeline-card" style="margin-top: var(--kui-space-md);">
+        <div class="pipeline-head">
+          <div class="t">Shifted-window self-attention &middot; interactive (2, 4, 2) demo</div>
+          <div class="legend">
+            <span><i style="background:var(--kui-brand-green)"></i>Active window</span>
+            <span><i style="background:var(--kui-accent-teal)"></i>Shifted partition</span>
+            <button type="button" class="win-toggle" id="win-toggle" aria-pressed="false">Shift windows</button>
+            <button type="button" class="win-toggle" id="win-play" aria-pressed="false">Auto cycle</button>
+          </div>
+        </div>
+        <div class="pipeline-svg-wrap win-wrap">
+          <div class="win-grid-host">
+            <svg id="win-svg" viewBox="0 0 720 280" preserveAspectRatio="xMidYMid meet" font-family="DM Sans, system-ui, sans-serif">
+              <defs>
+                <pattern id="win-hatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+                  <line x1="0" y1="0" x2="0" y2="6" stroke="#1FA18D" stroke-width="1" opacity="0.25"/>
+                </pattern>
+              </defs>
+              <!-- populated by JS -->
+            </svg>
+          </div>
+          <aside class="win-aside">
+            <div class="win-aside-row"><div class="k">Layer</div><div class="v" id="win-layer">layer i &middot; regular partition</div></div>
+            <div class="win-aside-row"><div class="k">Window</div><div class="v mono">2 × 4 × 2 = 16 tokens</div></div>
+            <div class="win-aside-row"><div class="k">Token grid</div><div class="v mono">depth 4 × width 12 × height 4</div></div>
+            <div class="win-aside-row"><div class="k">Windows / grid</div><div class="v mono" id="win-count">12 windows</div></div>
+            <p class="win-hint">Every other Swin layer shifts the partition by half a window, so tokens at window borders join a new window at layer i+1 — the mechanism that lets local attention propagate information globally.</p>
+          </aside>
+        </div>
+      </div>
     </section>
 
     <!-- ===== 06. DECODER & ROLLOUT ======================== -->
@@ -933,33 +1211,24 @@
           <div class="card-sub">Forecast rollout</div>
           <div class="card-title">Recursive autoregression</div>
           <p>Aurora produces a forecast for a single lead time per forward pass. Longer-lead forecasts are produced by <strong>recursively feeding predictions back into the model as inputs</strong>. <span class="src-tag">arxiv 2405.13063</span></p>
-          <div style="margin-top: var(--kui-space-md);">
-            <svg viewBox="0 0 480 110" font-family="DM Sans, system-ui, sans-serif">
-              <defs>
-                <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
-                  <path d="M0,0 L10,5 L0,10 z" fill="#76B900"/>
-                </marker>
-              </defs>
-              <g>
-                <rect x="0"   y="40" width="80" height="30" fill="#FFFFFF" stroke="#D8D8D8"/>
-                <text x="40"  y="60" font-size="12" text-anchor="middle" fill="#202020">state t</text>
-                <rect x="120" y="40" width="100" height="30" fill="#FFFFFF" stroke="#76B900" stroke-width="1.5"/>
-                <text x="170" y="60" font-size="12" text-anchor="middle" fill="#202020">Aurora · 1 step</text>
-                <rect x="260" y="40" width="80" height="30" fill="#FFFFFF" stroke="#D8D8D8"/>
-                <text x="300" y="60" font-size="12" text-anchor="middle" fill="#202020">t + 6 h</text>
-                <rect x="380" y="40" width="80" height="30" fill="#FFFFFF" stroke="#D8D8D8" stroke-dasharray="3 3"/>
-                <text x="420" y="60" font-size="12" text-anchor="middle" fill="#5E5E5E">t + N&middot;6 h</text>
-                <path d="M80,55 H120"   stroke="#5E5E5E" fill="none" marker-end="url(#ar)"/>
-                <path d="M220,55 H260" stroke="#5E5E5E" fill="none" marker-end="url(#ar)"/>
-                <path d="M340,55 H380" stroke="#5E5E5E" fill="none" marker-end="url(#ar)" stroke-dasharray="3 3"/>
-                <!-- loop -->
-                <path d="M300,40 q 0,-30 -130,-30 q -90,0 -50,30" stroke="#76B900" stroke-width="1.2" fill="none" marker-end="url(#ar2)"/>
-                <text x="200" y="20" font-size="10" fill="#5E9600" text-anchor="middle" font-family="Roboto Mono, monospace">re-feed prediction</text>
-                <text x="40"  y="90" font-size="10" fill="#5E5E5E" text-anchor="middle">initial</text>
-                <text x="300" y="90" font-size="10" fill="#5E5E5E" text-anchor="middle">first step</text>
-                <text x="420" y="90" font-size="10" fill="#5E5E5E" text-anchor="middle">5- to 10-day rollout</text>
-              </g>
-            </svg>
+
+          <div class="rollout" id="rollout">
+            <div class="rollout-readout">
+              <div>
+                <span class="rollout-step" id="rollout-step">step 0 / 20</span>
+                <span class="rollout-lead" id="rollout-lead">t + 0 h</span>
+              </div>
+              <div class="rollout-skill">
+                <span class="rollout-skill-bar"><i id="rollout-skill-fill" style="width:100%"></i></span>
+                <span id="rollout-skill-num">100% nominal skill</span>
+              </div>
+            </div>
+            <div class="rollout-stage-row" id="rollout-stages"></div>
+            <input class="rollout-slider" id="rollout-slider" type="range" min="0" max="20" value="0" step="1" aria-label="Forecast lead time"/>
+            <div class="rollout-ticks">
+              <span>init</span><span>+24 h</span><span>+48 h</span><span>+72 h</span><span>+96 h</span><span>+120 h</span>
+            </div>
+            <p class="rollout-hint">Drag the slider. Each step re-feeds Aurora's prediction as the next initial condition; long-lead training uses LoRA rank-r adapters on the rollout chain.</p>
           </div>
         </div>
       </div>
@@ -1090,39 +1359,39 @@
         <div class="card-title">Aurora vs operational and AI baselines</div>
         <div style="margin-top: var(--kui-space-md);">
 
-          <div class="bench-row">
+          <div class="bench-row" data-baseline="GraphCast – DeepMind's GNN-based weather model at 0.25°">
             <div class="lbl">vs <strong>GraphCast</strong> at 0.25&deg;<small>Aurora matches or outperforms on 94% of targets</small></div>
-            <div class="bar-track"><div class="bar-fill" style="width: 94%;"></div></div>
+            <div class="bar-track"><div class="bar-fill" data-target="94" style="width: 0%;"></div></div>
             <div class="val">94%<small>MS Research blog</small></div>
           </div>
 
-          <div class="bench-row">
+          <div class="bench-row" data-baseline="Composite vs operational numerical + AI weather baselines">
             <div class="lbl"><strong>Medium-range weather</strong> at 0.25&deg;, all-baselines composite<small>Beats existing numerical and AI models on 91% of forecasting targets</small></div>
-            <div class="bar-track"><div class="bar-fill" style="width: 91%;"></div></div>
+            <div class="bar-track"><div class="bar-fill" data-target="91" style="width: 0%;"></div></div>
             <div class="val">91%<small>Nature 2025</small></div>
           </div>
 
-          <div class="bench-row">
+          <div class="bench-row" data-baseline="Copernicus Atmosphere Monitoring Service (CAMS) operational air quality">
             <div class="lbl">vs <strong>CAMS</strong> &middot; air quality at 0.4&deg;<small>Latitude-weighted RMSE, Jun&ndash;Nov 2022</small></div>
-            <div class="bar-track"><div class="bar-fill teal" style="width: 74%;"></div></div>
+            <div class="bar-track"><div class="bar-fill teal" data-target="74" style="width: 0%;"></div></div>
             <div class="val">74%<small>MS Research blog</small></div>
           </div>
 
-          <div class="bench-row">
+          <div class="bench-row" data-baseline="GraphCast on upper-atmosphere variables &middot; RMSE delta">
             <div class="lbl">vs <strong>GraphCast</strong> &middot; upper atmosphere gain<small>Largest gain reported; absolute % RMSE improvement</small></div>
-            <div class="bar-track"><div class="bar-fill teal" style="width: 40%;"></div></div>
+            <div class="bar-track"><div class="bar-fill teal" data-target="40" style="width: 0%;"></div></div>
             <div class="val">~40%<small>MS Research blog</small></div>
           </div>
 
-          <div class="bench-row">
+          <div class="bench-row" data-baseline="GraphCast at short (1–3 d) and long (7–10 d) lead times">
             <div class="lbl">vs <strong>GraphCast</strong> &middot; short / long lead<small>Reported gain band at short and long lead times</small></div>
-            <div class="bar-track"><div class="bar-fill muted" style="width: 15%; left:0;"></div><div style="position:absolute; left:10%; top:-2px; bottom:-2px; width:5%; background:repeating-linear-gradient(45deg,#76B900,#76B900 2px,#FFFFFF 2px,#FFFFFF 4px); border-radius:2px;"></div></div>
+            <div class="bar-track"><div class="bar-fill muted" data-target="15" style="width: 0%; left:0;"></div><div style="position:absolute; left:10%; top:-2px; bottom:-2px; width:5%; background:repeating-linear-gradient(45deg,#76B900,#76B900 2px,#FFFFFF 2px,#FFFFFF 4px); border-radius:2px;"></div></div>
             <div class="val">10&ndash;15%<small>MS Research blog</small></div>
           </div>
 
-          <div class="bench-row">
+          <div class="bench-row" data-baseline="ECMWF IFS / single-GPU inference vs traditional HPC">
             <div class="lbl"><strong>Compute speedup</strong> vs operational systems<small>Single-GPU inference; once trained</small></div>
-            <div class="bar-track"><div class="bar-fill" style="width: 100%;"></div></div>
+            <div class="bar-track"><div class="bar-fill" data-target="100" style="width: 0%;"></div></div>
             <div class="val">~5,000x &mdash; 50,000x<small>vs IFS / on single GPU</small></div>
           </div>
 
@@ -1305,8 +1574,7 @@
 
 <script>
   // ============================================================
-  // Scroll spy — highlight the rail nav entry whose section is in view.
-  // Kaizen: behavior is a color/border swap, not motion.
+  // Scroll spy
   // ============================================================
   (function () {
     var sections = Array.prototype.slice.call(document.querySelectorAll("main section[id]"));
@@ -1314,7 +1582,6 @@
     document.querySelectorAll("#rail-nav a").forEach(function (a) {
       links[a.dataset.target] = a;
     });
-
     function update() {
       var pos = window.scrollY + 120;
       var active = sections[0];
@@ -1328,8 +1595,364 @@
     window.addEventListener("scroll", update, { passive: true });
     window.addEventListener("load", update);
     update();
+  })();
 
-    // Smooth scroll handled natively via :target+scroll-margin-top.
+  // ============================================================
+  // Pipeline diagram — hover-highlight + tensor-shape inspector
+  // ============================================================
+  (function () {
+    var wrap = document.getElementById("pipeline-wrap");
+    var inspector = document.getElementById("pipeline-inspector");
+    if (!wrap || !inspector) return;
+    var stages = wrap.querySelectorAll(".pl-stage");
+
+    var COPY = {
+      inputs: {
+        eyebrow: "Native inputs",
+        title: "Heterogeneous Earth-system fields",
+        body: "Surface vars, multi-level atmospheric vars, time-invariant static fields and (at fine-tune) task-specific channels. Resolution and pressure-level count vary between training sources.",
+        shape: "tensor: H × W · (4 + 5·C_levels) channels"
+      },
+      encoder: {
+        eyebrow: "01 · Encoder",
+        title: "3D Perceiver encoder",
+        body: "P×P patch embedding with pressure-level-specific weights, then Perceiver cross-attention collapses the variable physical-level axis into a fixed L_latent. Additive Fourier encodings carry patch position, area and absolute time.",
+        shape: "latent: (H/P) · (W/P) · L_latent · D_embed"
+      },
+      processor: {
+        eyebrow: "02 · Processor",
+        title: "3D Swin U-Net · 48 layers",
+        body: "Local 3D shifted-window self-attention with (depth, width, height) = (2, 4, 2). Patch merging halves spatial dims and doubles embed dim at each U-Net step; symmetric splits restore resolution.",
+        shape: "latent at t + 6 h · same shape as input latent"
+      },
+      decoder: {
+        eyebrow: "03 · Decoder",
+        title: "3D Perceiver decoder",
+        body: "Mirrors the encoder: cross-attends L_latent back to target physical pressure levels, then variable-specific dynamically-constructed linear layers reconstruct each P×P patch on the physical grid. CAMS uses a dedicated decoder.",
+        shape: "predicted state at t + 6 h · physical grid"
+      }
+    };
+    var DEFAULT = {
+      eyebrow: "Hover a stage",
+      title: "End-to-end view",
+      body: "Heterogeneous Earth-system fields enter on the left, become a universal 3D latent in the encoder, evolve through the Swin U-Net processor, and are reconstructed by the decoder. Hover any stage to inspect its tensor shape and role.",
+      shape: "tensor: H × W × (4 + 5·C) · float32"
+    };
+
+    function set(stage) {
+      var data = (stage && COPY[stage]) || DEFAULT;
+      inspector.dataset.stage = stage || "";
+      inspector.querySelector(".pi-eyebrow").textContent = data.eyebrow;
+      inspector.querySelector(".pi-title").textContent = data.title;
+      inspector.querySelector(".pi-body").textContent = data.body;
+      inspector.querySelector("#pi-shape").textContent = data.shape;
+    }
+
+    stages.forEach(function (g) {
+      g.addEventListener("mouseenter", function () {
+        wrap.classList.add("is-hover");
+        stages.forEach(function (s) { s.classList.toggle("is-on", s === g); });
+        set(g.dataset.stage);
+      });
+      g.addEventListener("mouseleave", function () {
+        wrap.classList.remove("is-hover");
+        stages.forEach(function (s) { s.classList.remove("is-on"); });
+        set(null);
+      });
+    });
+  })();
+
+  // ============================================================
+  // Hero resolution switcher — toggles globe grid density + readout
+  // ============================================================
+  (function () {
+    var resBtns = document.querySelectorAll(".res-btn");
+    if (!resBtns.length) return;
+    var lat = document.getElementById("globe-lat");
+    var lon = document.getElementById("globe-lon");
+    var gridLabel = document.getElementById("res-grid");
+    var tokensLabel = document.getElementById("res-tokens");
+    var kmLabel = document.getElementById("res-km");
+
+    function makeEllipse(cx, cy, rx, ry) {
+      var el = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+      el.setAttribute("cx", cx); el.setAttribute("cy", cy);
+      el.setAttribute("rx", rx); el.setAttribute("ry", ry);
+      return el;
+    }
+
+    var GRIDS = {
+      "01":  { lat: 11, lon: 17, grid: "3600 × 1801", tokens: "~405 K", km: "~11 km" },
+      "025": { lat: 7,  lon: 11, grid: "1440 × 721",  tokens: "~65 K",  km: "~28 km" },
+      "04":  { lat: 5,  lon: 7,  grid: "900 × 451",   tokens: "~25 K",  km: "~44 km" }
+    };
+
+    function setRes(key) {
+      var spec = GRIDS[key]; if (!spec) return;
+      lat.innerHTML = ""; lon.innerHTML = "";
+      // Latitude rings — symmetric around equator (cy=210)
+      var n = spec.lat;
+      for (var i = 1; i <= n; i++) {
+        var r = (i / n) * 120;
+        lat.appendChild(makeEllipse(180, 210, 120, r));
+      }
+      // Longitude rings — drawn as varying rx ellipses
+      var m = spec.lon;
+      for (var j = 1; j <= m; j++) {
+        var rx = (j / m) * 120;
+        lon.appendChild(makeEllipse(180, 210, rx, 120));
+      }
+      // Equator line
+      var line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", 180); line.setAttribute("y1", 90);
+      line.setAttribute("x2", 180); line.setAttribute("y2", 330);
+      lon.appendChild(line);
+
+      gridLabel.textContent = spec.grid;
+      tokensLabel.textContent = spec.tokens;
+      kmLabel.textContent = spec.km;
+    }
+
+    resBtns.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        resBtns.forEach(function (b) { b.classList.remove("is-on"); });
+        btn.classList.add("is-on");
+        setRes(btn.dataset.res);
+      });
+    });
+    setRes("025");
+  })();
+
+  // ============================================================
+  // Benchmark bars — animate width on scroll into view
+  // ============================================================
+  (function () {
+    var fills = document.querySelectorAll(".bar-fill[data-target]");
+    if (!fills.length || !("IntersectionObserver" in window)) {
+      fills.forEach(function (f) { f.style.width = f.dataset.target + "%"; });
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) {
+          var t = e.target.dataset.target;
+          // Stagger
+          var idx = parseInt(e.target.dataset.idx || "0", 10);
+          setTimeout(function () { e.target.style.width = t + "%"; }, idx * 90);
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.25 });
+    fills.forEach(function (f, i) { f.dataset.idx = String(i); io.observe(f); });
+  })();
+
+  // ============================================================
+  // Forecast rollout slider
+  // ============================================================
+  (function () {
+    var slider = document.getElementById("rollout-slider");
+    var stagesRow = document.getElementById("rollout-stages");
+    var leadEl = document.getElementById("rollout-lead");
+    var stepEl = document.getElementById("rollout-step");
+    var skillFill = document.getElementById("rollout-skill-fill");
+    var skillNum = document.getElementById("rollout-skill-num");
+    if (!slider || !stagesRow) return;
+
+    var STEPS = 20; // 0..20 × 6h = 0..120h (5 days)
+    // Build stage cards
+    for (var i = 0; i <= STEPS; i++) {
+      var hrs = i * 6;
+      var div = document.createElement("div");
+      div.className = "rollout-stage";
+      div.dataset.idx = String(i);
+      var t = document.createElement("span");
+      t.className = "lead-t";
+      t.textContent = i === 0 ? "t" : "+" + hrs + "h";
+      var s = document.createElement("span");
+      s.className = "lead-s";
+      if (i === 0) { s.textContent = "init"; }
+      else if (hrs % 24 === 0) { s.textContent = "day " + (hrs / 24); }
+      else { s.textContent = "6h step"; }
+      var heat = document.createElement("div");
+      heat.className = "heat";
+      heat.style.setProperty("--blur", (i * 0.5) + "px");
+      var arr = document.createElement("div");
+      arr.className = "arrow";
+      div.appendChild(t); div.appendChild(s); div.appendChild(heat); div.appendChild(arr);
+      stagesRow.appendChild(div);
+    }
+    var stageEls = stagesRow.querySelectorAll(".rollout-stage");
+
+    function update() {
+      var v = parseInt(slider.value, 10);
+      var hrs = v * 6;
+      var p = (v / STEPS) * 100;
+      slider.style.setProperty("--p", p + "%");
+      stepEl.textContent = "step " + v + " / " + STEPS;
+      leadEl.innerHTML = "t <span class=\"green\">+</span> " + hrs + " h"
+        + (hrs >= 24 ? "  ·  day " + (hrs/24).toFixed(hrs % 24 === 0 ? 0 : 1) : "");
+      // Reported skill heuristic: ~100% at init, decays gently; visual aid only.
+      var skill = Math.max(58, 100 - v * 2.1);
+      skillFill.style.width = skill + "%";
+      skillFill.style.background = skill > 80 ? "var(--kui-brand-green)" : (skill > 70 ? "var(--kui-accent-teal)" : "var(--kui-warning)");
+      skillNum.textContent = skill.toFixed(0) + "% nominal skill · illustrative";
+
+      stageEls.forEach(function (el) {
+        var idx = parseInt(el.dataset.idx, 10);
+        el.classList.toggle("is-active", idx === v);
+        el.classList.toggle("is-past", idx < v);
+        el.classList.toggle("is-future", idx > v);
+      });
+      // Auto-scroll the active card into the visible strip without jumping the page
+      var active = stagesRow.querySelector(".rollout-stage.is-active");
+      if (active) {
+        var rectS = stagesRow.getBoundingClientRect();
+        var rectA = active.getBoundingClientRect();
+        if (rectA.right > rectS.right - 12) stagesRow.scrollLeft += rectA.right - rectS.right + 24;
+        else if (rectA.left < rectS.left + 12) stagesRow.scrollLeft -= rectS.left - rectA.left + 24;
+      }
+    }
+    slider.addEventListener("input", update);
+    update();
+  })();
+
+  // ============================================================
+  // Window attention demo — (2 × 4 × 2) shifted-window visualization
+  // 12 (W) × 4 (H) grid shown for two depth slices.
+  // Each "window" is 4 wide × 2 high (a 2D slice of the 3D 2×4×2).
+  // Toggle "shift" → windows shift by (2, 1) so border tokens land in new windows.
+  // ============================================================
+  (function () {
+    var svg = document.getElementById("win-svg");
+    var toggle = document.getElementById("win-toggle");
+    var play = document.getElementById("win-play");
+    var layerEl = document.getElementById("win-layer");
+    var countEl = document.getElementById("win-count");
+    if (!svg || !toggle) return;
+
+    var W = 12, H = 4;
+    var CELL = 22, GAP = 2;
+    var SLICE_GAP = 36;
+    var ORIGIN_X = 30, ORIGIN_Y = 24;
+
+    var shifted = false;
+    var auto = null;
+
+    function colorIndex(col, row, sliceIdx, shift) {
+      // Window assignment for one depth-slice: window is 4w × 2h
+      // shift: col by 2, row by 1 (half-window) on shifted layers
+      var c = col + (shift ? 2 : 0);
+      var r = row + (shift ? 1 : 0);
+      // We'll treat the grid as cyclic for visualization clarity, but mark border cells
+      var WW = 4, HH = 2;
+      var wx = Math.floor(c / WW);
+      var wy = Math.floor(r / HH);
+      // depth pairs slices in groups of 2 → window depth dim = 2
+      var wd = Math.floor(sliceIdx / 2);
+      var idx = (wx + wy * 100 + wd * 10000) % 4;
+      return Math.abs(idx);
+    }
+
+    function build() {
+      // Clear svg children except defs
+      while (svg.lastChild && svg.lastChild.tagName !== "defs") svg.removeChild(svg.lastChild);
+      var ns = "http://www.w3.org/2000/svg";
+
+      // We draw 4 depth slices stacked horizontally with slight offset (isometric-ish hint)
+      var DSLICES = 4;
+      var sliceW = W * (CELL + GAP);
+      var sliceH = H * (CELL + GAP);
+      var totalW = sliceW * 1 + 0; // single slice horizontally; we'll stack vertically with offsets
+
+      // Reset viewBox sizing: 4 depth slices stacked
+      // We'll draw side-by-side to keep readable
+      svg.setAttribute("viewBox", "0 0 " + (DSLICES * (sliceW + SLICE_GAP) + 40) + " " + (sliceH + 70));
+
+      for (var d = 0; d < DSLICES; d++) {
+        var ox = 30 + d * (sliceW + SLICE_GAP);
+        var oy = ORIGIN_Y;
+
+        // Slice label
+        var lab = document.createElementNS(ns, "text");
+        lab.setAttribute("class", "win-slice-label");
+        lab.setAttribute("x", ox);
+        lab.setAttribute("y", oy - 8);
+        lab.textContent = "depth " + d;
+        svg.appendChild(lab);
+
+        // Cells
+        for (var r = 0; r < H; r++) {
+          for (var c = 0; c < W; c++) {
+            var x = ox + c * (CELL + GAP);
+            var y = oy + r * (CELL + GAP);
+            var rect = document.createElementNS(ns, "rect");
+            rect.setAttribute("x", x);
+            rect.setAttribute("y", y);
+            rect.setAttribute("width", CELL);
+            rect.setAttribute("height", CELL);
+            rect.setAttribute("rx", 1.5);
+            // detect "edge" cells in shifted mode: cells that just changed windows
+            var ci = colorIndex(c, r, d, shifted);
+            rect.setAttribute("class", "win-cell cw-" + ci);
+            rect.dataset.col = c; rect.dataset.row = r; rect.dataset.d = d;
+            rect.addEventListener("mouseenter", function (e) {
+              e.target.classList.add("is-hover");
+            });
+            rect.addEventListener("mouseleave", function (e) {
+              e.target.classList.remove("is-hover");
+            });
+            svg.appendChild(rect);
+          }
+        }
+
+        // Window frames (overlay): draw rects around each 4×2 window
+        // In shifted mode, shift overlay by (2 cells × (CELL+GAP), 1 cell × (CELL+GAP))
+        var sx = shifted ? -2 * (CELL + GAP) : 0;
+        var sy = shifted ? -1 * (CELL + GAP) : 0;
+        for (var wr = -1; wr < H / 2 + 1; wr++) {
+          for (var wc = -1; wc < W / 4 + 1; wc++) {
+            var fx = ox + wc * 4 * (CELL + GAP) + sx;
+            var fy = oy + wr * 2 * (CELL + GAP) + sy;
+            // clip to slice bounds
+            var fw = 4 * (CELL + GAP) - GAP;
+            var fh = 2 * (CELL + GAP) - GAP;
+            var x1 = Math.max(fx, ox);
+            var y1 = Math.max(fy, oy);
+            var x2 = Math.min(fx + fw, ox + W * (CELL + GAP) - GAP);
+            var y2 = Math.min(fy + fh, oy + H * (CELL + GAP) - GAP);
+            if (x2 - x1 < 6 || y2 - y1 < 6) continue;
+            var frame = document.createElementNS(ns, "rect");
+            frame.setAttribute("x", x1 - 1.5);
+            frame.setAttribute("y", y1 - 1.5);
+            frame.setAttribute("width", x2 - x1 + 3);
+            frame.setAttribute("height", y2 - y1 + 3);
+            frame.setAttribute("rx", 2);
+            frame.setAttribute("class", "win-frame");
+            svg.appendChild(frame);
+          }
+        }
+      }
+
+      // update aside
+      layerEl.textContent = shifted ? "layer i+1 · shifted partition" : "layer i · regular partition";
+      // Each slice has 3×2 = 6 windows (12/4 × 4/2); depth pairs combine two slices → still 6 per pair
+      // Number of distinct 3D windows visible: (W/4) × (H/2) × (D/2) = 3 × 2 × 2 = 12
+      countEl.textContent = "12 windows" + (shifted ? " · shifted" : "");
+      toggle.setAttribute("aria-pressed", shifted ? "true" : "false");
+      toggle.textContent = shifted ? "Reset partition" : "Shift windows";
+    }
+
+    toggle.addEventListener("click", function () {
+      shifted = !shifted;
+      build();
+    });
+    play.addEventListener("click", function () {
+      if (auto) { clearInterval(auto); auto = null; play.setAttribute("aria-pressed", "false"); play.textContent = "Auto cycle"; return; }
+      play.setAttribute("aria-pressed", "true");
+      play.textContent = "Pause cycle";
+      auto = setInterval(function () { shifted = !shifted; build(); }, 1200);
+    });
+    build();
   })();
 </script>
 

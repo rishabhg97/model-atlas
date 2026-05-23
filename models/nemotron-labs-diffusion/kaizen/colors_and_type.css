@@ -9,26 +9,9 @@
    real NVIDIA Sans .woff2 files into fonts/ to override.
    ============================================================ */
 
-/* ---------- Webfont (Inter + DM Sans substitute) ---------- */
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Inter:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap");
+/* ---------- Webfont (system fallback in atlas export) ---------- */
 
-/* If the user adds real NVIDIA Sans files to /fonts/, uncomment:
-@font-face {
-  font-family: "NVIDIA Sans";
-  src: url("./fonts/NVIDIASans-Regular.woff2") format("woff2");
-  font-weight: 400; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "NVIDIA Sans";
-  src: url("./fonts/NVIDIASans-Medium.woff2") format("woff2");
-  font-weight: 500; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "NVIDIA Sans";
-  src: url("./fonts/NVIDIASans-Bold.woff2") format("woff2");
-  font-weight: 700; font-style: normal; font-display: swap;
-}
-*/
+/* Local font files are intentionally omitted; system fallbacks keep this page offline-safe. */
 
 :root {
   /* ─────────────────────────────────────────

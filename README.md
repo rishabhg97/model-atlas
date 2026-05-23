@@ -6,6 +6,10 @@ The site has one home page, `index.html`, and one self-contained folder per
 model under `models/`. Each model page keeps its own HTML, CSS, scripts,
 diagrams, and local assets.
 
+The home page is a visual directory: it supports search, filtering, card/table
+views, local company logo badges, architecture-preview cards, and Artificial
+Analysis intelligence score badges where a conservative public LLM match exists.
+
 ## Current Models
 
 The atlas currently links 30 downloaded architecture pages:
@@ -49,7 +53,10 @@ The atlas currently links 30 downloaded architecture pages:
 |-- README.md
 |-- AGENTS.md
 |-- CLAUDE_DESIGN_PROMPT_TEMPLATE.md
+|-- assets/
+|   `-- logos/
 |-- claude-design-prompts/
+|-- oss-model-releases-2025-plus.md
 `-- models/
     |-- deepseek-v4/
     |   `-- index.html
@@ -85,10 +92,21 @@ http://127.0.0.1:3001/index.html
 3. Copy any referenced local assets into that folder, preserving relative paths.
 4. Add a visible `Atlas home` link back to `../../index.html`.
 5. Add one matching entry to `ATLAS_PAGES` in `index.html`.
-6. Verify the home page and model page return HTTP `200`.
+6. Check the Artificial Analysis free LLM API with `AA_INDEX_API` from `.env`.
+   Add `aaIndex` only for exact or near-exact model plus creator matches; leave
+   ambiguous family pages and non-LLM pages as `Not listed`.
+7. Verify the home page and model page return HTTP `200`.
 
 For detailed agent workflow rules, including what to do when no downloaded HTML
 exists yet, see `AGENTS.md`.
+
+## Candidate Inventory
+
+`oss-model-releases-2025-plus.md` tracks open-source/open-weight model leads
+from the source reports plus later breadth candidates across text, diffusion,
+video, audio, weather, biology, robotics, time-series, and GUI-agent systems.
+Rows marked as already added should stay out of the prompt backlog unless a
+replacement visualization is needed.
 
 ## GitHub Pages
 

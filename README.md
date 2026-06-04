@@ -12,7 +12,7 @@ Analysis intelligence score badges where a conservative public LLM match exists.
 
 ## Current Models
 
-The atlas currently links 30 downloaded architecture pages:
+The atlas currently links 31 downloaded architecture pages:
 
 - Aurora
 - Chronos-2
@@ -31,6 +31,7 @@ The atlas currently links 30 downloaded architecture pages:
 - Liquid LFM2-VL / LFM2.5-VL
 - Ling 2.6 1T
 - LLaDA2.0-flash
+- MAI-Thinking-1
 - MiMo-V2.5-Pro
 - Nemotron 3 Nano 30B-A3B
 - Nemotron 3 Super 120B-A12B

@@ -1,0 +1,1748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MAI-Thinking-1 / MAI-Base-1 Architecture</title>
+<style>
+/* ============================================================
+   MAI-Thinking-1 / MAI-Base-1 — closed technical-report atlas
+   Self-contained. System fonts only. Works offline.
+   ============================================================ */
+:root{
+  --paper:#ffffff;
+  --canvas:#eceff3;
+  --canvas-2:#e3e7ed;
+  --ink:#161b24;
+  --ink-2:#3a4453;
+  --muted:#697485;
+  --faint:#97a0ae;
+  --line:#d6dce4;
+  --line-2:#e7ebf1;
+  --accent:#0f6cbd;          /* Microsoft Fluent blue */
+  --accent-deep:#0a4d8c;
+  --accent-wash:#eaf2fb;
+  --accent-wash-2:#dceafa;
+  --good:#1f7a4d;
+  --good-wash:#e7f3ec;
+  --warn:#9a5a12;
+  --warn-wash:#fbf1df;
+  --warn-line:#e8cf9c;
+  --danger:#a3322b;
+  --danger-wash:#fbecea;
+  --closed:#23303f;
+  --shadow:0 1px 2px rgba(20,27,36,.06), 0 4px 16px rgba(20,27,36,.05);
+  --shadow-lg:0 2px 6px rgba(20,27,36,.08), 0 18px 48px rgba(20,27,36,.10);
+  --radius:12px;
+  --radius-sm:8px;
+  --sans:"Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono:"Cascadia Code","SF Mono",ui-monospace,"Consolas","Roboto Mono",monospace;
+  --rail:248px;
+  --maxw:980px;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;background:var(--canvas);color:var(--ink);
+  font-family:var(--sans);font-size:16px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+a{color:var(--accent);text-decoration:none;}
+a:hover{text-decoration:underline;}
+h1,h2,h3,h4{margin:0;line-height:1.2;font-weight:650;letter-spacing:-.01em;}
+p{margin:0;}
+code,.mono{font-family:var(--mono);font-variant-ligatures:none;}
+
+/* ---------- Layout shell ---------- */
+.shell{display:grid;grid-template-columns:var(--rail) minmax(0,1fr);}
+@media (max-width:880px){
+  .shell{grid-template-columns:1fr;}
+  .rail{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line);}
+  .rail-nav{display:flex;flex-wrap:wrap;gap:4px;max-height:none;padding:10px 16px;}
+  .rail-nav a{padding:5px 8px;}
+  .rail-nav a span:not(.n){font-size:12px;}
+  .rail-foot{display:none;}
+}
+
+/* ---------- Nav rail ---------- */
+.rail{
+  position:sticky;top:0;align-self:start;height:100vh;
+  background:#fbfcfd;border-right:1px solid var(--line);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.rail-head{padding:20px 20px 14px;border-bottom:1px solid var(--line-2);}
+.brandmark{display:flex;align-items:center;gap:9px;margin-bottom:11px;}
+.tiles{display:grid;grid-template-columns:9px 9px;grid-template-rows:9px 9px;gap:2px;flex:0 0 auto;}
+.tiles span{width:9px;height:9px;border-radius:1px;}
+.t-r{background:#f25022;}.t-g{background:#7fba00;}.t-b{background:#00a4ef;}.t-y{background:#ffb900;}
+.brandmark .bt{font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--ink-2);text-transform:uppercase;}
+.rail-title{font-size:14px;font-weight:680;letter-spacing:-.01em;color:var(--ink);}
+.rail-sub{font-size:11px;color:var(--muted);margin-top:3px;font-family:var(--mono);}
+.atlas-home{display:flex;align-items:center;justify-content:center;margin-top:10px;padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink-2);font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;text-decoration:none;}
+.atlas-home:hover{background:var(--accent-wash);border-color:#bcd6f1;color:var(--accent-deep);text-decoration:none;}
+.rail-nav{overflow-y:auto;padding:10px 12px 24px;flex:1;}
+.rail-nav a{
+  display:flex;gap:9px;align-items:baseline;padding:6px 9px;border-radius:7px;
+  color:var(--ink-2);font-size:13px;line-height:1.3;font-weight:500;
+  border:1px solid transparent;
+}
+.rail-nav a .n{font-family:var(--mono);font-size:10.5px;color:var(--faint);min-width:16px;font-weight:600;}
+.rail-nav a:hover{background:var(--accent-wash);text-decoration:none;color:var(--accent-deep);}
+.rail-nav a.active{background:var(--accent-wash);color:var(--accent-deep);font-weight:650;}
+.rail-nav a.active .n{color:var(--accent);}
+.rail-foot{padding:11px 20px;border-top:1px solid var(--line-2);font-size:10.5px;color:var(--faint);font-family:var(--mono);}
+
+/* ---------- Main column ---------- */
+.main{min-width:0;}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 40px;}
+@media (max-width:680px){.wrap{padding:0 20px;}}
+section{scroll-margin-top:20px;padding:54px 0;border-top:1px solid var(--line);}
+section:first-of-type{border-top:none;}
+
+/* ---------- Section heads ---------- */
+.sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:8px;}
+.sec-num{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.02em;}
+.sec-head h2{font-size:26px;font-weight:680;}
+.sec-lead{color:var(--muted);font-size:15.5px;max-width:62ch;margin:10px 0 26px;text-wrap:pretty;}
+.eyebrow{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-bottom:18px;}
+
+/* ---------- Cards ---------- */
+.card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);}
+.card.pad{padding:22px;}
+.card-title{font-size:13px;font-weight:680;letter-spacing:.01em;color:var(--ink);margin-bottom:3px;}
+.card-title .k{font-family:var(--mono);font-size:10.5px;color:var(--faint);font-weight:600;text-transform:uppercase;letter-spacing:.08em;}
+.grid{display:grid;gap:16px;}
+.g2{grid-template-columns:repeat(2,1fr);}
+.g3{grid-template-columns:repeat(3,1fr);}
+.g4{grid-template-columns:repeat(4,1fr);}
+@media (max-width:760px){.g2,.g3,.g4{grid-template-columns:1fr;}}
+
+/* ---------- Chips / pills / badges ---------- */
+.chip{
+  display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border-radius:999px;
+  background:var(--paper);border:1px solid var(--line);font-size:12.5px;color:var(--ink-2);
+  font-weight:560;white-space:nowrap;
+}
+.chip b{font-family:var(--mono);font-weight:700;color:var(--ink);font-size:12px;}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:6px;font-size:11px;
+  font-family:var(--mono);font-weight:600;letter-spacing:.02em;}
+.pill.blue{background:var(--accent-wash);color:var(--accent-deep);}
+.pill.good{background:var(--good-wash);color:var(--good);}
+.pill.warn{background:var(--warn-wash);color:var(--warn);}
+.pill.dang{background:var(--danger-wash);color:var(--danger);}
+.pill.gray{background:var(--canvas-2);color:var(--ink-2);}
+.tag-closed{
+  display:inline-flex;align-items:center;gap:9px;padding:8px 14px;border-radius:8px;
+  background:var(--closed);color:#eef3f8;font-size:12px;font-weight:600;letter-spacing:.02em;
+}
+.tag-closed .lk{width:13px;height:13px;flex:0 0 auto;}
+.tag-closed .lk svg{display:block;}
+
+/* ---------- Stat blocks ---------- */
+.stat{padding:15px 16px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--paper);}
+.stat .v{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:-.01em;}
+.stat .l{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.3;}
+.stat .v small{font-size:13px;color:var(--muted);font-weight:600;}
+
+/* ---------- Tables ---------- */
+.tbl{width:100%;border-collapse:collapse;font-size:13px;}
+.tbl th,.tbl td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line-2);}
+.tbl th{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:680;
+  background:var(--canvas);position:sticky;}
+.tbl td{color:var(--ink-2);}
+.tbl td.num,.tbl th.num{text-align:right;font-family:var(--mono);font-size:12.5px;}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr.total td{font-weight:700;color:var(--ink);background:var(--accent-wash);border-top:2px solid var(--accent);}
+.tbl tbody tr:hover td{background:var(--canvas);}
+.tbl tr.total:hover td{background:var(--accent-wash);}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--paper);}
+
+/* ---------- Notes / caveats ---------- */
+.note{display:flex;gap:11px;padding:13px 15px;border-radius:var(--radius-sm);font-size:13px;line-height:1.5;}
+.note .ico{flex:0 0 auto;width:17px;height:17px;margin-top:1px;}
+.note.info{background:var(--accent-wash);color:var(--accent-deep);border:1px solid #cfe2f6;}
+.note.warn{background:var(--warn-wash);color:#6b4310;border:1px solid var(--warn-line);}
+.note.dang{background:var(--danger-wash);color:#7e2620;border:1px solid #ecc7c3;}
+.note.muted{background:var(--canvas);color:var(--ink-2);border:1px solid var(--line);}
+.note b{font-weight:680;}
+.note .ico svg{display:block;width:100%;height:100%;}
+
+/* ---------- Bars ---------- */
+.bar-row{display:grid;grid-template-columns:148px 1fr 56px;align-items:center;gap:12px;margin:7px 0;}
+.bar-row .bl{font-size:12.5px;color:var(--ink-2);font-weight:560;text-align:right;}
+.bar-track{height:18px;border-radius:5px;background:var(--canvas-2);overflow:hidden;position:relative;}
+.bar-fill{height:100%;border-radius:5px;background:var(--accent);}
+.bar-row .bv{font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--ink);text-align:right;}
+@media (max-width:680px){.bar-row{grid-template-columns:96px 1fr 48px;gap:8px;}.bar-row .bl{font-size:11px;}}
+
+/* ---------- Flow / diagram primitives ---------- */
+.flowbox{border:1.5px solid var(--line);border-radius:9px;background:var(--paper);padding:10px 13px;position:relative;}
+.flowbox .ft{font-size:12.5px;font-weight:650;color:var(--ink);}
+.flowbox .fd{font-size:11px;color:var(--muted);margin-top:2px;font-family:var(--mono);}
+.flowbox.attn{border-color:#bcd6f1;background:linear-gradient(180deg,#f3f8fe,#fff);}
+.flowbox.global{border-color:var(--accent);background:var(--accent-wash);}
+.flowbox.ffn{border-color:#cdd9c2;background:linear-gradient(180deg,#f5f8f1,#fff);}
+.flowbox.moe{border-color:#d8c9e0;background:linear-gradient(180deg,#f8f4fb,#fff);}
+.flowbox.norm{border-style:dashed;border-color:var(--line);background:var(--canvas);}
+.attn-cell{width:30px;height:30px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:12px;font-weight:700;}
+.attn-cell.loc{background:#dceafa;color:#0a4d8c;border:1px solid #bcd6f1;}
+.attn-cell.glb{background:var(--accent);color:#fff;border:1px solid var(--accent-deep);}
+.attn-cell.glb.fin{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--accent);}
+.attn-sep{color:var(--faint);font-weight:700;padding:0 3px;}
+/* ladder chart */
+.ladder{display:flex;align-items:flex-end;gap:10px;margin:18px 0 6px;padding-bottom:4px;}
+.lrung{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;justify-content:flex-end;}
+.lcap{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink);}
+.lbar{width:100%;max-width:46px;border-radius:5px 5px 0 0;background:linear-gradient(180deg,#9fc3e8,#cfe2f6);border:1px solid #9fc3e8;border-bottom:none;}
+.lbar.base{background:linear-gradient(180deg,var(--accent),#5a9ad8);border-color:var(--accent-deep);}
+.llab{font-family:var(--mono);font-size:11px;color:var(--ink-2);font-weight:600;}
+.lact{font-family:var(--mono);font-size:9.5px;color:var(--faint);}
+/* evolution timeline */
+.evo{display:flex;align-items:stretch;gap:8px;margin-top:14px;}
+.evo-card{flex:1;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);}
+.evo-card.hl{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),var(--shadow);}
+.evo-arrow{align-self:center;color:var(--faint);font-size:18px;flex:0 0 auto;}
+.evo-h{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+.evo-v{font-family:var(--mono);font-size:17px;font-weight:800;color:var(--accent-deep);}
+.evo .kv{grid-template-columns:auto 1fr;gap:4px 10px;font-size:11.5px;}
+.evo .kv dd{font-size:11px;}
+@media (max-width:760px){.evo{flex-direction:column;}.evo-arrow{transform:rotate(90deg);}}
+/* conflict panel */
+.conflict{background:var(--warn-wash);border:1px solid var(--warn-line);border-radius:var(--radius);padding:18px;}
+.conflict-head{display:flex;gap:11px;align-items:flex-start;color:#6b4310;font-size:14px;}
+.conflict-head .ico{width:19px;height:19px;flex:0 0 auto;margin-top:1px;}
+.conflict-head .ico svg{width:100%;height:100%;}
+.conflict-head b{font-weight:700;}
+/* composition bars */
+.dbar{display:grid;grid-template-columns:128px 1fr 64px;gap:10px;align-items:center;margin:6px 0;}
+.dl{font-size:12.5px;color:var(--ink-2);font-weight:560;text-align:right;}
+.dt{position:relative;height:22px;background:var(--canvas-2);border-radius:5px;overflow:hidden;display:flex;align-items:center;}
+.df{height:100%;border-radius:5px;}
+.dv{position:absolute;right:8px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-2);}
+.de{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--muted);text-align:right;}
+.de.up{color:var(--good);}
+.de.hot{color:var(--faint);}
+@media (max-width:680px){.dbar{grid-template-columns:88px 1fr 52px;gap:7px;}.dl{font-size:11px;}}
+/* pipeline */
+.pipe{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:12px;}
+.pstep{background:var(--paper);border:1px solid var(--line);border-radius:7px;padding:7px 11px;font-size:12px;color:var(--ink-2);font-weight:560;box-shadow:var(--shadow);}
+.pstep em{font-style:normal;color:var(--faint);font-family:var(--mono);font-size:10.5px;}
+.psep{color:var(--faint);font-size:13px;}
+/* training phases */
+.phases{display:flex;align-items:stretch;gap:0;margin-top:14px;}
+.phase{flex:1;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);}
+.phase-h{font-size:13px;font-weight:700;color:var(--ink);}
+.phase-ctx{font-family:var(--mono);font-size:24px;font-weight:800;color:var(--accent-deep);margin:6px 0 10px;line-height:1;}
+.phase-ctx span{display:block;font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-top:3px;}
+.phase .kv{font-size:12px;gap:4px 10px;}
+.phase .kv dd{font-size:11.5px;}
+.phase-grow{flex:0 0 38px;align-self:center;height:3px;background:linear-gradient(90deg,#cfe2f6,var(--accent));border-radius:2px;position:relative;}
+.phase-grow::after{content:"";position:absolute;right:-1px;top:50%;transform:translateY(-50%);border-left:6px solid var(--accent);border-top:4px solid transparent;border-bottom:4px solid transparent;}
+@media (max-width:760px){.phases{flex-direction:column;gap:10px;}.phase-grow{flex-basis:18px;transform:rotate(90deg);}}
+/* precision map */
+.precmap{display:grid;grid-template-columns:1fr 1.1fr 1.6fr;gap:14px;margin-top:14px;}
+.preccol{border-radius:var(--radius);padding:16px;border:1px solid var(--line);}
+.preccol.bf16{background:var(--accent-wash);border-color:#cfe2f6;}
+.preccol.fp8{background:var(--warn-wash);border-color:var(--warn-line);}
+.preccol.fp32{background:var(--good-wash);border-color:#c2e0cf;}
+.prec-h{font-family:var(--mono);font-size:18px;font-weight:800;color:var(--ink);margin-bottom:8px;}
+.prec-h span{font-family:var(--sans);font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-left:8px;}
+.preccol ul.clean li{font-size:12.5px;padding:4px 0 4px 16px;}
+.preccol ul.clean li::before{top:11px;}
+.preccol.fp8 ul.clean li::before{background:var(--warn);}
+.preccol.fp32 ul.clean li::before{background:var(--good);}
+@media (max-width:760px){.precmap{grid-template-columns:1fr;}}
+/* stacked bar */
+.stackbar{display:flex;height:30px;border-radius:7px;overflow:hidden;border:1px solid var(--line);}
+.stackbar span{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:650;color:#fff;font-family:var(--mono);}
+/* context line */
+.ctxline{display:flex;align-items:center;gap:0;margin-top:16px;}
+.ctxnode{display:flex;flex-direction:column;align-items:center;gap:3px;flex:0 0 auto;}
+.ctxnode .cv{font-family:var(--mono);font-size:17px;font-weight:800;color:var(--accent-deep);}
+.ctxnode.big .cv{font-size:24px;}
+.ctxnode .cl{font-size:10.5px;color:var(--muted);}
+.ctxbar{flex:1;height:4px;background:linear-gradient(90deg,#cfe2f6,var(--accent));border-radius:2px;margin:0 6px;align-self:center;margin-bottom:16px;}
+/* yolo stack */
+.yolo-stack{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+.ylayer{display:grid;grid-template-columns:108px 1fr;gap:14px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:13px 16px;box-shadow:var(--shadow);}
+.ylayer.head{background:var(--accent-wash);border-color:#cfe2f6;}
+.ytag{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;color:var(--accent);}
+.ybody{font-size:13px;color:var(--ink-2);}
+.ybody b{font-family:var(--mono);font-weight:800;color:var(--accent-deep);}
+.ychips{display:flex;flex-wrap:wrap;gap:6px;}
+.ychips span{background:var(--canvas);border:1px solid var(--line-2);border-radius:6px;padding:4px 9px;font-size:12px;color:var(--ink-2);font-weight:540;}
+.ychips span em{font-style:normal;color:var(--faint);font-family:var(--mono);font-size:10px;}
+@media (max-width:680px){.ylayer{grid-template-columns:1fr;gap:8px;}}
+/* RL principles */
+.princ{position:relative;}
+.princ p{font-size:12.5px;color:var(--muted);margin-top:5px;}
+.princ .pn{font-family:var(--mono);font-size:11px;font-weight:800;color:var(--accent);margin-bottom:6px;}
+/* RL flow */
+.rlflow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:14px;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);}
+.rlnode{background:var(--canvas);border:1px solid var(--line);border-radius:9px;padding:10px 13px;text-align:center;flex:0 0 auto;}
+.rlnode b{font-size:12.5px;color:var(--ink);display:block;}
+.rlnode span{font-size:10px;color:var(--muted);font-family:var(--mono);}
+.rlnode.start{background:var(--accent-wash);border-color:#cfe2f6;}
+.rlnode.final{background:var(--accent);border-color:var(--accent-deep);}
+.rlnode.final b{color:#fff;}
+.rlarrow{color:var(--faint);font-size:15px;flex:0 0 auto;}
+.rlclimbs{display:flex;flex-direction:column;gap:5px;flex:0 0 auto;}
+.rlclimb{display:flex;align-items:center;gap:7px;background:#f8f4fb;border:1px solid #e0d3e8;border-radius:7px;padding:5px 9px;}
+.cl-k{font-size:11px;color:#5a2a7a;font-weight:650;}
+.cl-a{color:#9a7bb0;font-size:11px;}
+.cl-t{font-size:10.5px;font-family:var(--mono);color:#7d3ca3;}
+/* math card */
+.mathcard{font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--canvas);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:7px;padding:10px 13px;margin:7px 0;letter-spacing:.01em;}
+.mathcard sub{font-size:9px;}
+/* rollout curriculum */
+.rollcurr{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:14px;}
+.rollcurr span{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent-deep);background:var(--accent-wash);border:1px solid #cfe2f6;border-radius:6px;padding:4px 9px;}
+.rollcurr i{color:var(--faint);font-style:normal;}
+.rollcurr em{flex-basis:100%;font-style:normal;font-size:11px;color:var(--muted);margin-top:4px;}
+@media (max-width:760px){.rlflow{flex-direction:column;align-items:stretch;}.rlarrow{transform:rotate(90deg);align-self:center;}}
+/* react loop */
+.react{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:14px;position:relative;}
+.rnode{background:var(--accent-wash);border:1px solid #cfe2f6;border-radius:8px;padding:9px 12px;font-size:12px;color:var(--ink-2);flex:1 1 auto;text-align:center;}
+.rnode b{color:var(--accent-deep);}
+.rarr{color:var(--faint);flex:0 0 auto;}
+.rloop{flex-basis:100%;text-align:center;font-size:11px;color:var(--accent);font-family:var(--mono);margin-top:4px;}
+/* self-distill roles */
+.sd .sd-k{font-size:13px;font-weight:700;color:var(--accent-deep);}
+.sd p{font-size:12.5px;color:var(--muted);margin-top:5px;}
+/* rocket */
+.rocket{display:grid;grid-template-columns:1fr 150px 1fr;gap:0;align-items:stretch;margin-top:14px;}
+.rk-panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);}
+.rk-panel.learner{border-color:#cfe2f6;}
+.rk-panel.infer{border-color:#c2e0cf;}
+.rk-h{font-size:14px;font-weight:700;color:var(--ink);}
+.rk-sub{font-size:11px;color:var(--muted);font-family:var(--mono);margin:2px 0 8px;}
+.rk-panel ul.clean li{font-size:12px;padding:3px 0 3px 16px;}
+.rk-panel ul.clean li::before{top:10px;}
+.rk-mid{display:flex;flex-direction:column;justify-content:center;gap:10px;padding:0 8px;}
+.rk-flow{font-family:var(--mono);font-size:11px;font-weight:700;text-align:center;border-radius:7px;padding:8px 6px;}
+.rk-flow span{display:block;font-weight:500;font-size:9.5px;color:var(--muted);margin-top:2px;}
+.rk-flow.down{background:var(--accent-wash);color:var(--accent-deep);}
+.rk-flow.up{background:var(--good-wash);color:var(--good);}
+@media (max-width:680px){.rocket{grid-template-columns:1fr;}.rk-mid{flex-direction:row;}}
+/* head-to-head */
+.vs-row{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;}
+.vs-name{font-size:13px;font-weight:600;color:var(--ink-2);}
+.vs-val{font-family:var(--mono);font-size:14px;font-weight:700;}
+.vs-val.pos{color:var(--good);}
+.vs-val.neg{color:#b07a3a;}
+.wtl{display:flex;height:24px;border-radius:6px;overflow:hidden;margin-top:6px;border:1px solid var(--line);}
+.wtl span{display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:650;font-family:var(--mono);color:#fff;}
+.wtl .w{background:#1f7a4d;}
+.wtl .t{background:var(--canvas-2);}
+.wtl .l{background:#b07a3a;}
+/* closed list */
+.closed-list{list-style:none;margin:0;padding:0;}
+.closed-list li{position:relative;padding:5px 0 5px 24px;font-size:13.5px;color:#7e2620;font-weight:560;}
+.closed-list li::before{content:"✕";position:absolute;left:4px;top:5px;font-size:12px;color:#a3322b;font-weight:700;}
+/* sources */
+.srclist{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
+.srcitem{display:grid;grid-template-columns:96px 1fr auto;gap:12px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:9px;padding:11px 14px;box-shadow:var(--shadow);text-decoration:none;}
+.srcitem:hover{border-color:var(--accent);text-decoration:none;background:var(--accent-wash);}
+.srcitem .st{font-size:13px;color:var(--ink);font-weight:600;}
+.srcitem .su{font-family:var(--mono);font-size:10.5px;color:var(--faint);text-align:right;}
+@media (max-width:680px){.srcitem{grid-template-columns:1fr;gap:4px;}.srcitem .su{text-align:left;}}
+
+.arrow-down{height:13px;width:2px;background:var(--line);margin:0 auto;position:relative;}
+.arrow-down::after{content:"";position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);
+  border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--line);}
+.divider{height:1px;background:var(--line);margin:22px 0;}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:5px 16px;font-size:13px;}
+.kv dt{color:var(--muted);}
+.kv dd{margin:0;font-family:var(--mono);font-size:12.5px;color:var(--ink);text-align:right;}
+
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:11.5px;color:var(--muted);margin-top:14px;}
+.legend span{display:inline-flex;align-items:center;gap:6px;}
+.legend i{width:12px;height:12px;border-radius:3px;display:inline-block;}
+
+/* ---------- Tabs ---------- */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px;background:var(--canvas-2);padding:4px;border-radius:9px;}
+.tabs button{font-family:var(--sans);font-size:12.5px;font-weight:600;color:var(--ink-2);background:transparent;
+  border:none;padding:7px 13px;border-radius:6px;cursor:pointer;}
+.tabs button.active{background:var(--paper);color:var(--accent-deep);box-shadow:var(--shadow);}
+.tabpane{display:none;}
+.tabpane.active{display:block;animation:fade .2s ease;}
+@keyframes fade{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:none;}}
+
+/* ---------- misc ---------- */
+.src{font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.02em;}
+.tinylink{font-size:11px;font-family:var(--mono);}
+ul.clean{margin:0;padding:0;list-style:none;}
+ul.clean li{position:relative;padding:5px 0 5px 18px;font-size:13.5px;color:var(--ink-2);line-height:1.5;}
+ul.clean li::before{content:"";position:absolute;left:2px;top:12px;width:5px;height:5px;border-radius:1px;background:var(--accent);}
+ul.clean li b{color:var(--ink);font-weight:650;}
+.subhead{font-size:15px;font-weight:680;color:var(--ink);margin:0 0 6px;display:flex;align-items:center;gap:9px;}
+.subhead .num{font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:700;}
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- ============ NAV RAIL ============ -->
+  <aside class="rail">
+    <div class="rail-head">
+      <div class="brandmark">
+        <span class="tiles"><span class="t-r"></span><span class="t-g"></span><span class="t-b"></span><span class="t-y"></span></span>
+        <span class="bt">Microsoft AI · MAI</span>
+      </div>
+      <div class="rail-title">MAI-Thinking-1</div>
+      <div class="rail-sub">architecture atlas · closed report</div>
+      <a class="atlas-home" href="../../index.html">Atlas home</a>
+    </div>
+    <nav class="rail-nav" id="railNav">
+      <a href="#overview"><span class="n">00</span><span>Overview &amp; identity</span></a>
+      <a href="#archmap"><span class="n">01</span><span>Architecture map</span></a>
+      <a href="#attention"><span class="n">02</span><span>Attention mechanism</span></a>
+      <a href="#moe"><span class="n">03</span><span>Dense FFN &amp; LatentMoE</span></a>
+      <a href="#ladder"><span class="n">04</span><span>Scaling ladder &amp; evolution</span></a>
+      <a href="#data"><span class="n">05</span><span>Pretraining data &amp; governance</span></a>
+      <a href="#recipe"><span class="n">06</span><span>Training recipe &amp; precision</span></a>
+      <a href="#midtrain"><span class="n">07</span><span>Mid-training &amp; long context</span></a>
+      <a href="#yolo"><span class="n">08</span><span>YOLO infrastructure</span></a>
+      <a href="#rl"><span class="n">09</span><span>RL hill-climb</span></a>
+      <a href="#specialist"><span class="n">10</span><span>Specialist climbs</span></a>
+      <a href="#rocket"><span class="n">11</span><span>Rocket RL infra</span></a>
+      <a href="#eval"><span class="n">12</span><span>Evaluation results</span></a>
+      <a href="#human"><span class="n">13</span><span>Human preference &amp; safety</span></a>
+      <a href="#availability"><span class="n">14</span><span>Availability &amp; caveats</span></a>
+      <a href="#sources"><span class="n">15</span><span>Sources</span></a>
+    </nav>
+    <div class="rail-foot">report dated 2026-06-02 · v1.0</div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <div class="wrap">
+<!-- ============ 00 · OVERVIEW / IDENTITY ============ -->
+<section id="overview">
+  <div class="eyebrow">Closed technical-report atlas entry</div>
+  <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;justify-content:space-between;">
+    <div style="max-width:62ch;">
+      <h1 style="font-size:46px;font-weight:720;letter-spacing:-.025em;line-height:1.02;">MAI-Thinking-1</h1>
+      <p style="font-size:20px;color:var(--ink-2);font-weight:560;margin-top:10px;">Microsoft AI's first in-house reasoning model.</p>
+      <p style="font-size:15.5px;color:var(--muted);margin-top:12px;text-wrap:pretty;">
+        35B-active / ~1T-total sparse Mixture-of-Experts reasoning model, trained from scratch
+        without third-party distillation, built atop the <b style="color:var(--ink);font-weight:650;">MAI-Base-1</b> pretrained model.
+      </p>
+    </div>
+    <div class="tag-closed" title="No public weights, code, config file, tokenizer file, or training dataset are released.">
+      <span class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="#9fb6cc" stroke-width="2"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
+      <span>Closed model · technical report only</span>
+    </div>
+  </div>
+
+  <!-- chips -->
+  <div style="display:flex;flex-wrap:wrap;gap:9px;margin-top:26px;">
+    <span class="chip"><span class="dot"></span>35B active <b>·</b> ~1T total</span>
+    <span class="chip">MAI-Base-1 <b>34.7B&nbsp;·&nbsp;962B</b></span>
+    <span class="chip"><b>78</b> layers</span>
+    <span class="chip">hidden <b>6656</b></span>
+    <span class="chip">top-<b>8</b> / <b>512</b> experts</span>
+    <span class="chip"><b>256K</b> context</span>
+    <span class="chip"><b>30T</b> pretrain tokens</span>
+    <span class="chip"><b>3.55T</b> mid-train tokens</span>
+    <span class="chip"><b>8,192</b> GB200 GPUs</span>
+    <span class="chip">o200k_base <b>·</b> vocab 200,019</span>
+    <span class="chip" style="border-color:var(--warn-line);background:var(--warn-wash);color:#6b4310;">private preview · closed</span>
+  </div>
+
+  <!-- identity facts -->
+  <div class="grid g4" style="margin-top:30px;">
+    <div class="stat"><div class="v" style="font-size:15px;">Microsoft AI / MAI</div><div class="l">Lab &amp; vendor</div></div>
+    <div class="stat"><div class="v" style="font-size:15px;">June 2, 2026</div><div class="l">Report &amp; announcement date</div></div>
+    <div class="stat"><div class="v" style="font-size:15px;">Reasoning LLM</div><div class="l">Sparse MoE, decoder-only Transformer</div></div>
+    <div class="stat"><div class="v" style="font-size:15px;">Text in</div><div class="l">Output formats &amp; languages not reported</div></div>
+  </div>
+
+  <div class="grid g3" style="margin-top:16px;">
+    <div class="card pad">
+      <div class="card-title"><span class="k">Training philosophy</span></div>
+      <ul class="clean" style="margin-top:6px;">
+        <li>Trained <b>from scratch</b> — no third-party model distillation.</li>
+        <li><b>No LM-generated synthetic data</b> during pretraining.</li>
+        <li>Built as part of Microsoft's <b>"hill-climbing machine."</b></li>
+      </ul>
+    </div>
+    <div class="card pad">
+      <div class="card-title"><span class="k">Availability</span></div>
+      <ul class="clean" style="margin-top:6px;">
+        <li>Microsoft <b>Foundry private preview</b> (model card: Azure Foundry + early-access form).</li>
+        <li>Public preview on <b>MAI Playground</b> "soon" (Microsoft page).</li>
+        <li>Chat Completions API · function calling supported.</li>
+      </ul>
+    </div>
+    <div class="card pad">
+      <div class="card-title"><span class="k">What this page is</span></div>
+      <p style="font-size:13px;color:var(--ink-2);margin-top:6px;">A briefing reconstructed from the closed technical report &amp; model card. Numbers are
+      <b style="color:var(--ink);">Microsoft / source-reported</b> and not independently verified. Unavailable facts are marked
+      <span class="pill gray">not reported</span>.</p>
+    </div>
+  </div>
+
+  <div class="note warn" style="margin-top:16px;">
+    <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
+    <div><b>Source-conflict flagged below.</b> The model card lists a single training cutoff of <b>July 2025</b>, while the technical report (Table&nbsp;4) lists per-source cutoffs ranging Jun&nbsp;2025 → Mar&nbsp;2026. See <a href="#data">§05</a> and <a href="#availability">§14</a>.</div>
+  </div>
+</section>
+
+<!-- ============ 01 · ARCHITECTURE MAP ============ -->
+<section id="archmap">
+  <div class="sec-head"><span class="sec-num">01</span><h2>Architecture map</h2></div>
+  <p class="sec-lead">MAI-Base-1 is a decoder-only Transformer that <b>interleaves high-sparsity MoE layers with small dense FFNs</b>, and interleaves <b>local and global attention</b>. The repeating unit (Figure&nbsp;2) is a pair of attention+feed-forward blocks spanning L/2 pairs.</p>
+
+  <div class="grid" style="grid-template-columns:340px 1fr;align-items:start;">
+    <!-- repeating block diagram -->
+    <div class="card pad">
+      <div class="card-title">Repeating block <span class="k">— Figure 2 pattern, ×L/2</span></div>
+      <div style="display:flex;flex-direction:column;gap:7px;margin-top:12px;position:relative;">
+        <div class="flowbox norm"><div class="ft">RMSNorm</div></div>
+        <div class="arrow-down"></div>
+        <div class="flowbox attn"><div class="ft">Local / Global attention</div><div class="fd">⊕ residual add</div></div>
+        <div class="arrow-down"></div>
+        <div class="flowbox norm"><div class="ft">RMSNorm</div></div>
+        <div class="arrow-down"></div>
+        <div class="flowbox ffn"><div class="ft">Dense FFN</div><div class="fd">SwiGLU · 13312</div></div>
+        <div class="arrow-down" style="position:relative;"><span style="position:absolute;left:14px;top:-2px;font-size:10px;font-family:var(--mono);color:var(--muted);">½ pair</span></div>
+        <div class="flowbox norm"><div class="ft">RMSNorm</div></div>
+        <div class="arrow-down"></div>
+        <div class="flowbox attn"><div class="ft">Local / Global attention</div><div class="fd">⊕ residual add</div></div>
+        <div class="arrow-down"></div>
+        <div class="flowbox norm"><div class="ft">RMSNorm</div></div>
+        <div class="arrow-down"></div>
+        <div class="flowbox moe"><div class="ft">Sparse LatentMoE</div><div class="fd">top-8 / 512 experts</div></div>
+      </div>
+      <div class="legend">
+        <span><i style="background:#bcd6f1;"></i>attention</span>
+        <span><i style="background:#cdd9c2;"></i>dense FFN</span>
+        <span><i style="background:#d8c9e0;"></i>LatentMoE</span>
+        <span><i style="background:var(--canvas-2);border:1px dashed var(--line);"></i>RMSNorm</span>
+      </div>
+    </div>
+
+    <!-- notes + structural facts -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="card pad">
+        <div class="card-title">Structural rules</div>
+        <ul class="clean" style="margin-top:6px;">
+          <li><b>RMSNorm</b> applied before module inputs and before residual additions.</li>
+          <li><b>Residual additions</b> wrap each attention / FFN / MoE module.</li>
+          <li>Pattern: local/global attention → dense FFN → local/global attention → sparse MoE, repeated across <b>L/2 pairs</b>.</li>
+          <li>High-sparsity MoE layers are <b>interleaved</b> with small dense FFNs; local and global attention are interleaved.</li>
+        </ul>
+      </div>
+      <div class="grid g3">
+        <div class="stat"><div class="v">78</div><div class="l">layers (L)</div></div>
+        <div class="stat"><div class="v">6656</div><div class="l">hidden size (D)</div></div>
+        <div class="stat"><div class="v">tied</div><div class="l">input/output embeddings</div></div>
+        <div class="stat"><div class="v">none</div><div class="l">model biases</div></div>
+        <div class="stat"><div class="v">o200k</div><div class="l">tokenizer (o200k_base)</div></div>
+        <div class="stat"><div class="v">200,019</div><div class="l">vocabulary size</div></div>
+      </div>
+      <div class="note muted">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+        <div>The report provides a <b>high-level block diagram</b>, not a complete serialized per-layer config file. Per-layer placement of local vs. global attention follows the schedule in <a href="#attention">§02</a>.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- architecture dimensions table -->
+  <h3 class="subhead" style="margin-top:30px;"><span class="num">▸</span>Architecture dimensions — MAI-Base-1</h3>
+  <div class="grid g2" style="margin-top:12px;align-items:start;">
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <tbody>
+          <tr><td>Active parameters</td><td class="num">34.7B</td></tr>
+          <tr><td>Total parameters</td><td class="num">962B</td></tr>
+          <tr><td>Layers</td><td class="num">78</td></tr>
+          <tr><td>Hidden size</td><td class="num">6656</td></tr>
+          <tr><td>Dense FFN first-linear output</td><td class="num">13312</td></tr>
+          <tr><td>LatentMoE down-projection dim</td><td class="num">3072</td></tr>
+          <tr><td>Expert FFN first-linear output</td><td class="num">10240</td></tr>
+          <tr><td>Top-k / total experts</td><td class="num">8 / 512</td></tr>
+          <tr><td>KV heads / query heads</td><td class="num">8 / 80</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <tbody>
+          <tr><td>Per-head dimension</td><td class="num">128</td></tr>
+          <tr><td>Tokenizer</td><td class="num">o200k_base</td></tr>
+          <tr><td>Vocabulary size</td><td class="num">200,019</td></tr>
+          <tr><td>Input / output embeddings</td><td class="num">tied</td></tr>
+          <tr><td>Model biases</td><td class="num">none</td></tr>
+          <tr><td>Activation (FFN &amp; MoE)</td><td class="num">SwiGLU</td></tr>
+          <tr><td>Normalization</td><td class="num">RMSNorm</td></tr>
+          <tr><td>Positional (local attn)</td><td class="num">RoPE</td></tr>
+          <tr><td>Positional (global attn)</td><td class="num">none (NoPE)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="note info" style="margin-top:14px;">
+    <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+    <div>Table&nbsp;1's MAI-Base-1 configuration (34.7B / 962B) <b>differs slightly from the L78 ladder rung</b> (35.6B / 1015B) to facilitate training and inference efficiency. See the scaling ladder in <a href="#ladder">§04</a>.</div>
+  </div>
+</section>
+<!-- ============ 02 · ATTENTION MECHANISM ============ -->
+<section id="attention">
+  <div class="sec-head"><span class="sec-num">02</span><h2>Attention mechanism</h2></div>
+  <p class="sec-lead">Attention layers follow a <b>periodic 5:1 schedule</b> — five local sliding-window layers paired with one global layer. <b>L must be a multiple of 6</b> so that the final attention layer is global. Grouped-query attention with <b>8 KV / 80 query heads</b> (MAI-Base-1), per-head dimension 128.</p>
+
+  <!-- schedule strip -->
+  <div class="card pad">
+    <div class="card-title">Periodic attention schedule <span class="k">— 5 local : 1 global, repeated</span></div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:14px;align-items:center;">
+      <span class="attn-cell loc">L</span><span class="attn-cell loc">L</span><span class="attn-cell loc">L</span><span class="attn-cell loc">L</span><span class="attn-cell loc">L</span><span class="attn-cell glb">G</span>
+      <span class="attn-sep">·</span>
+      <span class="attn-cell loc">L</span><span class="attn-cell loc">L</span><span class="attn-cell loc">L</span><span class="attn-cell loc">L</span><span class="attn-cell loc">L</span><span class="attn-cell glb">G</span>
+      <span class="attn-sep">…</span>
+      <span class="attn-cell loc">L</span><span class="attn-cell loc">L</span><span class="attn-cell loc">L</span><span class="attn-cell loc">L</span><span class="attn-cell loc">L</span><span class="attn-cell glb fin">G</span>
+    </div>
+    <div class="legend">
+      <span><i style="background:#bcd6f1;"></i>local · sliding window + RoPE</span>
+      <span><i style="background:var(--accent);"></i>global · full sequence, no positional encoding</span>
+      <span style="margin-left:auto;color:var(--accent-deep);font-weight:600;">final attention layer = global &nbsp;(L mod 6 = 0)</span>
+    </div>
+  </div>
+
+  <div class="grid g2" style="margin-top:16px;align-items:start;">
+    <!-- local -->
+    <div class="card pad">
+      <div class="card-title">Local attention <span class="k">— sliding window</span></div>
+      <div style="display:flex;gap:18px;margin-top:12px;align-items:center;">
+        <svg viewBox="0 0 130 130" width="120" height="120" style="flex:0 0 auto;">
+          <rect x="15" y="5" width="110" height="110" fill="#f3f8fe" stroke="#cfe2f6"/>
+          <!-- causal upper-right unattended already implied; draw band -->
+          <polygon points="15,5 35,5 125,95 125,115 105,115 15,25" fill="#7eb3e6" opacity="0.85"/>
+          <line x1="15" y1="5" x2="125" y2="115" stroke="#0a4d8c" stroke-width="1" stroke-dasharray="2 2"/>
+          <text x="70" y="128" font-size="7" fill="#697485" text-anchor="middle" font-family="monospace">key position →</text>
+          <text x="8" y="60" font-size="7" fill="#697485" text-anchor="middle" font-family="monospace" transform="rotate(-90 8 60)">query →</text>
+        </svg>
+        <dl class="kv" style="flex:1;">
+          <dt>Window size</dt><dd>512</dd>
+          <dt>Positional</dt><dd>RoPE</dd>
+          <dt>RoPE base freq.</dt><dd>10,000</dd>
+        </dl>
+      </div>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:10px;">Each query attends only within a fixed band of recent keys — a diagonal sliding window.</p>
+    </div>
+    <!-- global -->
+    <div class="card pad">
+      <div class="card-title">Global attention <span class="k">— full sequence anchors</span></div>
+      <div style="display:flex;gap:18px;margin-top:12px;align-items:center;">
+        <svg viewBox="0 0 130 130" width="120" height="120" style="flex:0 0 auto;">
+          <rect x="15" y="5" width="110" height="110" fill="var(--accent-wash)" stroke="#cfe2f6"/>
+          <polygon points="15,5 125,115 15,115" fill="#0f6cbd" opacity="0.8"/>
+          <line x1="15" y1="5" x2="125" y2="115" stroke="#0a4d8c" stroke-width="1" stroke-dasharray="2 2"/>
+          <text x="70" y="128" font-size="7" fill="#697485" text-anchor="middle" font-family="monospace">key position →</text>
+          <text x="8" y="60" font-size="7" fill="#697485" text-anchor="middle" font-family="monospace" transform="rotate(-90 8 60)">query →</text>
+        </svg>
+        <dl class="kv" style="flex:1;">
+          <dt>Window size</dt><dd>full</dd>
+          <dt>Positional</dt><dd>none (NoPE)</dd>
+          <dt>Frequency</dt><dd>1 in 6 layers</dd>
+        </dl>
+      </div>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:10px;">No positional encoding performed <b>comparably to RoPE while being more efficient</b> (per report).</p>
+    </div>
+  </div>
+
+  <div class="grid g4" style="margin-top:16px;">
+    <div class="stat"><div class="v">8 / 80</div><div class="l">KV / query heads (GQA)</div></div>
+    <div class="stat"><div class="v">128</div><div class="l">per-head dimension</div></div>
+    <div class="stat"><div class="v">Q&nbsp;+&nbsp;K</div><div class="l">RMSNorm on queries &amp; keys</div></div>
+    <div class="stat"><div class="v">FA-4</div><div class="l">FlashAttention-4</div></div>
+  </div>
+
+  <div class="note muted" style="margin-top:16px;">
+    <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
+    <div><b>Ulysses-style context parallelism</b> supports long-context training. <b>Caveat:</b> do not infer exact deployment KV-cache precision from this architecture section — it is not stated here and should only be read from later infrastructure / deployment text.</div>
+  </div>
+</section>
+
+<!-- ============ 03 · DENSE FFN & LATENTMOE ============ -->
+<section id="moe">
+  <div class="sec-head"><span class="sec-num">03</span><h2>Dense FFN &amp; LatentMoE</h2></div>
+  <p class="sec-lead">The first feed-forward layer in each pair is a small <b>dense FFN</b>; the second is a sparse <b>LatentMoE</b> that compresses to a shared latent before all-to-all dispatch, routes each token to <b>8 of 512 experts</b>, then projects back. Both use <b>SwiGLU</b>.</p>
+
+  <div class="grid g2" style="align-items:start;">
+    <!-- dense FFN -->
+    <div class="card pad">
+      <div class="card-title">Dense FFN <span class="k">— first feed-forward layer</span></div>
+      <div style="display:flex;flex-direction:column;gap:7px;margin-top:14px;">
+        <div class="flowbox"><div class="ft">Hidden state</div><div class="fd">d = 6656</div></div>
+        <div class="arrow-down"></div>
+        <div class="flowbox ffn"><div class="ft">SwiGLU FFN</div><div class="fd">first-linear out = 13312 (≈2× expand)</div></div>
+        <div class="arrow-down"></div>
+        <div class="flowbox"><div class="ft">⊕ residual</div><div class="fd">back to d = 6656</div></div>
+      </div>
+    </div>
+    <!-- LatentMoE -->
+    <div class="card pad">
+      <div class="card-title">LatentMoE <span class="k">— second feed-forward layer</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:14px;">
+        <div class="flowbox"><div class="ft">Router (on original representation)</div><div class="fd">softmax gating · top-8 of 512</div></div>
+        <div class="arrow-down"></div>
+        <div class="flowbox moe"><div class="ft">Shared down-projection</div><div class="fd">compress → latent dim 3072</div></div>
+        <div class="arrow-down" style="position:relative;"><span style="position:absolute;left:12px;top:-3px;font-size:9px;font-family:var(--mono);color:var(--muted);">all-to-all dispatch</span></div>
+        <div class="flowbox moe"><div class="ft">Expert FFN ×8</div><div class="fd">SwiGLU · first-linear out 10240 · 3× expand</div></div>
+        <div class="arrow-down" style="position:relative;"><span style="position:absolute;left:12px;top:-3px;font-size:9px;font-family:var(--mono);color:var(--muted);">all-to-all combine</span></div>
+        <div class="flowbox moe"><div class="ft">Up-projection back</div><div class="fd">latent → d = 6656</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- experts grid viz -->
+  <div class="card pad" style="margin-top:16px;">
+    <div class="card-title">Routing — top-8 of 512 experts <span class="k">— softmax gating per token</span></div>
+    <div id="expertGrid" style="display:grid;grid-template-columns:repeat(32,1fr);gap:2px;margin-top:14px;"></div>
+    <div class="legend">
+      <span><i style="background:#d8c9e0;"></i>512 experts</span>
+      <span><i style="background:#7d3ca3;"></i>8 routed (this token)</span>
+      <span style="margin-left:auto;">no shared experts in the final interleaved layout</span>
+    </div>
+  </div>
+
+  <div class="grid g2" style="margin-top:16px;align-items:start;">
+    <div class="card pad">
+      <div class="card-title">Load balancing</div>
+      <ul class="clean" style="margin-top:6px;">
+        <li><b>Global-batch load-balancing loss</b> — empirical expert frequencies aggregated across data-parallel workers and micro-batches.</li>
+        <li>GShard-style loss performed <b>similarly to the loss-free variant</b> once global aggregation was ensured.</li>
+        <li>Final implementation converged to <b>fully dropless MoE</b> with variable-size all-to-all and bounded memory under high imbalance.</li>
+      </ul>
+    </div>
+    <div class="card pad">
+      <div class="card-title">Why no shared experts</div>
+      <p style="font-size:13.5px;color:var(--ink-2);">Adding shared experts to this interleaved layout had <b>little or no benefit</b>, so the final design omits them. The router decision uses the <b>original representation</b> (not the compressed latent); only the dispatched payload is compressed to dim 3072, reducing all-to-all communication volume.</p>
+      <div class="grid g3" style="margin-top:14px;">
+        <div class="stat"><div class="v">3072</div><div class="l">latent down-proj</div></div>
+        <div class="stat"><div class="v">10240</div><div class="l">expert first-linear</div></div>
+        <div class="stat"><div class="v">dropless</div><div class="l">final routing</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- ============ 04 · SCALING LADDER & EVOLUTION ============ -->
+<section id="ladder">
+  <div class="sec-head"><span class="sec-num">04</span><h2>Scaling ladder &amp; architecture evolution</h2></div>
+  <p class="sec-lead">The architecture family is specified primarily by <b>layer count L</b>. Microsoft scaled a single recipe from <b>L12</b> (365M active) to <b>L78</b> (35.6B active), then trained MAI-Base-1 at a slightly adjusted L78 configuration. A parallel track shows how the layout &amp; infrastructure co-evolved across model generations v2→v5.</p>
+
+  <!-- ladder chart -->
+  <div class="card pad">
+    <div class="card-title">Table 1 — scaling ladder <span class="k">— column height ∝ log(total params)</span></div>
+    <div class="ladder">
+      <div class="lrung"><div class="lcap">3.9B</div><div class="lbar" style="height:30px;"></div><div class="llab">L12</div><div class="lact">365M</div></div>
+      <div class="lrung"><div class="lcap">13B</div><div class="lbar" style="height:56px;"></div><div class="llab">L18</div><div class="lact">760M</div></div>
+      <div class="lrung"><div class="lcap">30B</div><div class="lbar" style="height:74px;"></div><div class="llab">L24</div><div class="lact">1.5B</div></div>
+      <div class="lrung"><div class="lcap">58B</div><div class="lbar" style="height:88px;"></div><div class="llab">L30</div><div class="lact">2.6B</div></div>
+      <div class="lrung"><div class="lcap">100B</div><div class="lbar" style="height:100px;"></div><div class="llab">L36</div><div class="lact">4.0B</div></div>
+      <div class="lrung"><div class="lcap">159B</div><div class="lbar" style="height:110px;"></div><div class="llab">L42</div><div class="lact">6.1B</div></div>
+      <div class="lrung"><div class="lcap">615B</div><div class="lbar" style="height:139px;"></div><div class="llab">L66</div><div class="lact">21.7B</div></div>
+      <div class="lrung"><div class="lcap">1015B</div><div class="lbar" style="height:150px;"></div><div class="llab">L78</div><div class="lact">35.6B</div></div>
+      <div class="lrung"><div class="lcap">962B</div><div class="lbar base" style="height:149px;"></div><div class="llab" style="color:var(--accent-deep);font-weight:700;">Base-1</div><div class="lact">34.7B</div></div>
+    </div>
+    <div class="legend"><span><i style="background:#9fc3e8;"></i>total params (top label)</span><span><i style="background:var(--accent);"></i>MAI-Base-1 (adjusted L78)</span><span style="margin-left:auto;">bottom label = active params</span></div>
+  </div>
+
+  <!-- full Table 1 -->
+  <div class="tbl-wrap" style="margin-top:16px;">
+    <table class="tbl">
+      <thead><tr><th>Config</th><th class="num">Active</th><th class="num">Total</th><th class="num">Layers</th><th class="num">Hidden</th><th class="num">FFN</th><th class="num">Down-proj</th><th class="num">Expert FFN</th><th class="num">top-k/E</th><th class="num">KV/Q</th></tr></thead>
+      <tbody>
+        <tr><td>L12</td><td class="num">365M</td><td class="num">3.9B</td><td class="num">12</td><td class="num">1024</td><td class="num">2048</td><td class="num">512</td><td class="num">1536</td><td class="num">8/512</td><td class="num">8/16</td></tr>
+        <tr><td>L18</td><td class="num">760M</td><td class="num">13B</td><td class="num">18</td><td class="num">1536</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">8/512</td><td class="num">—</td></tr>
+        <tr><td>L24</td><td class="num">1.5B</td><td class="num">30B</td><td class="num">24</td><td class="num">2048</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">8/512</td><td class="num">—</td></tr>
+        <tr><td>L30</td><td class="num">2.6B</td><td class="num">58B</td><td class="num">30</td><td class="num">2560</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">8/512</td><td class="num">—</td></tr>
+        <tr><td>L36</td><td class="num">4.0B</td><td class="num">100B</td><td class="num">36</td><td class="num">3072</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">8/512</td><td class="num">—</td></tr>
+        <tr><td>L42</td><td class="num">6.1B</td><td class="num">159B</td><td class="num">42</td><td class="num">3584</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">8/512</td><td class="num">—</td></tr>
+        <tr><td>L66</td><td class="num">21.7B</td><td class="num">615B</td><td class="num">66</td><td class="num">5632</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">8/512</td><td class="num">—</td></tr>
+        <tr><td>L78</td><td class="num">35.6B</td><td class="num">1015B</td><td class="num">78</td><td class="num">6656</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">8/512</td><td class="num">—</td></tr>
+        <tr class="total"><td>MAI-Base-1</td><td class="num">34.7B</td><td class="num">962B</td><td class="num">78</td><td class="num">6656</td><td class="num">13312</td><td class="num">3072</td><td class="num">10240</td><td class="num">8/512</td><td class="num">8/80</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="src" style="margin-top:6px;">Dash = value not separately reported per rung. MAI-Base-1's L78 config is intentionally adjusted from the L78 ladder rung.</p>
+
+  <!-- scaling rules -->
+  <div class="grid g2" style="margin-top:20px;align-items:start;">
+    <div class="card pad">
+      <div class="card-title">Scaling rule</div>
+      <ul class="clean" style="margin-top:6px;">
+        <li>Family specified primarily by <b>layer count L</b>.</li>
+        <li>Hidden size <b>D = L × 256 / 3</b> per the report's printed relation.</li>
+        <li>Query heads set to <b>L</b>, rounded up to the nearest multiple of 16 (tensor-parallel serving).</li>
+        <li>Dense FFN expands hidden by <b>2×</b>.</li>
+        <li>LatentMoE uses <b>2× compression</b> and <b>3× expansion</b> inside each expert.</li>
+        <li>Sparsity fixed at <b>top-8 / 512</b> to balance quality with training &amp; inference efficiency.</li>
+      </ul>
+      <div class="note muted" style="margin-top:12px;">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+        <div>The D = L×256/3 relation is read from the report's prose; PDF math rendering may be ambiguous, so it is reported but not over-emphasized.</div>
+      </div>
+    </div>
+    <div class="card pad">
+      <div class="card-title">Efficiency gain (EG) &amp; layout choice <span class="k">— Table 2</span></div>
+      <p style="font-size:13px;color:var(--ink-2);">EG measures how much higher training cost the baseline would need to match a candidate's evaluation loss. <b>EG<sub>FLOPs</sub></b> and <b>EG<sub>Time</sub></b> are separate; Microsoft uses <b>EG<sub>Time</sub></b> when hardware efficiency matters.</p>
+      <div class="tbl-wrap" style="margin-top:12px;">
+        <table class="tbl">
+          <thead><tr><th>Variant (weighted avg)</th><th class="num">EG<sub>FLOPs</sub></th><th class="num">EG<sub>Time</sub></th></tr></thead>
+          <tbody>
+            <tr><td>MoE-every-layer 8/384</td><td class="num">0.94</td><td class="num">0.73</td></tr>
+            <tr><td>MoE-every-layer 7+1 shared/384</td><td class="num">1.03</td><td class="num">0.82</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:10px;">The chosen <b>interleaved high-sparsity MoE + dense FFN</b> layout beat MoE-every-layer variants once <b>wall-clock training efficiency</b> was included (both alternatives fall below 1.0 on EG<sub>Time</sub>).</p>
+    </div>
+  </div>
+
+  <!-- evolution timeline -->
+  <h3 class="subhead" style="margin-top:30px;"><span class="num">▸</span>Architecture &amp; infrastructure evolution — Table 7</h3>
+  <div class="evo">
+    <div class="evo-card">
+      <div class="evo-h"><span class="evo-v">v2</span><span class="pill gray">first GB200 baseline</span></div>
+      <dl class="kv">
+        <dt>Params</dt><dd>23B / 600B</dd>
+        <dt>Layers · hidden</dt><dd>54 · 4352</dd>
+        <dt>FFN · down · exp</dt><dd>34816·4352·17408</dd>
+        <dt>Routing</dt><dd>top-4/192 · cf 2</dd>
+        <dt>GPUs</dt><dd>4,096</dd>
+        <dt>MFU</dt><dd>18% → 22%</dd>
+      </dl>
+    </div>
+    <div class="evo-arrow">→</div>
+    <div class="evo-card">
+      <div class="evo-h"><span class="evo-v">v3</span><span class="pill gray">dropless MoE</span></div>
+      <dl class="kv">
+        <dt>Params</dt><dd>23B / 600B</dd>
+        <dt>Layers · hidden</dt><dd>54 · 4352</dd>
+        <dt>Routing</dt><dd>top-4/192 · cf ∞</dd>
+        <dt>EG vs v2</dt><dd>≈1.40×</dd>
+        <dt>MFU</dt><dd>~22% sustained</dd>
+      </dl>
+    </div>
+    <div class="evo-arrow">→</div>
+    <div class="evo-card">
+      <div class="evo-h"><span class="evo-v">v4</span><span class="pill blue">LatentMoE</span></div>
+      <dl class="kv">
+        <dt>Params</dt><dd>23B / 611B</dd>
+        <dt>Layers · hidden</dt><dd>66 · 5632</dd>
+        <dt>FFN · down · exp</dt><dd>11264·4096·9216</dd>
+        <dt>Routing</dt><dd>top-8/512</dd>
+        <dt>GPUs</dt><dd>8,192</dd>
+        <dt>EG · MFU</dt><dd>≈1.69× · 16→20%</dd>
+      </dl>
+    </div>
+    <div class="evo-arrow">→</div>
+    <div class="evo-card hl">
+      <div class="evo-h"><span class="evo-v">v5</span><span class="pill blue">MAI-Base-1</span></div>
+      <dl class="kv">
+        <dt>Params</dt><dd>35B / 1T</dd>
+        <dt>Layers · hidden</dt><dd>78 · 6656</dd>
+        <dt>FFN · down · exp</dt><dd>13312·3072·10240</dd>
+        <dt>Routing</dt><dd>top-8/512</dd>
+        <dt>Sharding</dt><dd>ZeRO-3 → ZeRO-2*</dd>
+        <dt>MFU</dt><dd>~20%</dd>
+      </dl>
+    </div>
+  </div>
+  <p class="src" style="margin-top:8px;">*v5: activation offloading allowed a return from ZeRO-3 to ZeRO-2. Microsoft reports "20+ optimizations" across this co-design. Expert parallelism within the NVLink domain; data parallelism across racks.</p>
+</section>
+<!-- ============ 05 · PRETRAINING DATA & GOVERNANCE ============ -->
+<section id="data">
+  <div class="sec-head"><span class="sec-num">05</span><h2>Pretraining data &amp; data governance</h2></div>
+  <p class="sec-lead">MAI-Base-1's pretraining corpus was built <b>in-house from publicly available and licensed human-generated data</b>. No LM-generated synthetic data was used in pretraining, and Microsoft made an explicit effort to avoid and remove AI-generated content.</p>
+
+  <div class="grid g3">
+    <div class="card pad">
+      <div class="card-title"><span class="k">Human-generated</span></div>
+      <p style="font-size:13px;color:var(--ink-2);margin-top:5px;">Built in-house from <b>publicly available + licensed</b> human data — no open-source training datasets used.</p>
+    </div>
+    <div class="card pad">
+      <div class="card-title"><span class="k">No synthetic in pretrain</span></div>
+      <p style="font-size:13px;color:var(--ink-2);margin-top:5px;">No LM-generated synthetic data during pretraining; effort to <b>avoid/remove AI-generated content</b>.</p>
+    </div>
+    <div class="card pad">
+      <div class="card-title"><span class="k">ML repos removed</span></div>
+      <p style="font-size:13px;color:var(--ink-2);margin-top:5px;">Common ML repositories such as <b>huggingface.co</b> were removed from web data.</p>
+    </div>
+  </div>
+
+  <h3 class="subhead" style="margin-top:24px;"><span class="num">▸</span>Source families</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:9px;margin-top:10px;">
+    <span class="chip">web HTML</span><span class="chip">web PDFs</span><span class="chip">public GitHub code</span>
+    <span class="chip">books &amp; journals</span><span class="chip">academic papers</span><span class="chip">news</span>
+    <span class="chip">multilingual text</span><span class="chip">domain-specific materials</span>
+  </div>
+
+  <!-- CUTOFF CONFLICT -->
+  <div class="conflict" style="margin-top:24px;">
+    <div class="conflict-head">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
+      <div><b>Source conflict — knowledge cutoff</b><div style="font-size:12px;font-weight:500;color:#6b4310;margin-top:2px;">Two primary sources disagree, likely reflecting differing definitions of "cutoff." Shown side by side rather than resolved.</div></div>
+    </div>
+    <div class="grid g2" style="margin-top:14px;">
+      <div class="card pad">
+        <div class="card-title">Model card</div>
+        <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--ink);margin-top:6px;">July 2025</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:4px;">Single training-cutoff date.</p>
+      </div>
+      <div class="card pad">
+        <div class="card-title">Technical report — Table 4 <span class="k">per-source</span></div>
+        <dl class="kv" style="margin-top:8px;">
+          <dt>Web HTML</dt><dd>Sep 2025</dd>
+          <dt>Web PDFs</dt><dd>Dec 2025</dd>
+          <dt>Public GitHub code</dt><dd>Jun 2025</dd>
+          <dt>Books &amp; journals</dt><dd>Mar 2026</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPOSITION Table 5 -->
+  <h3 class="subhead" style="margin-top:28px;"><span class="num">▸</span>Pretraining data composition — Table 5</h3>
+  <p style="font-size:13.5px;color:var(--muted);margin:4px 0 14px;max-width:64ch;"><b style="color:var(--ink);">Code dominates</b> the training mixture (54.6%), while high-quality <b style="color:var(--ink);">math is repeated most heavily</b> (5.28× average epochs) and web/multilingual text is sub-sampled (&lt;1× epochs).</p>
+  <div class="card pad">
+    <div style="display:grid;grid-template-columns:128px 1fr 96px;gap:10px;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:680;margin-bottom:8px;">
+      <span>Source</span><span>Share of training tokens</span><span style="text-align:right;">Avg epochs</span>
+    </div>
+    <div class="dbar"><span class="dl">Code</span><span class="dt"><span class="df" style="width:54.6%;background:#0f6cbd;"></span><span class="dv">54.6%</span></span><span class="de">2.22×</span></div>
+    <div class="dbar"><span class="dl">STEM</span><span class="dt"><span class="df" style="width:15.8%;background:#3a87cf;"></span><span class="dv">15.8%</span></span><span class="de">2.17×</span></div>
+    <div class="dbar"><span class="dl">Web text</span><span class="dt"><span class="df" style="width:14.9%;background:#6aa6dd;"></span><span class="dv">14.9%</span></span><span class="de hot">0.55×</span></div>
+    <div class="dbar"><span class="dl">Math</span><span class="dt"><span class="df" style="width:5.4%;background:#1f7a4d;"></span><span class="dv">5.4%</span></span><span class="de up">5.28×</span></div>
+    <div class="dbar"><span class="dl">PDFs</span><span class="dt"><span class="df" style="width:4.7%;background:#9fc3e8;"></span><span class="dv">4.7%</span></span><span class="de hot">0.53×</span></div>
+    <div class="dbar"><span class="dl">Books &amp; journals</span><span class="dt"><span class="df" style="width:3.1%;background:#b9d3ee;"></span><span class="dv">3.1%</span></span><span class="de">1.65×</span></div>
+    <div class="dbar"><span class="dl">Multilingual other</span><span class="dt"><span class="df" style="width:1.6%;background:#cfe2f6;"></span><span class="dv">1.6%</span></span><span class="de hot">0.06×</span></div>
+    <div class="legend"><span><i style="background:#1f7a4d;"></i>repeated &gt; 5× epochs</span><span><i style="background:#cfe2f6;"></i>sub-sampled &lt; 1× epoch</span><span style="margin-left:auto;">30.0T training tokens · 29.2T unique · 1.03× overall</span></div>
+  </div>
+
+  <div class="tbl-wrap" style="margin-top:14px;">
+    <table class="tbl">
+      <thead><tr><th>Source</th><th class="num">Unique</th><th class="num">Training</th><th class="num">Share</th><th class="num">Avg epochs</th></tr></thead>
+      <tbody>
+        <tr><td>Code</td><td class="num">7.4T</td><td class="num">16.4T</td><td class="num">54.6%</td><td class="num">2.22×</td></tr>
+        <tr><td>STEM</td><td class="num">2.2T</td><td class="num">4.7T</td><td class="num">15.8%</td><td class="num">2.17×</td></tr>
+        <tr><td>Math</td><td class="num">0.3T</td><td class="num">1.6T</td><td class="num">5.4%</td><td class="num">5.28×</td></tr>
+        <tr><td>Books &amp; journals</td><td class="num">0.6T</td><td class="num">0.9T</td><td class="num">3.1%</td><td class="num">1.65×</td></tr>
+        <tr><td>PDFs</td><td class="num">2.7T</td><td class="num">1.4T</td><td class="num">4.7%</td><td class="num">0.53×</td></tr>
+        <tr><td>Web text</td><td class="num">8.1T</td><td class="num">4.5T</td><td class="num">14.9%</td><td class="num">0.55×</td></tr>
+        <tr><td>Multilingual other</td><td class="num">8.1T</td><td class="num">0.5T</td><td class="num">1.6%</td><td class="num">0.06×</td></tr>
+        <tr class="total"><td>Total</td><td class="num">29.2T</td><td class="num">30.0T</td><td class="num">100.0%</td><td class="num">1.03×</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- methodology + governance -->
+  <div class="grid g2" style="margin-top:20px;align-items:start;">
+    <div class="card pad">
+      <div class="card-title">Mixture selection methodology</div>
+      <ul class="clean" style="margin-top:6px;">
+        <li>~<b>40 internal NLL benchmarks</b> grouped into Coding, STEM, Math, General Knowledge, Multilingual.</li>
+        <li>Aggregate target = <b>0.5</b> Coding + <b>0.175</b> STEM + <b>0.175</b> Math + <b>0.1</b> General + <b>0.05</b> Multilingual.</li>
+        <li><b>Thousands of small models</b> (760M–4B active) trained to search mixtures.</li>
+        <li>Example frontier: <b>183 models</b> from scratch, equal TPP, 3 scales, 61 mixtures.</li>
+        <li>Max dataset repetition cap of <b>8</b>.</li>
+      </ul>
+    </div>
+    <div class="card pad">
+      <div class="card-title">Data governance</div>
+      <ul class="clean" style="margin-top:6px;">
+        <li>Proprietary crawler respects <b>robots.txt</b> and related meta/HTML controls.</li>
+        <li>Excludes <b>USTR Notorious Markets</b> sources and policy-violating sources.</li>
+        <li>Third-party data governed by <b>commercial agreements</b>.</li>
+        <li>No private customer data or Microsoft product/service data <b>except explicit opt-in</b> or applicable agreements respecting opt-outs.</li>
+        <li><b>PII-risk &amp; safety filtering</b> before training.</li>
+        <li>Full provider list <b>not disclosed</b> for privacy / legal / safety / competitive reasons.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- pipeline -->
+  <h3 class="subhead" style="margin-top:24px;"><span class="num">▸</span>Data processing pipeline</h3>
+  <div class="pipe">
+    <span class="pstep">HTML extraction</span><span class="psep">→</span>
+    <span class="pstep">source-specific parsers</span><span class="psep">→</span>
+    <span class="pstep">hand-crafted BeautifulSoup extractors</span><span class="psep">→</span>
+    <span class="pstep">LLM/agent keep–remove <em>(no synthetic)</em></span><span class="psep">→</span>
+    <span class="pstep">raw content kept where parsing risks loss <em>(e.g. Wikipedia wikitext)</em></span><span class="psep">→</span>
+    <span class="pstep">boilerplate removal</span><span class="psep">→</span>
+    <span class="pstep">exact-dup removal</span><span class="psep">→</span>
+    <span class="pstep">MinHash LSH fuzzy dedup <em>(sim 0.8)</em></span><span class="psep">→</span>
+    <span class="pstep">templated-page dedup</span><span class="psep">→</span>
+    <span class="pstep">semantic dedup <em>(Qwen3-Embedding-0.6B)</em></span><span class="psep">→</span>
+    <span class="pstep">cross-dataset dedup <em>(global drop-order)</em></span>
+  </div>
+</section>
+<!-- ============ 06 · TRAINING RECIPE & PRECISION ============ -->
+<section id="recipe">
+  <div class="sec-head"><span class="sec-num">06</span><h2>Training recipe &amp; precision</h2></div>
+  <p class="sec-lead">Three phases (Table 6) progressively grow context from <b>16K → 64K → 256K</b> while the token budget tapers. All phases use a global batch of <b>134M tokens</b> in Microsoft's in-house <b>YOLO</b> framework.</p>
+
+  <!-- phase table -->
+  <div class="phases">
+    <div class="phase">
+      <div class="phase-h">Pre-training</div>
+      <div class="phase-ctx">16,384<span>context</span></div>
+      <dl class="kv"><dt>Tokens</dt><dd>30T</dd><dt>GPUs</dt><dd>8,192 GB200</dd><dt>Sharding</dt><dd>EP-64 · ZeRO-2</dd><dt>LR</dt><dd>2e-4 → 2e-5</dd></dl>
+    </div>
+    <div class="phase-grow"></div>
+    <div class="phase">
+      <div class="phase-h">Mid-training 1</div>
+      <div class="phase-ctx">65,536<span>context</span></div>
+      <dl class="kv"><dt>Tokens</dt><dd>3.4T</dd><dt>GPUs</dt><dd>8,192 GB200</dd><dt>Sharding</dt><dd>EP-64 · ZeRO-2 · CP</dd><dt>LR</dt><dd>2e-5 → 1e-5</dd></dl>
+    </div>
+    <div class="phase-grow"></div>
+    <div class="phase">
+      <div class="phase-h">Mid-training 2</div>
+      <div class="phase-ctx">262,144<span>context</span></div>
+      <dl class="kv"><dt>Tokens</dt><dd>150B</dd><dt>GPUs</dt><dd>4,096 GB200</dd><dt>Sharding</dt><dd>ZeRO-3 / FSDP · CP</dd><dt>LR</dt><dd>1e-6 const</dd></dl>
+    </div>
+  </div>
+  <p class="src" style="margin-top:8px;">Expert parallelism 64 with ZeRO-2 for pre-training &amp; mid-training 1; ZeRO-3 / FSDP for mid-training phase 2; context parallelism (CP) used for both mid-training phases.</p>
+
+  <div class="grid g2" style="margin-top:20px;align-items:start;">
+    <!-- optimizer -->
+    <div class="card pad">
+      <div class="card-title">Optimization — pre-training</div>
+      <dl class="kv" style="margin-top:8px;">
+        <dt>Optimizer</dt><dd>AdamW</dd>
+        <dt>β₁ · β₂ · ε</dt><dd>0.95 · 0.925 · 1e-8</dd>
+        <dt>Weight decay</dt><dd>0.1</dd>
+        <dt>Attention weight decay</dt><dd>0.01</dd>
+        <dt>Embedding weight decay</dt><dd>0.005</dd>
+        <dt>Grad-norm clip</dt><dd>1.0</dd>
+        <dt>LR warmup</dt><dd>≈12B tokens</dd>
+        <dt>Peak LR → min</dt><dd>2e-4 → 2e-5 (cosine)</dd>
+        <dt>Dropout</dt><dd>0.15 (per layer, pre-residual)</dd>
+        <dt>Init</dt><dd>𝒩(0, 0.02)</dd>
+      </dl>
+      <p style="font-size:12px;color:var(--muted);margin-top:10px;">Output-projection weights preceding residual additions are scaled by the inverse square-root of the residual-connection count.</p>
+    </div>
+    <!-- attention zero-init -->
+    <div class="card pad">
+      <div class="card-title">Attention zero-initialization</div>
+      <p style="font-size:13.5px;color:var(--ink-2);">Attention output is initialized to <b>zero</b> by setting the output RMSNorm gains to zero. The initial model therefore behaves like a <b>stack of token-wise feed-forward layers</b>; cross-token interactions gradually kick in during training.</p>
+      <div class="note muted" style="margin-top:12px;">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+        <div><b>Motivation:</b> random attention initially acts like causal mean-pooling, which reduces token diversity and can imbalance MoE routing.</div>
+      </div>
+      <div class="card-title" style="margin-top:16px;">Mid-training schedule</div>
+      <dl class="kv" style="margin-top:6px;">
+        <dt>Global batch (all phases)</dt><dd>134M tokens</dd>
+        <dt>Phase 1</dt><dd>cosine · 2e-5→1e-5 · no warmup</dd>
+        <dt>Phase 2</dt><dd>constant 1e-6 · no warmup</dd>
+      </dl>
+    </div>
+  </div>
+
+  <!-- precision map -->
+  <h3 class="subhead" style="margin-top:28px;"><span class="num">▸</span>Numerical precision map</h3>
+  <div class="precmap">
+    <div class="preccol bf16">
+      <div class="prec-h">BF16<span>default</span></div>
+      <ul class="clean">
+        <li>Default weights &amp; activations</li>
+        <li>Weight-gradient compute (with FP32 accumulation)</li>
+      </ul>
+    </div>
+    <div class="preccol fp8">
+      <div class="prec-h">FP8<span>GEMMs</span></div>
+      <ul class="clean">
+        <li><b>E4M3</b> — forward GEMMs</li>
+        <li><b>E5M2</b> — data-gradient</li>
+        <li>Delayed scaling · 1024-step abs-max history</li>
+        <li>Stochastic rounding hi→lo precision</li>
+      </ul>
+    </div>
+    <div class="preccol fp32">
+      <div class="prec-h">FP32<span>sensitive paths</span></div>
+      <ul class="clean">
+        <li>Pre-softmax activations: attention scores, router logits, output logits</li>
+        <li>MoE combine &amp; full residual stream (embeddings→output)</li>
+        <li>Params: embeddings, RMSNorm, router weights</li>
+        <li>Optimizer main params, momentum, AdamW compute</li>
+        <li>DP all-reduce &amp; micro-batch grad accumulation</li>
+        <li>MoE routing &amp; final vocabulary GEMMs</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- training loss -->
+  <div class="card pad" style="margin-top:20px;">
+    <div class="card-title">Training loss <span class="k">— Figure 9, 30T tokens, unsmoothed</span></div>
+    <div style="display:flex;gap:22px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+      <svg viewBox="0 0 480 120" width="100%" style="max-width:480px;flex:1 1 320px;">
+        <line x1="34" y1="6" x2="34" y2="104" stroke="#d6dce4"/>
+        <line x1="34" y1="104" x2="474" y2="104" stroke="#d6dce4"/>
+        <polyline fill="none" stroke="#0f6cbd" stroke-width="2"
+          points="34,16 50,30 60,22 70,46 78,34 92,52 100,44 120,62 140,70 165,76 200,82 250,88 300,92 360,95 420,97 470,98"/>
+        <circle cx="70" cy="46" r="3" fill="#a3322b"/><circle cx="92" cy="52" r="3" fill="#a3322b"/>
+        <text x="100" y="40" font-size="9" fill="#a3322b" font-family="monospace">early spikes (coding)</text>
+        <text x="40" y="14" font-size="8.5" fill="#697485" font-family="monospace">loss</text>
+        <text x="440" y="116" font-size="8.5" fill="#697485" font-family="monospace">30T tokens →</text>
+      </svg>
+      <ul class="clean" style="flex:1 1 240px;">
+        <li>Early spikes <b>recovered quickly</b>.</li>
+        <li><b>No batches skipped</b>, no manual interventions mid-run.</li>
+        <li>Spikes predominantly affected <b>coding datasets</b>, correlated with high expert imbalance under dropless routing.</li>
+      </ul>
+    </div>
+    <p class="src" style="margin-top:6px;">Curve is illustrative of Figure 9's reported shape, not the published pixel values.</p>
+  </div>
+</section>
+<!-- ============ 07 · MID-TRAINING & LONG CONTEXT ============ -->
+<section id="midtrain">
+  <div class="sec-head"><span class="sec-num">07</span><h2>Mid-training &amp; long-context extension</h2></div>
+  <p class="sec-lead">Mid-training draws <b>entirely from the pretraining corpus</b> — no new or synthetic sources — but re-weights the mixture toward STEM, math and code, and repacks data at longer sequence lengths to extend context with minimal distribution shift.</p>
+
+  <div class="grid g2" style="align-items:start;">
+    <div class="card pad">
+      <div class="card-title">Mid-training mixture re-weighting</div>
+      <div class="stackbar" style="margin-top:14px;">
+        <span style="width:55%;background:#0f6cbd;">code 55%</span>
+        <span style="width:35%;background:#1f7a4d;">STEM / math 35%</span>
+        <span style="width:10%;background:#b9d3ee;color:var(--ink-2);">bg 10%</span>
+      </div>
+      <ul class="clean" style="margin-top:14px;">
+        <li>Local tuning via <b>single-source microanneals</b> and long-context NLL tasks.</li>
+        <li>STEM reasoning data filtered from the PDF corpus with a <b>Bloom Analyze</b> heuristic.</li>
+        <li>Code data: file-extension filtering by <b>quality bin</b> + file-level document formatting.</li>
+        <li><b>Memorization-aware epoch caps</b> based on near-certain validation predictions.</li>
+      </ul>
+    </div>
+    <div class="card pad">
+      <div class="card-title">Progressive context extension</div>
+      <div class="ctxline">
+        <div class="ctxnode"><span class="cv">16K</span><span class="cl">pre-training</span></div>
+        <div class="ctxbar"></div>
+        <div class="ctxnode"><span class="cv">64K</span><span class="cl">mid-training 1</span></div>
+        <div class="ctxbar"></div>
+        <div class="ctxnode big"><span class="cv">256K</span><span class="cl">mid-training 2</span></div>
+      </div>
+      <p style="font-size:13px;color:var(--ink-2);margin-top:16px;">Data is <b>repacked at longer sequence lengths without changing mixture weights</b>, minimizing distribution shift across the extension.</p>
+      <div class="note muted" style="margin-top:12px;">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+        <div>Appendix B reports progressive context-length scaling, speed of adaptation, and the final recipe; numerical subdetails beyond the above are <b>not reproduced</b> here to avoid invention.</div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- ============ 08 · YOLO INFRASTRUCTURE ============ -->
+<section id="yolo">
+  <div class="sec-head"><span class="sec-num">08</span><h2>YOLO distributed training infrastructure</h2></div>
+  <p class="sec-lead"><b>YOLO — "You Only Launch Once"</b> — is Microsoft's in-house training framework, built on PyTorch and integrated with Microsoft's scheduling/runtime stack. It drives pre-training, mid-training, SFT and the RL learner side from one codebase.</p>
+
+  <!-- stack diagram -->
+  <div class="yolo-stack">
+    <div class="ylayer head">
+      <div class="ytag">FRAMEWORK</div>
+      <div class="ybody"><b>YOLO</b> on PyTorch · integrated with Microsoft scheduling &amp; runtime stack · supports pre-training, mid-training, SFT, RL learner-side training</div>
+    </div>
+    <div class="ylayer">
+      <div class="ytag">CORE</div>
+      <div class="ychips">
+        <span>model definition</span><span>sharding</span><span>optimizer</span><span>dataloading</span><span>checkpointing</span>
+        <span>custom sharding annotations <em>(≈ JAX / PyTorch DTensor)</em></span>
+      </div>
+    </div>
+    <div class="ylayer">
+      <div class="ytag">PARALLELISM</div>
+      <div class="ychips">
+        <span>data</span><span>tensor</span><span>context</span><span>expert</span><span>pipeline</span>
+        <span>ZeRO stages 1–3 <em>(built from scratch)</em></span>
+        <span>Ulysses context parallelism</span>
+        <span>dropless MoE variable-size all-to-all</span>
+        <span>activation checkpointing + host offloading</span>
+      </div>
+    </div>
+    <div class="ylayer">
+      <div class="ytag">KERNELS</div>
+      <div class="ychips">
+        <span>Triton</span><span>CUDA</span><span>CuteDSL</span><span>CUTLASS</span>
+        <span>FP8 GEMM <em>(forward / data-grad)</em></span>
+        <span>grouped GEMMs for MoE <em>(~8 experts/GPU in pretrain)</em></span>
+        <span>fused quantization</span>
+        <span>Cluster Launch Control <em>(Blackwell non-grouped quant)</em></span>
+      </div>
+    </div>
+    <div class="ylayer">
+      <div class="ytag">RELIABILITY</div>
+      <div class="ychips">
+        <span>deterministic training</span>
+        <span>bitwise reproducibility <em>(fixed topology/config/software)</em></span>
+        <span>distributed checkpointing</span><span>async checkpointing</span>
+        <span>hot standbys</span><span>fast failover</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- cluster facts -->
+  <div class="grid g3" style="margin-top:18px;">
+    <div class="stat"><div class="v">8,192</div><div class="l">GB200 GPUs · MAI-Base-1 pretraining (Microsoft-operated Azure cluster)</div></div>
+    <div class="stat"><div class="v">NVL72</div><div class="l">v2–v5 trained on GB200 NVL72 clusters</div></div>
+    <div class="stat"><div class="v">EP ⟂ DP</div><div class="l">Expert parallelism within NVLink domain · data parallelism across racks</div></div>
+  </div>
+</section>
+<!-- ============ 09 · RL HILL-CLIMB ============ -->
+<section id="rl">
+  <div class="sec-head"><span class="sec-num">09</span><h2>Reinforcement-learning hill-climb</h2></div>
+  <p class="sec-lead">MAI-Thinking-1 is built by a <b>"hill-climbing machine"</b>: RL begins from a mid-trained checkpoint <b>with no prior exposure to reasoning traces</b>, and the model learns chain-of-thought, tool/environment interaction, and human-preference &amp; safety behavior directly through reward.</p>
+
+  <!-- principles -->
+  <div class="grid g3">
+    <div class="card pad princ"><div class="pn">01</div><div class="card-title">Capabilities are learned, not inherited</div><p>No distillation from third-party models; reasoning emerges from RL.</p></div>
+    <div class="card pad princ"><div class="pn">02</div><div class="card-title">Simplicity is sustainable</div><p>Prefer simple, repeatable mechanisms over fragile bespoke tricks.</p></div>
+    <div class="card pad princ"><div class="pn">03</div><div class="card-title">Scientific rigor avoids shortcuts</div><p>Decisions backed by controlled experiments rather than shortcuts.</p></div>
+  </div>
+
+  <!-- Figure 12 flow -->
+  <h3 class="subhead" style="margin-top:26px;"><span class="num">▸</span>RL training process — Figure 12</h3>
+  <div class="rlflow">
+    <div class="rlnode start"><b>Mid-trained model</b><span>no reasoning traces yet</span></div>
+    <div class="rlarrow">→</div>
+    <div class="rlclimbs">
+      <div class="rlclimb"><span class="cl-k">SWE / Agentic climb</span><span class="cl-a">→</span><span class="cl-t">SWE / Agentic teacher</span></div>
+      <div class="rlclimb"><span class="cl-k">STEM climb</span><span class="cl-a">→</span><span class="cl-t">STEM teacher</span></div>
+      <div class="rlclimb"><span class="cl-k">Helpfulness &amp; Safety climb</span><span class="cl-a">→</span><span class="cl-t">H&amp;S teacher</span></div>
+    </div>
+    <div class="rlarrow">→</div>
+    <div class="rlnode"><b>Trace Distillation SFT</b><span>self-distillation</span></div>
+    <div class="rlarrow">→</div>
+    <div class="rlnode"><b>Consolidated model</b></div>
+    <div class="rlarrow">→</div>
+    <div class="rlnode"><b>Final climb</b><span>lightweight RL</span></div>
+    <div class="rlarrow">→</div>
+    <div class="rlnode final"><b>MAI-Thinking-1</b></div>
+  </div>
+
+  <!-- GRPO + reward -->
+  <div class="grid g2" style="margin-top:24px;align-items:start;">
+    <div class="card pad">
+      <div class="card-title">GRPO-style objective</div>
+      <p style="font-size:12.5px;color:var(--ink-2);margin:6px 0 12px;">For prompt <code>q</code>, the rollout policy samples a group of <code>G</code> responses <code>y₁:G</code>; each gets a scalar reward <code>Rᵢ = R(q, yᵢ)</code>. A token-level policy-gradient objective is derived from GRPO.</p>
+      <div class="mathcard">A<sub>i</sub> = ( R<sub>i</sub> − mean(R<sub>1:G</sub>) ) / std(R<sub>1:G</sub>)</div>
+      <div class="mathcard">r<sub>i,t</sub> = π<sub>θ</sub>(token) / π<sub>old</sub>(token)</div>
+      <div class="card-title" style="margin-top:14px;">Two modifications</div>
+      <ul class="clean" style="margin-top:4px;">
+        <li><b>Adaptive entropy control</b> — dynamically adjusts upper clip bound <code>k</code> to target policy entropy <code>H*</code>.</li>
+        <li><b>Outer ratio clip</b> — hard-clips all branches with <code>r<sub>max</sub></code> to avoid catastrophic gradient-norm spikes.</li>
+      </ul>
+    </div>
+    <div class="card pad">
+      <div class="card-title">Reward decomposition</div>
+      <div class="mathcard" style="margin-top:8px;">R(q,y<sub>i</sub>) = R<sub>task</sub> + w<sub>lang</sub>·R<sub>lang</sub> − w<sub>len</sub>·R<sub>len</sub></div>
+      <ul class="clean" style="margin-top:10px;">
+        <li><b>Language consistency reward</b> penalizes non-English words in the CoT.</li>
+        <li><b>Length penalty</b> depends on response length and the problem's pass rate.</li>
+      </ul>
+      <div class="card-title" style="margin-top:14px;">Sampling</div>
+      <ul class="clean" style="margin-top:4px;">
+        <li>Early-exit problem sampling with <code>G_early &lt; G</code>; final group pass-rate filter.</li>
+        <li>Top-p sampling <code>p = 0.97</code> with top-p truncation <b>mask replay</b> to reduce off-policy mismatch.</li>
+      </ul>
+      <div class="rollcurr">
+        <span>8K</span><i>→</i><span>16K</span><i>→</i><span>32K</span><i>→</i><span>64K</span><i>→</i><span>128K</span>
+        <em>max generation length curriculum</em>
+      </div>
+    </div>
+  </div>
+
+  <!-- RL hyperparameters -->
+  <h3 class="subhead" style="margin-top:24px;"><span class="num">▸</span>RL hyperparameters</h3>
+  <div class="grid g3" style="margin-top:12px;align-items:start;">
+    <div class="card pad"><div class="card-title"><span class="k">Optimizer</span></div>
+      <dl class="kv" style="margin-top:6px;">
+        <dt>AdamW β₁=β₂</dt><dd>0.95</dd><dt>ε</dt><dd>1e-15</dd><dt>Weight decay</dt><dd>none</dd>
+        <dt>LR</dt><dd>1e-6 → 9e-7*</dd><dt>Global batch (packed)</dt><dd>7040</dd><dt>Max unpacked seqs</dt><dd>12000</dd><dt>Max gen length</dt><dd>128K</dd>
+      </dl>
+      <p class="src" style="margin-top:6px;">*lowered at higher lengths.</p>
+    </div>
+    <div class="card pad"><div class="card-title"><span class="k">GRPO &amp; reward</span></div>
+      <dl class="kv" style="margin-top:6px;">
+        <dt>ε</dt><dd>0.6</dd><dt>k<sub>max</sub></dt><dd>2.5</dd><dt>step size δ</dt><dd>0.25</dd><dt>target entropy H*</dt><dd>0.3</dd>
+        <dt>outer r<sub>max</sub> / r<sub>min</sub></dt><dd>50 / unconstr.</dd><dt>w<sub>lang</sub> · α</dt><dd>0.5 · 0.005</dd><dt>w<sub>len</sub></dt><dd>0.25 (≤64K), 0 @128K</dd>
+      </dl>
+    </div>
+    <div class="card pad"><div class="card-title"><span class="k">Rollouts &amp; staleness</span></div>
+      <dl class="kv" style="margin-top:6px;">
+        <dt>G rollouts</dt><dd>128</dd><dt>G_early</dt><dd>16</dd>
+        <dt>pass-rate (early)</dt><dd>[0.05, 0.8]</dd><dt>pass-rate (full)</dt><dd>[0.1, 0.8]</dd>
+        <dt>grad steps / update</dt><dd>5</dd><dt>discard if stale</dt><dd>&gt;8 upd / 40 steps</dd>
+        <dt>MoE LB coeff</dt><dd>1e-5 (dropless)</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+<!-- ============ 10 · SPECIALIST CLIMBS & CONSOLIDATION ============ -->
+<section id="specialist">
+  <div class="sec-head"><span class="sec-num">10</span><h2>Specialist climbs &amp; consolidation</h2></div>
+  <p class="sec-lead">Three specialist teachers are trained by separate RL climbs, then distilled into one consolidated model via simple SFT, followed by a final lightweight climb to produce MAI-Thinking-1.</p>
+
+  <div data-tabs>
+    <div class="tabs">
+      <button class="active" data-target="t-stem">STEM climb</button>
+      <button data-target="t-agentic">Agentic climb</button>
+      <button data-target="t-safety">Helpfulness &amp; Safety</button>
+    </div>
+
+    <div id="t-stem" class="tabpane active">
+      <div class="grid g2" style="align-items:start;">
+        <div class="card pad">
+          <div class="card-title">STEM climb</div>
+          <p style="font-size:13.5px;color:var(--ink-2);margin-top:5px;">Trains on the <b>STEM Mix</b> plus competitive coding, math and science data. Over a long climb, AIME 2025 and hard LiveCodeBench v6 improve steadily; self-distillation markers <b>reset then continue</b> the climb.</p>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;">
+            <span class="chip">competitive math</span><span class="chip">competitive coding</span><span class="chip">science</span><span class="chip">STEM Mix</span>
+          </div>
+          <p class="src" style="margin-top:10px;">Figure 16 data taxonomy shown at high-level categories only; finer per-category values are not reproduced where the source figure is not legible.</p>
+        </div>
+        <div class="card pad">
+          <div class="card-title">Figure 15 — progress across the climb</div>
+          <svg viewBox="0 0 460 150" width="100%" style="max-width:460px;margin-top:10px;">
+            <line x1="34" y1="8" x2="34" y2="124" stroke="#d6dce4"/>
+            <line x1="34" y1="124" x2="450" y2="124" stroke="#d6dce4"/>
+            <!-- resets -->
+            <line x1="190" y1="14" x2="190" y2="124" stroke="#b3a0c8" stroke-width="1" stroke-dasharray="3 3"/>
+            <line x1="320" y1="14" x2="320" y2="124" stroke="#b3a0c8" stroke-width="1" stroke-dasharray="3 3"/>
+            <text x="194" y="22" font-size="8" fill="#7d3ca3" font-family="monospace">self-distill</text>
+            <text x="324" y="22" font-size="8" fill="#7d3ca3" font-family="monospace">self-distill</text>
+            <!-- AIME climbing line -->
+            <polyline fill="none" stroke="#0f6cbd" stroke-width="2" points="34,108 90,92 150,78 190,86 240,68 300,54 320,60 380,42 450,32"/>
+            <!-- LCB line -->
+            <polyline fill="none" stroke="#1f7a4d" stroke-width="2" points="34,116 90,104 150,96 190,100 240,84 300,72 320,76 380,60 450,50"/>
+            <text x="455" y="34" font-size="8" fill="#0f6cbd" font-family="monospace" text-anchor="end">AIME 2025</text>
+            <text x="455" y="62" font-size="8" fill="#1f7a4d" font-family="monospace" text-anchor="end">LiveCodeBench v6</text>
+            <text x="240" y="138" font-size="8.5" fill="#697485" font-family="monospace" text-anchor="middle">RL climb steps →</text>
+          </svg>
+          <p class="src" style="margin-top:4px;">Illustrative of the reported shape; not published pixel values.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="t-agentic" class="tabpane">
+      <div class="card pad">
+        <div class="card-title">Agentic climb <span class="k">— interaction with external environments</span></div>
+        <p style="font-size:13.5px;color:var(--ink-2);margin-top:5px;">Trains tasks that require interaction with external environments via a ReAct-style loop.</p>
+        <div class="react">
+          <div class="rnode">Policy emits <b>tool call</b></div><div class="rarr">→</div>
+          <div class="rnode"><b>SEE</b> executes tools / environments</div><div class="rarr">→</div>
+          <div class="rnode">Observation <b>appended</b> to context</div><div class="rarr">→</div>
+          <div class="rnode">Model <b>continues</b></div>
+          <div class="rloop">↺ loop until done</div>
+        </div>
+        <div class="grid g3" style="margin-top:14px;">
+          <div class="stat"><div class="v" style="font-size:15px;">bash + str-replace</div><div class="l">SWE tools</div></div>
+          <div class="stat"><div class="v" style="font-size:15px;">bash only</div><div class="l">Terminal-Bench 2.0</div></div>
+          <div class="stat"><div class="v" style="font-size:15px;">8M+ RLE</div><div class="l">environments <span class="pill warn" style="margin-left:4px;">model-card claim</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="t-safety" class="tabpane">
+      <div class="card pad">
+        <div class="card-title">Helpfulness &amp; Safety climb</div>
+        <p style="font-size:13.5px;color:var(--ink-2);margin-top:5px;">Optimizes general helpfulness judged by human/AI feedback together with safety compliance — using a reward model based on a <b>post-trained MAI-Base-1</b>, plus a style guide and target-behavior descriptions.</p>
+        <div class="note muted" style="margin-top:12px;">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg></span>
+          <div>Both <b>unsafe compliance</b> and <b>unnecessary refusal</b> are treated as defects within the <b>same reward construction</b> — safety and helpfulness are optimized jointly, not as a bolt-on filter.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- self-distillation + consolidation -->
+  <h3 class="subhead" style="margin-top:26px;"><span class="num">▸</span>Self-distillation (Trace Distillation SFT)</h3>
+  <div class="grid g3" style="margin-top:12px;">
+    <div class="card pad sd"><div class="sd-k">Checkpoint rescue</div><p>Recover and stabilize a struggling climb from successful traces.</p></div>
+    <div class="card pad sd"><div class="sd-k">Format migration</div><p>Move behavior onto a new output / interaction format.</p></div>
+    <div class="card pad sd"><div class="sd-k">Base-policy upgrade</div><p>Re-seed RL from a stronger consolidated base policy.</p></div>
+  </div>
+  <div class="grid g2" style="margin-top:14px;align-items:start;">
+    <div class="card pad">
+      <div class="card-title">Findings</div>
+      <ul class="clean" style="margin-top:6px;">
+        <li><b>O(1M) reasoning traces</b> suffice to match teacher performance while retaining SFT stability.</li>
+        <li><b>Successful traces only</b> in the final approach.</li>
+        <li>Later-stage traces matter; <b>early traces degrade</b> performance — even final-checkpoint traces are weaker than diverse strong-checkpoint traces.</li>
+        <li><b>Prompt diversity beats</b> more traces per prompt at a fixed token budget.</li>
+        <li>Mix mid-training data with reasoning traces to <b>avoid forgetting long-context</b> behavior.</li>
+      </ul>
+    </div>
+    <div class="card pad">
+      <div class="card-title">SFT hyperparameters</div>
+      <dl class="kv" style="margin-top:8px;">
+        <dt>Packing</dt><dd>packed sequences</dd>
+        <dt>Global batch</dt><dd>2048</dd>
+        <dt>Sequence length</dt><dd>128K</dd>
+        <dt>Optimizer</dt><dd>AdamW · wd 0.001</dd>
+        <dt>LR schedule</dt><dd>cosine</dd>
+        <dt>Max / min LR</dt><dd>1.7e-5 / 5.2e-6</dd>
+        <dt>Warmup ratio</dt><dd>2%</dd>
+      </dl>
+      <div class="note info" style="margin-top:12px;">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+        <div><b>Consolidation:</b> the three specialist teachers are distilled into one model by simple SFT; a final lightweight RL climb yields <b>MAI-Thinking-1</b>.</div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- ============ 11 · ROCKET RL INFRASTRUCTURE ============ -->
+<section id="rocket">
+  <div class="sec-head"><span class="sec-num">11</span><h2>Rocket RL infrastructure</h2></div>
+  <p class="sec-lead"><b>Rocket</b> is the asynchronous RL system that pairs the <b>YOLO learner</b> with an <b>SGLang inference engine</b>. Rollout workers generate long trajectories while training workers update the policy; a transfer plan reshards weights between the two sides.</p>
+
+  <!-- diagram -->
+  <div class="rocket">
+    <div class="rk-panel learner">
+      <div class="rk-h">YOLO learner</div>
+      <div class="rk-sub">training workers</div>
+      <ul class="clean"><li>Policy-gradient updates (GRPO)</li><li>Dropless MoE training</li><li>BF16 learner</li></ul>
+    </div>
+    <div class="rk-mid">
+      <div class="rk-flow down">weight transfer ↓<span>reshard learner → inference shards</span></div>
+      <div class="rk-flow up">rollouts ↑<span>trajectories + rewards</span></div>
+    </div>
+    <div class="rk-panel infer">
+      <div class="rk-h">SGLang inference engine</div>
+      <div class="rk-sub">rollout workers · thousands of inference GPUs</div>
+      <ul class="clean"><li>Long-rollout generation</li><li>BF16 inference engine</li><li>MoE routing replay · top-p mask replay</li></ul>
+    </div>
+  </div>
+
+  <div class="grid g2" style="margin-top:18px;align-items:start;">
+    <div class="card pad">
+      <div class="card-title">Key mechanisms</div>
+      <ul class="clean" style="margin-top:6px;">
+        <li><b>BF16 on both sides</b> — learner and inference engine use BF16 to reduce numerical mismatch.</li>
+        <li><b>MoE routing replay</b> and <b>top-p mask replay</b> keep rollouts on-policy.</li>
+        <li><b>Transfer plan</b> handles resharding between learner and inference shards.</li>
+        <li>Example: a <b>36-server fleet split into four groups of 9-server transfers</b>.</li>
+      </ul>
+    </div>
+    <div class="card pad" style="background:var(--accent-wash);border-color:#cfe2f6;">
+      <div class="card-title">Why it matters</div>
+      <ul class="clean" style="margin-top:6px;">
+        <li>Thousands of inference GPUs and <b>long rollouts</b> demand careful scheduling.</li>
+        <li><b>Stale-policy control</b> bounds how far rollouts drift from the learner.</li>
+        <li><b>KV-cache memory</b> is the dominant bottleneck.</li>
+        <li>Lower-precision alternatives increased numerics gaps; <b>BF16 stabilized RL</b>.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+<!-- ============ 12 · EVALUATION RESULTS ============ -->
+<section id="eval">
+  <div class="sec-head"><span class="sec-num">12</span><h2>Evaluation results</h2></div>
+  <p class="sec-lead">All values below are <b>Microsoft / source-reported and not independently verified</b>. MAI-Thinking-1 results average <b>across 4 runs</b> with uniform inference settings (temperature 1, top-p 0.97 unless otherwise stated).</p>
+
+  <div class="note warn" style="margin-bottom:20px;">
+    <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
+    <div>No Artificial Analysis record for MAI-Thinking-1 existed at the time of writing (the index listed Microsoft Phi-family models but no exact MAI-Thinking-1 entry). These are <b>self-reported</b> figures.</div>
+  </div>
+
+  <h3 class="subhead"><span class="num">▸</span>Reasoning &amp; coding — Table 11</h3>
+  <div class="card pad" style="margin-top:12px;">
+    <div class="bar-row"><span class="bl">AIME 2025</span><span class="bar-track"><span class="bar-fill" style="width:97%;"></span></span><span class="bv">97.0</span></div>
+    <div class="bar-row"><span class="bl">AIME 2026</span><span class="bar-track"><span class="bar-fill" style="width:94.5%;"></span></span><span class="bv">94.5</span></div>
+    <div class="bar-row"><span class="bl">LiveCodeBench v6</span><span class="bar-track"><span class="bar-fill" style="width:87.7%;"></span></span><span class="bv">87.7</span></div>
+    <div class="bar-row"><span class="bl">HMMT Feb 2026</span><span class="bar-track"><span class="bar-fill" style="width:84.9%;"></span></span><span class="bv">84.9</span></div>
+    <div class="bar-row"><span class="bl">GPQA Diamond</span><span class="bar-track"><span class="bar-fill" style="width:84.2%;"></span></span><span class="bv">84.2</span></div>
+    <div class="bar-row"><span class="bl">SWE-Bench Verified</span><span class="bar-track"><span class="bar-fill" style="width:73.5%;background:#1f7a4d;"></span></span><span class="bv">73.5</span></div>
+    <div class="bar-row"><span class="bl">SWE-Bench Pro</span><span class="bar-track"><span class="bar-fill" style="width:52.8%;background:#1f7a4d;"></span></span><span class="bv">52.8</span></div>
+    <div class="bar-row"><span class="bl">Terminal-Bench 2.0</span><span class="bar-track"><span class="bar-fill" style="width:46%;background:#1f7a4d;"></span></span><span class="bv">46.0</span></div>
+    <div class="legend"><span><i style="background:var(--accent);"></i>math / science / code reasoning</span><span><i style="background:#1f7a4d;"></i>agentic SWE / terminal</span></div>
+  </div>
+  <div class="card pad" style="margin-top:14px;">
+    <div class="card-title">Comparison set <span class="k">— Table 11, source-reported per other labs</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+      <span class="chip">Sonnet 4.6</span><span class="chip">Opus 4.6</span><span class="chip">GPT 5.4</span><span class="chip">Kimi K2.6</span><span class="chip">DeepSeek V3.2</span><span class="chip">DeepSeek V4</span><span class="chip">GLM-5.1</span>
+    </div>
+    <p class="src" style="margin-top:10px;">Competitor per-benchmark scores are drawn from each lab's model-card / release-announcement numbers; they are not reproduced here to avoid transcription error. STEM &amp; agentic-coding comparisons in Table 11 use those release numbers.</p>
+  </div>
+
+  <h3 class="subhead" style="margin-top:26px;"><span class="num">▸</span>Broader capabilities — Table 12</h3>
+  <div class="grid g2" style="margin-top:12px;align-items:start;">
+    <div class="card pad">
+      <div class="bar-row"><span class="bl">LongFact</span><span class="bar-track"><span class="bar-fill" style="width:98%;"></span></span><span class="bv">98</span></div>
+      <div class="bar-row"><span class="bl">GraphWalks ≤128K</span><span class="bar-track"><span class="bar-fill" style="width:90%;"></span></span><span class="bv">90</span></div>
+      <div class="bar-row"><span class="bl">AIR-Bench</span><span class="bar-track"><span class="bar-fill" style="width:88%;"></span></span><span class="bv">88</span></div>
+      <div class="bar-row"><span class="bl">TruthfulQA</span><span class="bar-track"><span class="bar-fill" style="width:88%;"></span></span><span class="bv">88</span></div>
+      <div class="bar-row"><span class="bl">MMLU-Pro</span><span class="bar-track"><span class="bar-fill" style="width:85%;"></span></span><span class="bv">85</span></div>
+      <div class="bar-row"><span class="bl">Advanced IF</span><span class="bar-track"><span class="bar-fill" style="width:85%;"></span></span><span class="bv">85</span></div>
+      <div class="bar-row"><span class="bl">BFCL v3</span><span class="bar-track"><span class="bar-fill" style="width:72%;"></span></span><span class="bv">72</span></div>
+    </div>
+    <div class="card pad">
+      <div class="bar-row"><span class="bl">IFBench</span><span class="bar-track"><span class="bar-fill" style="width:69%;"></span></span><span class="bv">69</span></div>
+      <div class="bar-row"><span class="bl">CyberSec Instruct</span><span class="bar-track"><span class="bar-fill" style="width:63%;"></span></span><span class="bv">63</span></div>
+      <div class="bar-row"><span class="bl">CyberSec Auto</span><span class="bar-track"><span class="bar-fill" style="width:63%;"></span></span><span class="bv">63</span></div>
+      <div class="bar-row"><span class="bl">Multi-Challenge</span><span class="bar-track"><span class="bar-fill" style="width:53%;"></span></span><span class="bv">53</span></div>
+      <div class="bar-row"><span class="bl">MedXpert QA</span><span class="bar-track"><span class="bar-fill" style="width:43%;background:#9a5a12;"></span></span><span class="bv">43</span></div>
+      <div class="bar-row"><span class="bl">HealthBench Pro</span><span class="bar-track"><span class="bar-fill" style="width:35%;background:#9a5a12;"></span></span><span class="bv">35</span></div>
+      <div class="bar-row"><span class="bl">SimpleQA Verified</span><span class="bar-track"><span class="bar-fill" style="width:31%;background:#9a5a12;"></span></span><span class="bv">31</span></div>
+    </div>
+  </div>
+
+  <!-- eval settings -->
+  <div class="card pad" style="margin-top:16px;">
+    <div class="card-title">Evaluation settings</div>
+    <div class="grid g2" style="margin-top:8px;">
+      <ul class="clean">
+        <li>Results average <b>across 4 runs</b>.</li>
+        <li>Uniform inference: <b>temperature 1, top-p 0.97</b> unless otherwise stated.</li>
+        <li>Agentic coding uses <b>256K total context</b>.</li>
+      </ul>
+      <ul class="clean">
+        <li>Other Table 11 evals use <b>max output tokens 256K</b>.</li>
+        <li>Terminal-Bench 2.0 predefined timeouts <b>ignored</b> to remove the inference-speed confound.</li>
+        <li>Table 11 STEM / agentic compares vs other labs' release numbers.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- base model BPB -->
+  <h3 class="subhead" style="margin-top:26px;"><span class="num">▸</span>Base-model evaluation — Figure 10 (bits-per-byte, lower is better)</h3>
+  <div class="grid g2" style="margin-top:12px;align-items:start;">
+    <div class="card pad">
+      <div class="card-title">Held-out NLL tasks</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+        <span class="chip">Code</span><span class="chip">QA</span><span class="chip">STEM</span><span class="chip">Math</span>
+      </div>
+      <p style="font-size:13px;color:var(--ink-2);margin-top:12px;">MAI-Base-1 is compared by <b>bits-per-byte (BPB)</b> across these four held-out task families. It shows an advantage over models with <b>similar active-parameter counts across all four tasks</b>.</p>
+      <div class="note muted" style="margin-top:12px;">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+        <div>These BPB comparisons are <b>internal held-out tasks</b>, not public benchmark leaderboards. Exact BPB values are not reproduced here.</div>
+      </div>
+    </div>
+    <div class="card pad">
+      <div class="card-title">Compared against</div>
+      <ul class="clean" style="margin-top:6px;">
+        <li>Gemma4-31B</li>
+        <li>DeepSeek-V3.2-Exp-Base</li>
+        <li>MAI L66 (prior run)</li>
+        <li>Kimi-K2-Base</li>
+        <li>DeepSeek-V4-Pro</li>
+      </ul>
+      <div class="note info" style="margin-top:12px;">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+        <div><b>DeepSeek-V4-Pro</b> had the best BPB results — but with <b>1.4× active</b> and <b>1.6× total</b> parameters relative to MAI-Base-1.</div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- ============ 13 · HUMAN PREFERENCE & SAFETY ============ -->
+<section id="human">
+  <div class="sec-head"><span class="sec-num">13</span><h2>Human preference &amp; safety</h2></div>
+  <p class="sec-lead">Side-by-side human evaluation across <b>1,276 English tasks</b> (30% multi-turn), rated on a 7-point Likert preference scale from −1.5 to +1.5. Prompts come from expert-authored tasks and filtered Microsoft consumer Copilot logs; raters were managed by Surge AI.</p>
+
+  <div class="grid g2" style="align-items:start;">
+    <!-- Table 14 head-to-head -->
+    <div class="card pad">
+      <div class="card-title">Overall preference — Table 14</div>
+      <div class="vs-row"><span class="vs-name">vs Sonnet 4.6</span><span class="vs-val pos">+0.07 ±0.06</span></div>
+      <div class="wtl"><span class="w" style="width:49%;">win 49%</span><span class="t" style="width:6%;"></span><span class="l" style="width:45%;">lose 45%</span></div>
+      <div class="vs-row" style="margin-top:14px;"><span class="vs-name">vs Opus 4.6</span><span class="vs-val neg">−0.07 ±0.06</span></div>
+      <div class="wtl"><span class="w" style="width:43%;">win 43%</span><span class="t" style="width:5%;"></span><span class="l" style="width:52%;">lose 52%</span></div>
+      <div class="legend"><span><i style="background:#1f7a4d;"></i>win</span><span><i style="background:var(--canvas-2);"></i>tie</span><span><i style="background:#b07a3a;"></i>lose</span></div>
+    </div>
+    <div class="card pad">
+      <div class="card-title">Per-axis signal</div>
+      <ul class="clean" style="margin-top:6px;">
+        <li><b>Conciseness / relevance</b> — positive vs both models.</li>
+        <li><b>Style / tone</b> — positive vs both models.</li>
+        <li><b>Instruction-following, factuality, completeness</b> — roughly within noise.</li>
+      </ul>
+      <p class="src" style="margin-top:10px;">Essentially a statistical tie with Sonnet 4.6 and a slight deficit to Opus 4.6 overall, with measured advantages in concision and tone.</p>
+    </div>
+  </div>
+
+  <!-- Table 13 task distribution -->
+  <h3 class="subhead" style="margin-top:24px;"><span class="num">▸</span>Task distribution — Table 13</h3>
+  <div class="card pad" style="margin-top:12px;">
+    <div class="grid g2">
+      <div>
+        <div class="bar-row"><span class="bl">Open QA</span><span class="bar-track"><span class="bar-fill" style="width:96%;"></span></span><span class="bv">13–14%</span></div>
+        <div class="bar-row"><span class="bl">Brainstorming / advising</span><span class="bar-track"><span class="bar-fill" style="width:96%;"></span></span><span class="bv">13–14%</span></div>
+        <div class="bar-row"><span class="bl">Content authoring</span><span class="bar-track"><span class="bar-fill" style="width:96%;"></span></span><span class="bv">13–14%</span></div>
+        <div class="bar-row"><span class="bl">Structured problem solving</span><span class="bar-track"><span class="bar-fill" style="width:48%;"></span></span><span class="bv">6–7%</span></div>
+        <div class="bar-row"><span class="bl">Information extraction</span><span class="bar-track"><span class="bar-fill" style="width:48%;"></span></span><span class="bv">6–7%</span></div>
+        <div class="bar-row"><span class="bl">Academic help</span><span class="bar-track"><span class="bar-fill" style="width:48%;"></span></span><span class="bv">6–7%</span></div>
+        <div class="bar-row"><span class="bl">Insight generation</span><span class="bar-track"><span class="bar-fill" style="width:48%;"></span></span><span class="bv">6–7%</span></div>
+      </div>
+      <div>
+        <div class="bar-row"><span class="bl">Content summarization</span><span class="bar-track"><span class="bar-fill" style="width:48%;"></span></span><span class="bv">6–7%</span></div>
+        <div class="bar-row"><span class="bl">Task planning</span><span class="bar-track"><span class="bar-fill" style="width:36%;"></span></span><span class="bv">5%</span></div>
+        <div class="bar-row"><span class="bl">Context-based QA</span><span class="bar-track"><span class="bar-fill" style="width:36%;"></span></span><span class="bv">5%</span></div>
+        <div class="bar-row"><span class="bl">Other text analysis</span><span class="bar-track"><span class="bar-fill" style="width:36%;"></span></span><span class="bv">5%</span></div>
+        <div class="bar-row"><span class="bl">Personal support</span><span class="bar-track"><span class="bar-fill" style="width:26%;"></span></span><span class="bv">3–4%</span></div>
+        <div class="bar-row"><span class="bl">Entertainment</span><span class="bar-track"><span class="bar-fill" style="width:26%;"></span></span><span class="bv">3–4%</span></div>
+        <div class="bar-row"><span class="bl">Chit-chat</span><span class="bar-track"><span class="bar-fill" style="width:26%;"></span></span><span class="bv">3–4%</span></div>
+        <div class="bar-row"><span class="bl">Role-play</span><span class="bar-track"><span class="bar-fill" style="width:26%;"></span></span><span class="bv">3–4%</span></div>
+      </div>
+    </div>
+    <p class="src" style="margin-top:6px;">Bar lengths grouped by tier; precise per-task percentages within a tier are not individually broken out in the source.</p>
+  </div>
+
+  <!-- Safety -->
+  <h3 class="subhead" style="margin-top:26px;"><span class="num">▸</span>Safety &amp; responsible deployment</h3>
+  <div class="card pad" style="margin-top:12px;background:var(--canvas);">
+    <div class="card-title">"Humanist Superintelligence" framing</div>
+    <div class="grid g3" style="margin-top:10px;">
+      <div class="stat" style="background:var(--paper);"><div class="v" style="font-size:14px;">Two-sided defects</div><div class="l">Unsafe compliance <b>and</b> unnecessary refusal are both defects.</div></div>
+      <div class="stat" style="background:var(--paper);"><div class="v" style="font-size:14px;">Same infra</div><div class="l">Safety trained with the same RL infrastructure as capability.</div></div>
+      <div class="stat" style="background:var(--paper);"><div class="v" style="font-size:14px;">Same loop</div><div class="l">Safety rewards are part of the same hill-climbing loop.</div></div>
+    </div>
+  </div>
+  <div class="card pad" style="margin-top:14px;">
+    <div class="card-title">Safety evaluation categories <span class="k">— Table 8 / safety sections</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+      <span class="chip">harmful prompts</span><span class="chip">borderline prompts</span><span class="chip">over-refusal on low-risk prompts</span>
+      <span class="chip">internal red teaming</span><span class="chip">independent red teaming</span><span class="chip">safety by harm category</span>
+    </div>
+    <p class="src" style="margin-top:10px;">Per-category safety scores are reported in the source's safety tables; reproduced here only as categories to avoid transcribing un-verified values.</p>
+  </div>
+</section>
+<!-- ============ 14 · AVAILABILITY & CAVEATS ============ -->
+<section id="availability">
+  <div class="sec-head"><span class="sec-num">14</span><h2>Availability, caveats &amp; source conflicts</h2></div>
+  <p class="sec-lead">MAI-Thinking-1 is a <b>closed, proprietary model</b>. The technical report and model card document its design in unusual detail, but no artifacts are released for independent reproduction.</p>
+
+  <div class="grid g2" style="align-items:start;">
+    <!-- not released -->
+    <div class="card pad" style="border-color:#ecc7c3;background:var(--danger-wash);">
+      <div class="card-title" style="color:#7e2620;">What is <u>not</u> released</div>
+      <ul class="closed-list" style="margin-top:8px;">
+        <li>Not open source</li>
+        <li>No public weights</li>
+        <li>No public training code</li>
+        <li>No public full dataset</li>
+        <li>No official full model config file beyond the report's tables</li>
+      </ul>
+    </div>
+    <!-- availability -->
+    <div class="card pad">
+      <div class="card-title">Availability</div>
+      <ul class="clean" style="margin-top:6px;">
+        <li><b>Microsoft Foundry private preview</b> (model card: Azure Foundry + early-access form).</li>
+        <li>Public preview on <b>MAI Playground "soon"</b> per the Microsoft announcement.</li>
+        <li>Compatible with the <b>Chat Completions API</b>.</li>
+        <li><b>Function calling</b> and developer instructions supported.</li>
+        <li>Distribution later through <b>Microsoft Foundry</b>.</li>
+      </ul>
+      <div class="note muted" style="margin-top:12px;">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg></span>
+        <div>Secondary coverage mentions future availability on <b>Fireworks AI, Baseten, and OpenRouter</b> — treated as secondary context, not confirmed by the Microsoft primary sources read here.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- conflicts & unknowns -->
+  <h3 class="subhead" style="margin-top:24px;"><span class="num">▸</span>Source conflicts &amp; unknowns</h3>
+  <div class="conflict" style="margin-top:12px;">
+    <div class="conflict-head">
+      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
+      <div><b>Read this page with these caveats in mind</b></div>
+    </div>
+    <div class="grid g2" style="margin-top:14px;">
+      <ul class="clean">
+        <li><b>Knowledge cutoff disagrees:</b> model card July 2025 vs report Table 4 per-source (Jun 2025 → Mar 2026). Likely differing definitions — shown side by side, not resolved.</li>
+        <li><b>No Artificial Analysis record</b> for MAI-Thinking-1 at time of writing; all benchmark numbers are self-reported.</li>
+        <li><b>Benchmark values</b> are Microsoft/source-reported and not independently verified.</li>
+      </ul>
+      <ul class="clean">
+        <li><b>Output formats &amp; supported languages</b> — <span class="pill gray">not reported</span> in the model card.</li>
+        <li><b>Per-layer config file</b> — the report gives a block diagram and tables, not a serialized config.</li>
+        <li><b>Illustrative figures:</b> the loss and STEM-climb curves mirror reported shapes, not published pixel values; exact BPB and per-category safety values are not reproduced.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 15 · SOURCES ============ -->
+<section id="sources">
+  <div class="sec-head"><span class="sec-num">15</span><h2>Sources</h2></div>
+  <p class="sec-lead">Primary sources are the Microsoft technical report, model page, announcement and model card. Axios and Windows Central are used only as contextual sources on strategic positioning, availability, and Microsoft's in-house model push.</p>
+
+  <h3 class="subhead"><span class="num">▸</span>Primary — Microsoft AI</h3>
+  <div class="srclist">
+    <a class="srcitem" href="https://microsoft.ai/wp-content/uploads/2026/06/main_20260602_2.pdf" target="_blank" rel="noopener"><span class="pill blue">report</span><span class="st">MAI-Thinking-1: Building a Hill-Climbing Machine</span><span class="su">microsoft.ai/…/main_20260602_2.pdf</span></a>
+    <a class="srcitem" href="https://microsoft.ai/models/mai-thinking-1/" target="_blank" rel="noopener"><span class="pill blue">model page</span><span class="st">Microsoft AI — MAI-Thinking-1</span><span class="su">microsoft.ai/models/mai-thinking-1/</span></a>
+    <a class="srcitem" href="https://microsoft.ai/news/introducing-mai-thinking-1/" target="_blank" rel="noopener"><span class="pill blue">announcement</span><span class="st">Introducing MAI-Thinking-1</span><span class="su">microsoft.ai/news/introducing-mai-thinking-1/</span></a>
+    <a class="srcitem" href="https://microsoft.ai/pdf/MAI-Thinking-1-Model-Card.PDF" target="_blank" rel="noopener"><span class="pill blue">model card</span><span class="st">MAI-Thinking-1 Model Card (PDF)</span><span class="su">microsoft.ai/pdf/MAI-Thinking-1-Model-Card.PDF</span></a>
+    <a class="srcitem" href="https://microsoft.ai/?post_type=new" target="_blank" rel="noopener"><span class="pill blue">context</span><span class="st">MAI models / Build context page</span><span class="su">microsoft.ai/?post_type=new</span></a>
+  </div>
+
+  <h3 class="subhead" style="margin-top:20px;"><span class="num">▸</span>Contextual</h3>
+  <div class="srclist">
+    <a class="srcitem" href="https://www.axios.com/2026/06/02/microsoft-debuts-scout-agent-homegrown-reasoning-model" target="_blank" rel="noopener"><span class="pill gray">context</span><span class="st">Axios — Microsoft debuts Scout agent &amp; homegrown reasoning model</span><span class="su">axios.com/2026/06/02/…</span></a>
+    <a class="srcitem" href="https://www.windowscentral.com/software-apps/microsoft-launches-seven-in-house-ai-models-to-cut-developer-costs-and-reduce-reliance-on-openai" target="_blank" rel="noopener"><span class="pill gray">context</span><span class="st">Windows Central — Microsoft launches seven in-house AI models</span><span class="su">windowscentral.com/software-apps/…</span></a>
+  </div>
+
+  <div class="note muted" style="margin-top:20px;">
+    <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg></span>
+    <div><b>Source-confidence rules.</b> Microsoft report, model page, announcement and model card are treated as primary. Axios and Windows Central are contextual only. Where sources disagree, the disagreement is shown as a caveat rather than silently resolved. Unavailable facts are marked "not reported"; no implementation details were invented.</div>
+  </div>
+
+  <div style="margin-top:28px;padding-top:18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <span class="src">Closed technical-report atlas entry · reconstructed from public Microsoft AI sources dated 2026-06-02.</span>
+    <span class="src">Not affiliated with or endorsed by Microsoft. All figures source-reported.</span>
+  </div>
+</section>
+<!-- @@SECTIONS@@ -->
+    </div>
+  </main>
+</div>
+<script>
+/* scrollspy */
+(function(){
+  var links=[].slice.call(document.querySelectorAll('#railNav a'));
+  var map={};
+  links.forEach(function(a){map[a.getAttribute('href').slice(1)]=a;});
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        links.forEach(function(l){l.classList.remove('active');});
+        var a=map[e.target.id];if(a)a.classList.add('active');
+      }
+    });
+  },{rootMargin:"-15% 0px -75% 0px",threshold:0});
+  document.querySelectorAll('main section').forEach(function(s){obs.observe(s);});
+})();
+/* tabs */
+function initTabs(root){
+  root.querySelectorAll('[data-tabs]').forEach(function(group){
+    var btns=group.querySelectorAll('.tabs button');
+    var panes=group.querySelectorAll('.tabpane');
+    btns.forEach(function(b,i){
+      b.addEventListener('click',function(){
+        btns.forEach(function(x){x.classList.remove('active');});
+        panes.forEach(function(x){x.classList.remove('active');});
+        b.classList.add('active');
+        var t=group.querySelector('#'+b.dataset.target);
+        if(t)t.classList.add('active');
+      });
+    });
+  });
+}
+initTabs(document);
+/* expert routing grid: 512 cells, 8 highlighted */
+(function(){
+  var g=document.getElementById('expertGrid');
+  if(!g)return;
+  var active={};
+  while(Object.keys(active).length<8){active[Math.floor(Math.random()*512)]=1;}
+  for(var i=0;i<512;i++){
+    var c=document.createElement('span');
+    c.style.cssText='aspect-ratio:1;border-radius:1.5px;background:'+(active[i]?'#7d3ca3':'#e7ddee')+';';
+    if(active[i])c.style.boxShadow='0 0 0 1px #5a2a7a';
+    g.appendChild(c);
+  }
+})();
+</script>
+</body>
+</html>

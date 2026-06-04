@@ -39,7 +39,10 @@ models/nemotron-3-nano/index.html
 2. Move the downloaded HTML file to `models/<model-slug>/index.html`.
 3. Copy any referenced assets beside it, preserving relative paths such as `kaizen/` or `styles.css`.
 4. Add a visible back link from the model page to the atlas home. For pages under `models/<model-slug>/`, the link should point to `../../index.html` and use clear text such as `Atlas home`.
-5. Always make a corresponding change to the root `index.html`: add one `ATLAS_PAGES` entry with the model page `href`, so homepage linkage is preserved for every new model file.
+5. Always make a corresponding change to the root `index.html` before committing or pushing:
+   - For a new model page, add one `ATLAS_PAGES` entry with the model page `href`.
+   - For a replacement Claude Design/model page, update the existing `ATLAS_PAGES` entry so the title, model name, tags, note, release date, size, context, dataset, AA fields, and visual labels match the newly imported page/source.
+   - Do this automatically whenever a Claude Design handoff or model HTML page is added, replaced, committed, or pushed, so homepage linkage and card metadata never drift from the downloaded page.
 6. Check whether Artificial Analysis has a matching public score for the new atlas entry:
    - Use the free API docs at `https://artificialanalysis.ai/api-reference#free-api`.
    - Load the API key from `.env` as `AA_INDEX_API`; never print, commit, or expose the key.
